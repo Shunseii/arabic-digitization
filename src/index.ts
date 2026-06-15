@@ -6,6 +6,7 @@ import { BookList } from "./endpoints/bookList";
 import { FileOcr } from "./endpoints/fileOcr";
 import { FileUpload } from "./endpoints/fileUpload";
 import { requireMasterKey } from "./middleware/auth";
+import { handleOcrQueue, type OcrMessage } from "./queue";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -25,4 +26,8 @@ openapi.get("/api/books/:bookId", BookFetch);
 openapi.post("/api/books/:bookId/files", FileUpload);
 openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
 
-export default app;
+// HTTP via Hono; queue consumer transcribes uploaded files.
+export default {
+  fetch: app.fetch,
+  queue: handleOcrQueue,
+} satisfies ExportedHandler<Env, OcrMessage>;

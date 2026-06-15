@@ -25,7 +25,13 @@
       "binding": "BUCKET",
       "bucket_name": "arabic-digitization"
     }
-  ]
+  ],
+  "queues": {
+    "producers": [{ "binding": "OCR_Q", "queue": "arabic-ocr" }],
+    "consumers": [
+      { "queue": "arabic-ocr", "max_batch_size": 5, "max_retries": 3 }
+    ]
+  }
   /**
    * Smart Placement
    * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

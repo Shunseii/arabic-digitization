@@ -86,10 +86,13 @@ export class FileUpload extends OpenAPIRoute {
     const pageNumber = query.page ?? null;
     await c.env.DB.prepare(
       `INSERT INTO files (file_id, book_id, r2_key, state, page_number, created_at, updated_at)
-			 VALUES (?, ?, ?, 'captured', ?, ?, ?)`,
+			 VALUES (?, ?, ?, 'queued', ?, ?, ?)`,
     )
       .bind(fileId, params.bookId, r2Key, pageNumber, now, now)
       .run();
+
+    // Trigger OCR off the request path.
+    await c.env.OCR_Q.send({ fileId });
 
     return c.json(
       {
@@ -98,7 +101,7 @@ export class FileUpload extends OpenAPIRoute {
           file_id: fileId,
           book_id: params.bookId,
           r2_key: r2Key,
-          state: "captured",
+          state: "queued",
           text_key: null,
           page_number: pageNumber,
           role: null,
