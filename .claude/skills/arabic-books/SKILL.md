@@ -1,6 +1,6 @@
 ---
 name: arabic-books
-description: Manage books and read status on the Arabic digitization API (the deployed Cloudflare Worker). Create books, list them with per-state counts, inspect a single book, poll per-file OCR status, and re-run OCR on failed files. Manually invoked — use for "/arabic-books", "create a book for <title>", "list my books", "what's the OCR status of <book>", "re-run OCR on the failed pages of <book>". Does NOT upload scans and does NOT pull/reformat transcriptions — uploading is done out of band, and pulling finished text into Obsidian is the separate arabic-ocr skill.
+description: Manage books and read status on the Arabic digitization API (the deployed Cloudflare Worker). Create books, list them with per-state counts, inspect a single book, delete a book (and all its files), poll per-file OCR status, and re-run OCR on failed files. Manually invoked — use for "/arabic-books", "create a book for <title>", "list my books", "delete <book>", "what's the OCR status of <book>", "re-run OCR on the failed pages of <book>". Does NOT upload scans and does NOT pull/reformat transcriptions — uploading is done out of band, and pulling finished text into Obsidian is the separate arabic-ocr skill.
 ---
 
 # Arabic Books — manage + monitor the digitization pipeline
@@ -27,6 +27,7 @@ Inlined for self-sufficiency. **Full, always-current reference** (use if anythin
 | POST   | `/api/books`                           | Create a book. Body `{ "title": string, "id"?: slug }` (id auto-generated if omitted). → `201 { success, book }`, `409` if id exists.  |
 | GET    | `/api/books`                           | List books → `{ books: [ { id, title, created_at, files_total, counts: {state: n} } ] }`.                                              |
 | GET    | `/api/books/:bookId`                   | One book + status summary → `{ book: { id, title, created_at, files_total, counts } }`. `404` if missing.                              |
+| DELETE | `/api/books/:bookId`                   | Delete a book + all its files (R2 scans + text, then rows) → `{ deleted: { book_id, files, r2_objects } }`. `404` if missing. **Irreversible.** |
 | GET    | `/api/books/:bookId/status`            | Per-file states (no text) → `{ files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at } ] }`. Poll this. |
 | POST   | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file, synchronous → `{ file_id, model, text, text_key, usage }`. Use for `failed` files.                             |
 
@@ -63,8 +64,16 @@ File state machine: `captured → queued → processing → done` (or `failed` a
 2. For each, `POST <URL>/api/books/:bookId/files/:fileId/ocr` (synchronous — returns when done).
 3. Report per file: now `done`, or still failing (with the error). Don't loop endlessly — one retry pass, then summarize what's still broken.
 
+**Delete a book**
+
+1. Match the user's named book to a `title`/`id` via `GET /api/books`; if ambiguous, list and ask.
+2. Confirm with the user — this wipes all the book's R2 scans, transcribed text, and rows. Irreversible.
+3. `DELETE <URL>/api/books/:bookId`.
+4. Report the returned counts: `files` rows and `r2_objects` removed.
+
 ## Notes
 
 - Read-only ops (list, fetch, status) are safe to run freely. Creating a book mutates state — confirm the title/id with the user first if it wasn't explicit.
+- Deleting a book is **irreversible** and removes its scans + text from R2. Always confirm the exact book id with the user before calling `DELETE`.
 - Re-running OCR costs a Gemini call per file; before re-running a large batch, confirm the count with the user.
 - To get the transcribed text into the vault, that's **arabic-ocr**, not this skill.

@@ -33,6 +33,12 @@ GET /api/books/:bookId
   200 -> { success, book: { id, title, created_at, files_total, counts } }
   404 if missing.
 
+DELETE /api/books/:bookId
+  Delete a book and everything under it: its R2 objects (scans + text) and
+  all its file rows, then the book row.
+  200 -> { success, deleted: { book_id, files, r2_objects } }
+  404 if missing.
+
 GET /api/books/:bookId/status
   Per-file states (no text). Poll this to watch progress.
   200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at } ] }

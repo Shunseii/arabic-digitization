@@ -2,6 +2,7 @@ import { fromHono } from "chanfana";
 import { Hono } from "hono";
 import { LLMS_TXT } from "./docs";
 import { BookCreate } from "./endpoints/bookCreate";
+import { BookDelete } from "./endpoints/bookDelete";
 import { BookExport } from "./endpoints/bookExport";
 import { BookFetch } from "./endpoints/bookFetch";
 import { BookList } from "./endpoints/bookList";
@@ -30,6 +31,7 @@ const openapi = fromHono(app, {
 openapi.post("/api/books", BookCreate);
 openapi.get("/api/books", BookList);
 openapi.get("/api/books/:bookId", BookFetch);
+openapi.delete("/api/books/:bookId", BookDelete);
 openapi.get("/api/books/:bookId/status", BookStatus);
 openapi.get("/api/books/:bookId/export", BookExport);
 
