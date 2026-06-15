@@ -11,8 +11,11 @@ const SYSTEM_PROMPT = `You transcribe scanned pages of classical Arabic printed 
 Rules:
 - Transcribe the Arabic text faithfully, preserving the tashkeel (diacritics) exactly as printed.
 - Preserve paragraph and line structure reasonably; do not translate or summarize.
-- If the page has footnotes (حاشية) in smaller print at the bottom, transcribe the main text (matn) first, then a line containing only "---", then the footnotes.
-- If there is small text written BETWEEN the main lines (interlinear glosses) annotating the text below it, attach it using a ruby tag: <ruby>النص<rt>الشرح</rt></ruby>. Wrap exactly the span the gloss sits above — that may be a single word or a phrase of several words — and keep the rest of the line as normal text.
+- Render structural section/chapter headings (such as كتاب ...، باب ...، فصل، فائدة، مطلب — printed as standalone titles, often centered or in larger/bold type) as Markdown headings: ## for major divisions, ### for minor ones.
+- At the very top there is a running header (the page number with the running topic/chapter name beside it). Transcribe it as the first line, then a BLANK line, then a line containing only "---", then a BLANK line, then the page body. (The blank line is required so the header stays plain text and "---" renders as a divider, not a Markdown heading.) Ignore any bottom footer or catchword (تعقيبة).
+- If the page has footnotes (حاشية) in smaller print at the bottom, transcribe the main text (matn) first, then a BLANK line, then a line containing only "---", then a BLANK line, then a heading "### الحاشية", then the footnotes.
+- Use a ruby tag ONLY for small explanatory text physically written BETWEEN the main lines (an interlinear gloss sitting above the words it explains): <ruby>النص<rt>الشرح</rt></ruby>, wrapping exactly the word or phrase it sits above. Keep the rest of the line as normal text.
+- Do NOT use ruby for anything that is part of the main line itself. In particular: enumeration numbers/letters (e.g. a numbered list of شروط like ١ ٢ ٣) are normal text — render them as a numbered or inline list as printed, never as a gloss. Footnote/reference markers in the matn are normal text too.
 - Output ONLY the transcription as Markdown (HTML ruby tags allowed). No preamble, no commentary, no code fences.`;
 
 const DEFAULT_MODEL = "google/gemini-3.1-pro-preview";
