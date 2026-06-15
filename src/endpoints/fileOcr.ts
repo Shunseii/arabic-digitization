@@ -3,21 +3,15 @@ import { z } from "zod";
 import { transcribe } from "../ocr";
 import type { AppContext } from "../types";
 
-// Manual OCR trigger — runs transcription synchronously and returns the result,
-// so we can test/compare models interactively before wiring the queue.
+// Manual OCR trigger — runs transcription synchronously and returns the result.
+// Model is fixed (the default in ocr.ts); not overridable per request.
 // The queue consumer will call the same transcribe() function.
 export class FileOcr extends OpenAPIRoute {
   schema = {
     tags: ["Files"],
-    summary: "Run OCR on a file now (manual; for model testing)",
+    summary: "Run OCR on a file now (manual)",
     request: {
       params: z.object({ bookId: z.string(), fileId: z.string() }),
-      query: z.object({
-        model: z
-          .string()
-          .optional()
-          .describe("Model id override, e.g. claude-sonnet-4-6"),
-      }),
     },
     responses: {
       "200": {
@@ -41,14 +35,10 @@ export class FileOcr extends OpenAPIRoute {
   };
 
   async handle(c: AppContext) {
-    const { params, query } = await this.getValidatedData<typeof this.schema>();
+    const { params } = await this.getValidatedData<typeof this.schema>();
 
     try {
-      const result = await transcribe({
-        env: c.env,
-        fileId: params.fileId,
-        model: query.model,
-      });
+      const result = await transcribe({ env: c.env, fileId: params.fileId });
       return c.json({ success: true, ...result });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
