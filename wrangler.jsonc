@@ -25,14 +25,7 @@
       "binding": "BUCKET",
       "bucket_name": "arabic-digitization"
     }
-  ],
-  // Non-secret config. The CF API token is a secret (see .dev.vars / wrangler secret).
-  // Provider keys are NOT here — they're stored in Cloudflare (BYOK) and the
-  // gateway injects them. account_id is an identifier, not a credential.
-  "vars": {
-    "CF_ACCOUNT_ID": "9759ed7a233a1a22e2f01031de0f160a",
-    "CF_AIG_GATEWAY_ID": "arabic-digitalization"
-  }
+  ]
   /**
    * Smart Placement
    * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

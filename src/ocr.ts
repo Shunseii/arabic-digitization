@@ -1,10 +1,10 @@
 // OCR core. Single source of truth for transcription — the manual endpoint and
 // (later) the queue consumer both call transcribe().
 //
-// All providers go through one Cloudflare AI Gateway endpoint (the unified
-// /ai/run) with BYOK: provider keys live in Cloudflare (Secrets Store), so the
-// Worker holds only the CF API token. Model is "provider/model"; the per-provider
-// `input` body is still that provider's native shape (built below).
+// Gemini only, called directly against Google AI Studio with env.GOOGLE_API_KEY.
+// (The Cloudflare AI Gateway unified path was dropped: its BYOK wouldn't resolve
+// the AI Studio key. To re-introduce the gateway later, route this one fetch
+// through it.)
 
 const SYSTEM_PROMPT = `You transcribe scanned pages of classical Arabic printed books into clean Markdown.
 
@@ -18,14 +18,14 @@ Rules:
 - Do NOT use ruby for anything that is part of the main line itself. In particular: enumeration numbers/letters (e.g. a numbered list of شروط like ١ ٢ ٣) are normal text — render them as a numbered or inline list as printed, never as a gloss. Footnote/reference markers in the matn are normal text too.
 - Output ONLY the transcription as Markdown (HTML ruby tags allowed). No preamble, no commentary, no code fences.`;
 
-const DEFAULT_MODEL = "google/gemini-3.1-pro-preview";
+const MODEL = "gemini-3.1-pro-preview";
 const USER_PROMPT = "Transcribe this page.";
 const MAX_TOKENS = 16000;
 
 export interface TranscribeOpts {
   env: Env;
   fileId: string;
-  model?: string;
+  model?: string; // bare AI Studio model id; defaults to MODEL
 }
 
 export interface TranscribeResult {
@@ -42,59 +42,12 @@ interface FileRow {
   r2_key: string;
 }
 
-// Build the provider-native `input` body (sans model) including the image.
-type InputBuilder = (base64: string, mimeType: string) => unknown;
-
-const INPUT_BUILDERS: Record<string, InputBuilder> = {
-  anthropic: (base64, mimeType) => {
-    const source = { type: "base64", media_type: mimeType, data: base64 };
-    const fileBlock =
-      mimeType === "application/pdf"
-        ? { type: "document", source }
-        : { type: "image", source };
-    return {
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: [fileBlock, { type: "text", text: USER_PROMPT }],
-        },
-      ],
-    };
-  },
-  google: (base64, mimeType) => ({
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { inlineData: { mimeType, data: base64 } },
-          { text: USER_PROMPT },
-        ],
-      },
-    ],
-    // 3.1 Pro is thinking-mandatory (budget 0 is rejected); "low" is the floor.
-    generationConfig: {
-      maxOutputTokens: MAX_TOKENS,
-      thinkingConfig: { thinkingLevel: "low" },
-    },
-  }),
-};
-
 export async function transcribe({
   env,
   fileId,
   model,
 }: TranscribeOpts): Promise<TranscribeResult> {
-  const spec = model ?? DEFAULT_MODEL;
-  const provider = spec.split("/")[0] ?? "";
-  const buildInput = INPUT_BUILDERS[provider];
-  if (!buildInput) {
-    throw new Error(
-      `model must be "provider/model" with a known provider (${Object.keys(INPUT_BUILDERS).join(", ")}); got '${spec}'`,
-    );
-  }
+  const useModel = model ?? MODEL;
 
   const row = await env.DB.prepare(
     "SELECT file_id, book_id, r2_key FROM files WHERE file_id = ?",
@@ -109,17 +62,12 @@ export async function transcribe({
   const mimeType = obj.httpMetadata?.contentType ?? "image/jpeg";
   const base64 = toBase64(new Uint8Array(await obj.arrayBuffer()));
 
-  const input = buildInput(base64, mimeType);
-  // Google goes direct to AI Studio (the gateway's unified BYOK path doesn't
-  // resolve the AI Studio key yet); Anthropic goes through the gateway (BYOK).
-  const { text, usage } =
-    provider === "google"
-      ? await runGoogleDirect({
-          env,
-          modelId: spec.slice("google/".length),
-          input,
-        })
-      : await runGateway({ env, model: spec, input });
+  const { text, usage } = await runGemini({
+    env,
+    model: useModel,
+    mimeType,
+    base64,
+  });
 
   const textKey = `books/${row.book_id}/text/${fileId}.md`;
   await env.BUCKET.put(textKey, text, {
@@ -133,111 +81,63 @@ export async function transcribe({
     .bind(textKey, text.slice(0, 120), now, fileId)
     .run();
 
-  return { file_id: fileId, model: spec, text, text_key: textKey, usage };
+  return { file_id: fileId, model: useModel, text, text_key: textKey, usage };
 }
 
-// One call for every provider: the unified AI Gateway /ai/run endpoint.
-// Auth = CF API token; BYOK supplies the provider key server-side.
-async function runGateway({
+// Google AI Studio direct generateContent call (BYOK via env.GOOGLE_API_KEY).
+async function runGemini({
   env,
   model,
-  input,
+  mimeType,
+  base64,
 }: {
   env: Env;
   model: string;
-  input: unknown;
+  mimeType: string;
+  base64: string;
 }): Promise<{ text: string; usage: unknown }> {
-  const url = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-      "cf-aig-gateway-id": env.CF_AIG_GATEWAY_ID,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ model, input }),
-  });
-  if (!res.ok) {
-    throw new Error(`AI Gateway ${res.status}: ${await res.text()}`);
-  }
-  const data = await res.json();
-  return { text: extractText(data), usage: extractUsage(data) };
-}
-
-// Google AI Studio direct (BYOK via the gateway isn't resolving the AI Studio
-// key; this uses env.GOOGLE_API_KEY directly). modelId is the bare id, e.g.
-// "gemini-3.1-pro-preview". input is the native generateContent body.
-async function runGoogleDirect({
-  env,
-  modelId,
-  input,
-}: {
-  env: Env;
-  modelId: string;
-  input: unknown;
-}): Promise<{ text: string; usage: unknown }> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "x-goog-api-key": env.GOOGLE_API_KEY,
       "content-type": "application/json",
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType, data: base64 } },
+            { text: USER_PROMPT },
+          ],
+        },
+      ],
+      // gemini-3.1-pro is thinking-mandatory; "low" is the floor (≈0 on OCR).
+      generationConfig: {
+        maxOutputTokens: MAX_TOKENS,
+        thinkingConfig: { thinkingLevel: "low" },
+      },
+    }),
   });
   if (!res.ok) {
-    throw new Error(`Google AI Studio ${res.status}: ${await res.text()}`);
-  }
-  const data = await res.json();
-  return { text: extractText(data), usage: extractUsage(data) };
-}
-
-// Defensive response parsing — the unified endpoint may wrap the provider
-// response in `.result`, and the inner shape differs per provider. Handle the
-// common shapes; if none match we throw so failures are visible, not silent "".
-function extractText(payload: unknown): string {
-  const root = payload as { result?: unknown };
-  const data = (root?.result ?? payload) as Record<string, unknown>;
-
-  // Anthropic: { content: [{ type:"text", text }] }
-  const content = data.content as
-    | Array<{ type?: string; text?: string }>
-    | undefined;
-  if (Array.isArray(content)) {
-    const t = content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text ?? "")
-      .join("");
-    if (t) return t;
+    throw new Error(`Gemini ${res.status}: ${await res.text()}`);
   }
 
-  // Gemini: { candidates: [{ content: { parts: [{ text }] } }] }
-  const candidates = data.candidates as
-    | Array<{ content?: { parts?: Array<{ text?: string }> } }>
-    | undefined;
-  const geminiText = candidates?.[0]?.content?.parts
-    ?.map((p) => p.text ?? "")
+  const data = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    usageMetadata?: unknown;
+  };
+  const text = (data.candidates?.[0]?.content?.parts ?? [])
+    .map((p) => p.text ?? "")
     .join("");
-  if (geminiText) return geminiText;
-
-  // OpenAI-style: { choices: [{ message: { content } }] }
-  const choices = data.choices as
-    | Array<{ message?: { content?: string } }>
-    | undefined;
-  const openaiText = choices?.[0]?.message?.content;
-  if (openaiText) return openaiText;
-
-  if (typeof data.text === "string" && data.text) return data.text;
-
-  throw new Error(
-    `could not extract text from gateway response: ${JSON.stringify(payload).slice(0, 400)}`,
-  );
-}
-
-function extractUsage(payload: unknown): unknown {
-  const root = payload as { result?: Record<string, unknown> };
-  const data = root?.result ?? (payload as Record<string, unknown>);
-  return data?.usage ?? data?.usageMetadata ?? null;
+  if (!text) {
+    throw new Error(
+      `no text in Gemini response: ${JSON.stringify(data).slice(0, 400)}`,
+    );
+  }
+  return { text, usage: data.usageMetadata };
 }
 
 // Chunked base64 — avoids call-stack blowups on large images that a single
