@@ -1,9 +1,12 @@
 import { fromHono } from "chanfana";
 import { Hono } from "hono";
 import { BookCreate } from "./endpoints/bookCreate";
+import { BookExport } from "./endpoints/bookExport";
 import { BookFetch } from "./endpoints/bookFetch";
 import { BookList } from "./endpoints/bookList";
+import { BookStatus } from "./endpoints/bookStatus";
 import { FileOcr } from "./endpoints/fileOcr";
+import { FileText } from "./endpoints/fileText";
 import { FileUpload } from "./endpoints/fileUpload";
 import { requireMasterKey } from "./middleware/auth";
 import { handleOcrQueue, type OcrMessage } from "./queue";
@@ -21,10 +24,13 @@ const openapi = fromHono(app, {
 openapi.post("/api/books", BookCreate);
 openapi.get("/api/books", BookList);
 openapi.get("/api/books/:bookId", BookFetch);
+openapi.get("/api/books/:bookId/status", BookStatus);
+openapi.get("/api/books/:bookId/export", BookExport);
 
 // Files
 openapi.post("/api/books/:bookId/files", FileUpload);
 openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
+openapi.get("/api/books/:bookId/files/:fileId/text", FileText);
 
 // HTTP via Hono; queue consumer transcribes uploaded files.
 export default {

@@ -47,6 +47,28 @@ export const UPLOAD_CONTENT_TYPES = [
   "application/pdf",
 ] as const;
 
+// Per-file status row (no heavy text), for the status endpoint.
+export const FileStatus = z.object({
+  file_id: z.string(),
+  page_number: z.number().int().nullable(),
+  state: FileState,
+  role: z.string().nullable(),
+  order_hint: z.number().int().nullable(),
+  preview: z.string().nullable(),
+  error: z.string().nullable(),
+  updated_at: z.number().int(),
+});
+
+// One file in a bulk export: metadata + the transcribed text (null if none yet).
+export const ExportFile = z.object({
+  file_id: z.string(),
+  page_number: z.number().int().nullable(),
+  role: z.string().nullable(),
+  order_hint: z.number().int().nullable(),
+  state: FileState,
+  text: z.string().nullable(),
+});
+
 // A stored file (page fragment). Mirrors the `files` table.
 export const FileRecord = z.object({
   file_id: z.string(),
