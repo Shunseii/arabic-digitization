@@ -1,0 +1,4 @@
+# Copy to .dev.vars (gitignored) and fill in.
+MASTER_KEY=change-me
+# Cloudflare API token with AI Gateway run permission:
+CLOUDFLARE_API_TOKEN=...

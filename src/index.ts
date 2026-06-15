@@ -1,26 +1,28 @@
 import { fromHono } from "chanfana";
 import { Hono } from "hono";
-import { TaskCreate } from "./endpoints/taskCreate";
-import { TaskDelete } from "./endpoints/taskDelete";
-import { TaskFetch } from "./endpoints/taskFetch";
-import { TaskList } from "./endpoints/taskList";
+import { BookCreate } from "./endpoints/bookCreate";
+import { BookFetch } from "./endpoints/bookFetch";
+import { BookList } from "./endpoints/bookList";
+import { FileOcr } from "./endpoints/fileOcr";
+import { FileUpload } from "./endpoints/fileUpload";
+import { requireMasterKey } from "./middleware/auth";
 
-// Start a Hono app
 const app = new Hono<{ Bindings: Env }>();
 
-// Setup OpenAPI registry
+// Gate the whole API behind the master key. Docs UI at "/" stays open.
+app.use("/api/*", requireMasterKey);
+
 const openapi = fromHono(app, {
-	docs_url: "/",
+  docs_url: "/",
 });
 
-// Register OpenAPI endpoints
-openapi.get("/api/tasks", TaskList);
-openapi.post("/api/tasks", TaskCreate);
-openapi.get("/api/tasks/:taskSlug", TaskFetch);
-openapi.delete("/api/tasks/:taskSlug", TaskDelete);
+// Books
+openapi.post("/api/books", BookCreate);
+openapi.get("/api/books", BookList);
+openapi.get("/api/books/:bookId", BookFetch);
 
-// You may also register routes for non OpenAPI directly on Hono
-// app.get('/test', (c) => c.text('Hono!'))
+// Files
+openapi.post("/api/books/:bookId/files", FileUpload);
+openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
 
-// Export the Hono app
 export default app;

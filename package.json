@@ -6,7 +6,12 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check --write",
+    "check:ci": "biome check",
+    "lint": "biome lint",
+    "format": "biome format --write"
   },
   "dependencies": {
     "chanfana": "^3.3.0",
@@ -14,7 +19,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
     "@types/node": "^25.9.3",
+    "typescript": "^6.0.3",
     "wrangler": "^4.100.0"
   }
 }
