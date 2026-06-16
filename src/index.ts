@@ -7,6 +7,7 @@ import { BookExport } from "./endpoints/bookExport";
 import { BookFetch } from "./endpoints/bookFetch";
 import { BookList } from "./endpoints/bookList";
 import { BookStatus } from "./endpoints/bookStatus";
+import { BookUpdate } from "./endpoints/bookUpdate";
 import { FileOcr } from "./endpoints/fileOcr";
 import { FileText } from "./endpoints/fileText";
 import { FileUpload } from "./endpoints/fileUpload";
@@ -31,6 +32,7 @@ const openapi = fromHono(app, {
 openapi.post("/api/books", BookCreate);
 openapi.get("/api/books", BookList);
 openapi.get("/api/books/:bookId", BookFetch);
+openapi.patch("/api/books/:bookId", BookUpdate);
 openapi.delete("/api/books/:bookId", BookDelete);
 openapi.get("/api/books/:bookId/status", BookStatus);
 openapi.get("/api/books/:bookId/export", BookExport);

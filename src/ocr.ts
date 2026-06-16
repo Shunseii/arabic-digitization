@@ -40,6 +40,18 @@ interface FileRow {
   file_id: string;
   book_id: string;
   r2_key: string;
+  ocr_instructions: string | null;
+}
+
+// Global rules plus any book-specific notes, layered as a labeled supplement so
+// the model treats them as additions rather than contradictions to the base.
+function buildSystemPrompt(ocrInstructions: string | null): string {
+  if (!ocrInstructions?.trim()) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}
+
+## Book-specific notes
+The following notes apply to this particular book. Follow them in addition to the rules above:
+${ocrInstructions.trim()}`;
 }
 
 export async function transcribe({
@@ -50,7 +62,9 @@ export async function transcribe({
   const useModel = model ?? MODEL;
 
   const row = await env.DB.prepare(
-    "SELECT file_id, book_id, r2_key FROM files WHERE file_id = ?",
+    `SELECT f.file_id, f.book_id, f.r2_key, b.ocr_instructions
+       FROM files f JOIN books b ON b.id = f.book_id
+      WHERE f.file_id = ?`,
   )
     .bind(fileId)
     .first<FileRow>();
@@ -67,6 +81,7 @@ export async function transcribe({
     model: useModel,
     mimeType,
     base64,
+    systemPrompt: buildSystemPrompt(row.ocr_instructions),
   });
 
   const textKey = `books/${row.book_id}/text/${fileId}.md`;
@@ -90,11 +105,13 @@ async function runGemini({
   model,
   mimeType,
   base64,
+  systemPrompt,
 }: {
   env: Env;
   model: string;
   mimeType: string;
   base64: string;
+  systemPrompt: string;
 }): Promise<{ text: string; usage: unknown }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
@@ -104,7 +121,7 @@ async function runGemini({
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [
         {
           role: "user",

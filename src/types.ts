@@ -9,6 +9,13 @@ export const Book = z.object({
   id: z.string(),
   title: z.string().openapi({ example: "كتاب التوحيد" }),
   created_at: z.number().int(),
+  ocr_instructions: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      "Book-specific OCR notes appended to the global system prompt at transcription time",
+    ),
 });
 
 export const BookCreateBody = z.object({
@@ -18,7 +25,29 @@ export const BookCreateBody = z.object({
     .regex(/^[a-z0-9-]+$/)
     .optional()
     .describe("Optional explicit slug id; a UUID is generated if omitted"),
+  ocr_instructions: z
+    .string()
+    .optional()
+    .describe(
+      "Optional book-specific OCR notes appended to the global system prompt",
+    ),
 });
+
+// PATCH body: every field optional; only provided fields are updated.
+export const BookUpdateBody = z
+  .object({
+    title: z.string().min(1).openapi({ example: "كتاب التوحيد" }),
+    ocr_instructions: z
+      .string()
+      .nullable()
+      .describe(
+        "Book-specific OCR notes appended to the global system prompt; null clears them",
+      ),
+  })
+  .partial()
+  .refine((b) => Object.keys(b).length > 0, {
+    message: "At least one field must be provided",
+  });
 
 // File states a page-fragment moves through.
 export const FileState = z.enum([

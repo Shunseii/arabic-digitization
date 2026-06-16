@@ -36,12 +36,13 @@ export class BookCreate extends OpenAPIRoute {
 
     const id = body.id ?? crypto.randomUUID();
     const created_at = Date.now();
+    const ocr_instructions = body.ocr_instructions ?? null;
 
     try {
       await c.env.DB.prepare(
-        "INSERT INTO books (id, title, created_at) VALUES (?, ?, ?)",
+        "INSERT INTO books (id, title, created_at, ocr_instructions) VALUES (?, ?, ?, ?)",
       )
-        .bind(id, body.title, created_at)
+        .bind(id, body.title, created_at, ocr_instructions)
         .run();
     } catch (err) {
       // UNIQUE constraint on the primary key → id collision
@@ -55,7 +56,10 @@ export class BookCreate extends OpenAPIRoute {
     }
 
     return c.json(
-      { success: true, book: { id, title: body.title, created_at } },
+      {
+        success: true,
+        book: { id, title: body.title, created_at, ocr_instructions },
+      },
       201,
     );
   }

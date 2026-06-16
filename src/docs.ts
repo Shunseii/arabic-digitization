@@ -22,15 +22,24 @@ Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
 ## Endpoints
 
 POST /api/books
-  Body (JSON): { "title": string, "id"?: slug }   // id auto-generated if omitted
-  201 -> { success, book: { id, title, created_at } }
+  Body (JSON): { "title": string, "id"?: slug, "ocr_instructions"?: string }
+  // id auto-generated if omitted; ocr_instructions are book-specific OCR notes
+  // appended to the global system prompt at transcription time.
+  201 -> { success, book: { id, title, created_at, ocr_instructions } }
   409 if id exists.
 
 GET /api/books
   200 -> { success, books: [ { id, title, created_at, files_total, counts: {state: n} } ] }
 
 GET /api/books/:bookId
-  200 -> { success, book: { id, title, created_at, files_total, counts } }
+  200 -> { success, book: { id, title, created_at, ocr_instructions, files_total, counts } }
+  404 if missing.
+
+PATCH /api/books/:bookId
+  Update a book. Body (JSON): any of { "title"?: string, "ocr_instructions"?: string|null }.
+  At least one field required; ocr_instructions=null clears them. Does NOT re-OCR
+  done pages — re-run them via the per-file ocr endpoint to apply new instructions.
+  200 -> { success, book: { id, title, created_at, ocr_instructions } }
   404 if missing.
 
 DELETE /api/books/:bookId
