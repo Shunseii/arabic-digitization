@@ -8,8 +8,10 @@ import { BookFetch } from "./endpoints/bookFetch";
 import { BookList } from "./endpoints/bookList";
 import { BookStatus } from "./endpoints/bookStatus";
 import { BookUpdate } from "./endpoints/bookUpdate";
+import { FileDelete } from "./endpoints/fileDelete";
 import { FileOcr } from "./endpoints/fileOcr";
 import { FileText } from "./endpoints/fileText";
+import { FileUpdate } from "./endpoints/fileUpdate";
 import { FileUpload } from "./endpoints/fileUpload";
 import { requireMasterKey } from "./middleware/auth";
 import { handleOcrQueue, type OcrMessage } from "./queue";
@@ -39,6 +41,8 @@ openapi.get("/api/books/:bookId/export", BookExport);
 
 // Files
 openapi.post("/api/books/:bookId/files", FileUpload);
+openapi.patch("/api/books/:bookId/files/:fileId", FileUpdate);
+openapi.delete("/api/books/:bookId/files/:fileId", FileDelete);
 openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
 openapi.get("/api/books/:bookId/files/:fileId/text", FileText);
 

@@ -59,6 +59,12 @@ export default function ActivityScreen() {
     queryKey: ["books"],
     queryFn: api.listBooks,
     enabled: configured,
+    refetchInterval: (q) =>
+      q.state.data?.some(
+        (b) => (b.counts.queued ?? 0) + (b.counts.processing ?? 0) > 0,
+      )
+        ? 5000
+        : false,
   });
   const recentQuery = useQuery({
     queryKey: ["recent"],

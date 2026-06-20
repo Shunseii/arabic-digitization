@@ -7,9 +7,11 @@ import type {
   DeleteBookResponse,
   ExportFile,
   FetchBookResponse,
+  FileDeleteResponse,
   FileOcrResponse,
   FileRecord,
   FileStatus,
+  FileUpdateResponse,
   ListBooksResponse,
   UploadContentType,
   UploadFileResponse,
@@ -139,6 +141,41 @@ export const api = {
       )
     ).file;
   },
+
+  /** Change a page's number (re-labels/re-orders scan + text). null clears it. */
+  updatePageNumber: async ({
+    bookId,
+    fileId,
+    page,
+  }: {
+    bookId: string;
+    fileId: string;
+    page: number | null;
+  }): Promise<FileRecord> =>
+    (
+      await asJson<FileUpdateResponse>(
+        await fetch(`${base()}/api/books/${bookId}/files/${fileId}`, {
+          method: "PATCH",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ page_number: page }),
+        }),
+      )
+    ).file,
+
+  /** Delete a page: its scan, transcription, and row. */
+  deleteFile: async ({
+    bookId,
+    fileId,
+  }: {
+    bookId: string;
+    fileId: string;
+  }): Promise<FileDeleteResponse> =>
+    asJson<FileDeleteResponse>(
+      await fetch(`${base()}/api/books/${bookId}/files/${fileId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      }),
+    ),
 
   /** Recent page-fragments across all books, newest first (for Activity). */
   recentFiles: async (
