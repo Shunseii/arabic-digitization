@@ -1,0 +1,650 @@
+{
+  "version": "2.13",
+  "children": [
+    {
+      "type": "frame",
+      "id": "BADGE",
+      "x": 0,
+      "y": 0,
+      "name": "StatusBadge",
+      "reusable": true,
+      "fill": "$st-done-soft",
+      "cornerRadius": 999,
+      "gap": 6,
+      "padding": [4, 10],
+      "alignItems": "center",
+      "children": [
+        { "type": "ellipse", "id": "BADGEd", "name": "Dot", "fill": "$st-done", "width": 6, "height": 6 },
+        { "type": "text", "id": "BADGEl", "name": "Label", "fill": "$st-done", "content": "done", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "600" }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "SBAR",
+      "x": 0,
+      "y": 80,
+      "name": "StatusBar",
+      "reusable": true,
+      "width": 390,
+      "height": 60,
+      "padding": [0, 28],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        { "type": "text", "id": "SBARt", "name": "Time", "fill": "$ink", "content": "9:41", "fontFamily": "$font-ui", "fontSize": 15, "fontWeight": "600" },
+        {
+          "type": "frame",
+          "id": "SBARi",
+          "name": "I",
+          "gap": 7,
+          "alignItems": "center",
+          "children": [
+            { "type": "icon", "id": "SBARi1", "name": "signal", "width": 18, "height": 18, "icon": "signal", "library": "lucide", "fill": "$ink" },
+            { "type": "icon", "id": "SBARi2", "name": "wifi", "width": 18, "height": 18, "icon": "wifi", "library": "lucide", "fill": "$ink" },
+            { "type": "icon", "id": "SBARi3", "name": "battery", "width": 18, "height": 18, "icon": "battery-full", "library": "lucide", "fill": "$ink" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "TABS",
+      "x": 0,
+      "y": 200,
+      "name": "TabBar",
+      "reusable": true,
+      "width": 390,
+      "height": 80,
+      "fill": "$surface",
+      "stroke": "$hairline",
+      "strokeWidth": 1,
+      "padding": [0, 0, 20, 0],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "TABlib",
+          "name": "Tab Library",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            { "type": "rectangle", "id": "TABlibU", "name": "u", "fill": "$accent", "cornerRadius": 999, "width": 20, "height": 2 },
+            { "type": "icon", "id": "TABlibI", "name": "i", "width": 22, "height": 22, "icon": "book-open", "library": "lucide", "fill": "$accent" },
+            { "type": "text", "id": "TABlibL", "name": "l", "fill": "$accent", "content": "Library", "fontFamily": "$font-ui", "fontSize": 10, "fontWeight": "600" }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "TABact",
+          "name": "Tab Activity",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            { "type": "rectangle", "id": "TABactU", "name": "u", "fill": "#00000000", "cornerRadius": 999, "width": 20, "height": 2 },
+            { "type": "icon", "id": "TABactI", "name": "i", "width": 22, "height": 22, "icon": "activity", "library": "lucide", "fill": "$text-muted" },
+            { "type": "text", "id": "TABactL", "name": "l", "fill": "$text-muted", "content": "Activity", "fontFamily": "$font-ui", "fontSize": 10, "fontWeight": "500" }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "TABset",
+          "name": "Tab Settings",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            { "type": "rectangle", "id": "TABsetU", "name": "u", "fill": "#00000000", "cornerRadius": 999, "width": 20, "height": 2 },
+            { "type": "icon", "id": "TABsetI", "name": "i", "width": 22, "height": 22, "icon": "settings", "library": "lucide", "fill": "$text-muted" },
+            { "type": "text", "id": "TABsetL", "name": "l", "fill": "$text-muted", "content": "Settings", "fontFamily": "$font-ui", "fontSize": 10, "fontWeight": "500" }
+          ]
+        }
+      ]
+    },
+
+    {
+      "type": "frame",
+      "id": "LIB",
+      "x": 200,
+      "y": 0,
+      "name": "1 · Library",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$bg",
+      "layout": "vertical",
+      "children": [
+        { "type": "ref", "id": "LIBsb", "ref": "SBAR", "name": "statusbar" },
+        {
+          "type": "frame",
+          "id": "LIBc",
+          "name": "Content",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 22,
+          "padding": [6, 20, 0, 20],
+          "children": [
+            {
+              "type": "frame",
+              "id": "LIBh",
+              "name": "Header",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "LIBht",
+                  "name": "ht",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    { "type": "text", "id": "LIBeyebrow", "name": "e", "fill": "$accent", "content": "QIRA'A", "fontFamily": "$font-ui", "fontSize": 11, "fontWeight": "700", "letterSpacing": 2 },
+                    { "type": "text", "id": "LIBtitle", "name": "t", "fill": "$ink", "content": "Library", "fontFamily": "$font-display", "fontSize": 34, "fontWeight": "600" }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LIBconn",
+                  "name": "Conn",
+                  "fill": "$st-done-soft",
+                  "cornerRadius": 999,
+                  "gap": 6,
+                  "padding": [6, 11],
+                  "alignItems": "center",
+                  "children": [
+                    { "type": "ellipse", "id": "LIBcd", "name": "d", "fill": "$st-done", "width": 7, "height": 7 },
+                    { "type": "text", "id": "LIBct", "name": "t", "fill": "$st-done", "content": "Online", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "600" }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "LIBgrid",
+              "name": "Grid",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 14,
+              "children": [
+                {
+                  "type": "frame", "id": "LIBrow1", "name": "row1", "width": "fill_container", "gap": 14,
+                  "children": [
+                    {
+                      "type": "frame", "id": "bk1", "name": "bk ن", "width": "fill_container", "fill": "$surface", "cornerRadius": 14, "stroke": "$border", "strokeWidth": 1, "layout": "vertical", "gap": 10, "padding": 10,
+                      "children": [
+                        { "type": "frame", "id": "bk1c", "name": "cover", "width": "fill_container", "height": 150, "fill": "$accent-soft", "cornerRadius": 10, "layout": "none", "children": [ { "type": "rectangle", "id": "bk1spine", "name": "spine", "x": 0, "y": 0, "fill": "$accent", "cornerRadius": 0, "width": 4, "height": 150 }, { "type": "text", "id": "bk1g", "name": "g", "x": 56, "y": 52, "fill": "$accent", "content": "ن", "fontFamily": "$font-ar", "fontSize": 44, "fontWeight": "normal" } ] },
+                        { "type": "text", "id": "bk1t", "name": "t", "fill": "$ink", "content": "نور الإيضاح", "fontFamily": "$font-ar", "fontSize": 17, "fontWeight": "normal" },
+                        { "type": "frame", "id": "bk1m", "name": "m", "width": "fill_container", "justifyContent": "space_between", "alignItems": "center", "children": [ { "type": "text", "id": "bk1pp", "name": "pp", "fill": "$text-muted", "content": "262 pp", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "500" }, { "type": "text", "id": "bk1st", "name": "st", "fill": "$accent", "content": "85%", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "600" } ] },
+                        { "type": "frame", "id": "bk1trk", "name": "trk", "width": "fill_container", "height": 4, "fill": "$surface-alt", "cornerRadius": 999, "children": [ { "type": "rectangle", "id": "bk1f", "name": "f", "cornerRadius": 999, "fill": "$accent", "width": 130, "height": 4 } ] }
+                      ]
+                    },
+                    {
+                      "type": "frame", "id": "bk2", "name": "bk ك", "width": "fill_container", "fill": "$surface", "cornerRadius": 14, "stroke": "$border", "strokeWidth": 1, "layout": "vertical", "gap": 10, "padding": 10,
+                      "children": [
+                        { "type": "frame", "id": "bk2c", "name": "cover", "width": "fill_container", "height": 150, "fill": "$accent-soft", "cornerRadius": 10, "layout": "none", "children": [ { "type": "rectangle", "id": "bk2spine", "name": "spine", "x": 0, "y": 0, "fill": "$accent", "cornerRadius": 0, "width": 4, "height": 150 }, { "type": "text", "id": "bk2g", "name": "g", "x": 56, "y": 52, "fill": "$accent", "content": "ك", "fontFamily": "$font-ar", "fontSize": 44, "fontWeight": "normal" } ] },
+                        { "type": "text", "id": "bk2t", "name": "t", "fill": "$ink", "content": "كتاب التوحيد", "fontFamily": "$font-ar", "fontSize": 17, "fontWeight": "normal" },
+                        { "type": "frame", "id": "bk2m", "name": "m", "width": "fill_container", "justifyContent": "space_between", "alignItems": "center", "children": [ { "type": "text", "id": "bk2pp", "name": "pp", "fill": "$text-muted", "content": "132 pp", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "500" }, { "type": "text", "id": "bk2st", "name": "st", "fill": "$st-done", "content": "Done", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "600" } ] },
+                        { "type": "frame", "id": "bk2trk", "name": "trk", "width": "fill_container", "height": 4, "fill": "$surface-alt", "cornerRadius": 999, "children": [ { "type": "rectangle", "id": "bk2f", "name": "f", "cornerRadius": 999, "fill": "$st-done", "width": 152, "height": 4 } ] }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame", "id": "LIBrow2", "name": "row2", "width": "fill_container", "gap": 14,
+                  "children": [
+                    {
+                      "type": "frame", "id": "bk3", "name": "bk ه", "width": "fill_container", "fill": "$surface", "cornerRadius": 14, "stroke": "$border", "strokeWidth": 1, "layout": "vertical", "gap": 10, "padding": 10,
+                      "children": [
+                        { "type": "frame", "id": "bk3c", "name": "cover", "width": "fill_container", "height": 150, "fill": "$accent-soft", "cornerRadius": 10, "layout": "none", "children": [ { "type": "rectangle", "id": "bk3spine", "name": "spine", "x": 0, "y": 0, "fill": "$accent", "cornerRadius": 0, "width": 4, "height": 150 }, { "type": "text", "id": "bk3g", "name": "g", "x": 56, "y": 52, "fill": "$accent", "content": "ه", "fontFamily": "$font-ar", "fontSize": 44, "fontWeight": "normal" } ] },
+                        { "type": "text", "id": "bk3t", "name": "t", "fill": "$ink", "content": "هداية النحو", "fontFamily": "$font-ar", "fontSize": 17, "fontWeight": "normal" },
+                        { "type": "frame", "id": "bk3m", "name": "m", "width": "fill_container", "justifyContent": "space_between", "alignItems": "center", "children": [ { "type": "text", "id": "bk3pp", "name": "pp", "fill": "$text-muted", "content": "210 pp", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "500" }, { "type": "text", "id": "bk3st", "name": "st", "fill": "$st-fail", "content": "6 failed", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "600" } ] },
+                        { "type": "frame", "id": "bk3trk", "name": "trk", "width": "fill_container", "height": 4, "fill": "$surface-alt", "cornerRadius": 999, "children": [ { "type": "rectangle", "id": "bk3f", "name": "f", "cornerRadius": 999, "fill": "$st-review", "width": 32, "height": 4 } ] }
+                      ]
+                    },
+                    {
+                      "type": "frame", "id": "bknew", "name": "NewBook", "width": "fill_container", "fill": "#00000000", "cornerRadius": 14, "stroke": "$border", "strokeWidth": 1, "layout": "vertical", "gap": 10, "justifyContent": "center", "alignItems": "center",
+                      "children": [
+                        { "type": "frame", "id": "bknewc", "name": "c", "width": 46, "height": 46, "fill": "$accent-soft", "cornerRadius": 999, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "bknewI", "name": "i", "width": 22, "height": 22, "icon": "plus", "library": "lucide", "fill": "$accent" } ] },
+                        { "type": "text", "id": "bknewT", "name": "t", "fill": "$text-secondary", "content": "New book", "fontFamily": "$font-ui", "fontSize": 13, "fontWeight": "600" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        { "type": "ref", "id": "LIBtabs", "ref": "TABS", "name": "tabs" }
+      ]
+    },
+
+    {
+      "type": "frame",
+      "id": "NB",
+      "x": 710,
+      "y": 0,
+      "name": "2 · New Book",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$bg",
+      "layout": "vertical",
+      "children": [
+        { "type": "ref", "id": "NBsb", "ref": "SBAR", "name": "statusbar" },
+        {
+          "type": "frame",
+          "id": "NBc",
+          "name": "Content",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": [6, 20, 24, 20],
+          "children": [
+            {
+              "type": "frame", "id": "NBh", "name": "Header", "width": "fill_container", "gap": 12, "alignItems": "center",
+              "children": [
+                { "type": "frame", "id": "NBback", "name": "back", "width": 40, "height": 40, "fill": "$surface", "cornerRadius": 999, "stroke": "$border", "strokeWidth": 1, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "NBbackI", "name": "i", "width": 18, "height": 18, "icon": "chevron-left", "library": "lucide", "fill": "$text-secondary" } ] },
+                { "type": "text", "id": "NBtitle", "name": "t", "fill": "$ink", "content": "New book", "fontFamily": "$font-display", "fontSize": 26, "fontWeight": "600" }
+              ]
+            },
+            {
+              "type": "frame", "id": "NBtf", "name": "TitleField", "width": "fill_container", "layout": "vertical", "gap": 8,
+              "children": [
+                { "type": "text", "id": "NBtl", "name": "l", "fill": "$text-muted", "content": "TITLE", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "700", "letterSpacing": 1 },
+                { "type": "frame", "id": "NBti", "name": "row", "width": "fill_container", "height": 54, "fill": "$surface", "cornerRadius": 12, "stroke": "$accent", "strokeWidth": 1, "padding": [0, 16], "alignItems": "center", "children": [ { "type": "text", "id": "NBtiv", "name": "v", "fill": "$ink", "content": "نور الإيضاح", "fontFamily": "$font-ar", "fontSize": 18, "fontWeight": "normal" } ] }
+              ]
+            },
+            {
+              "type": "frame", "id": "NBif", "name": "InstrField", "width": "fill_container", "layout": "vertical", "gap": 8,
+              "children": [
+                { "type": "text", "id": "NBil", "name": "l", "fill": "$text-muted", "content": "OCR INSTRUCTIONS · OPTIONAL", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "700", "letterSpacing": 1 },
+                { "type": "frame", "id": "NBii", "name": "box", "width": "fill_container", "height": 110, "fill": "$surface", "cornerRadius": 12, "stroke": "$border", "strokeWidth": 1, "padding": 16, "layout": "vertical", "children": [ { "type": "text", "id": "NBiiv", "name": "v", "fill": "$text-secondary", "textGrowth": "fixed-width", "width": "fill_container", "content": "Preserve tashkeel. Keep footnotes at the bottom of the page.", "fontFamily": "$font-ui", "fontSize": 14, "fontWeight": "normal" } ] }
+              ]
+            },
+            {
+              "type": "frame", "id": "NBinfo", "name": "info", "width": "fill_container", "fill": "$accent-soft", "cornerRadius": 10, "gap": 8, "padding": [10, 12], "alignItems": "center",
+              "children": [
+                { "type": "icon", "id": "NBinfoI", "name": "i", "width": 15, "height": 15, "icon": "sparkles", "library": "lucide", "fill": "$accent" },
+                { "type": "text", "id": "NBinfoT", "name": "t", "fill": "$accent", "textGrowth": "fixed-width", "width": "fill_container", "content": "Pages you scan into this book transcribe automatically", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "normal" }
+              ]
+            },
+            { "type": "frame", "id": "NBsp", "name": "spacer", "width": "fill_container", "height": "fill_container" },
+            {
+              "type": "frame", "id": "NBcreate", "name": "Create", "width": "fill_container", "height": 52, "fill": "$accent", "cornerRadius": 12, "justifyContent": "center", "alignItems": "center",
+              "children": [ { "type": "text", "id": "NBcreateT", "name": "t", "fill": "$accent-ink", "content": "Create book", "fontFamily": "$font-ui", "fontSize": 16, "fontWeight": "700" } ]
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "type": "frame",
+      "id": "SC",
+      "x": 1220,
+      "y": 0,
+      "name": "3 · Scanner",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "#000000",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame", "id": "SCtop", "name": "Top", "width": "fill_container", "height": 96, "padding": [44, 20, 0, 20], "justifyContent": "space_between", "alignItems": "center",
+          "children": [
+            { "type": "frame", "id": "SCx", "name": "x", "width": 38, "height": 38, "fill": "#FFFFFF1F", "cornerRadius": 999, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "SCxI", "name": "i", "width": 18, "height": 18, "icon": "x", "library": "lucide", "fill": "#FFFFFF" } ] },
+            { "type": "text", "id": "SCpg", "name": "pg", "fill": "#FFFFFF", "content": "Page ٢٠٠", "fontFamily": "$font-ui", "fontSize": 15, "fontWeight": "600" },
+            { "type": "frame", "id": "SCflash", "name": "flash", "width": 38, "height": 38, "fill": "#FFFFFF1F", "cornerRadius": 999, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "SCflashI", "name": "i", "width": 18, "height": 18, "icon": "zap", "library": "lucide", "fill": "#FFFFFF" } ] }
+          ]
+        },
+        {
+          "type": "frame", "id": "SCvp", "name": "Viewport", "width": "fill_container", "height": "fill_container", "layout": "vertical", "gap": 18, "justifyContent": "center", "alignItems": "center",
+          "children": [
+            {
+              "type": "frame", "id": "SCpage", "name": "DetectedPage", "width": 248, "height": 330, "fill": "#FFFFFF0A", "stroke": "$accent", "strokeWidth": 2, "cornerRadius": 4, "layout": "none",
+              "children": [
+                { "type": "rectangle", "id": "SCl1", "name": "l", "x": 26, "y": 40, "cornerRadius": 2, "fill": "#FFFFFF24", "width": 196, "height": 5 },
+                { "type": "rectangle", "id": "SCl2", "name": "l", "x": 26, "y": 58, "cornerRadius": 2, "fill": "#FFFFFF24", "width": 196, "height": 5 },
+                { "type": "rectangle", "id": "SCl3", "name": "l", "x": 72, "y": 76, "cornerRadius": 2, "fill": "#FFFFFF24", "width": 150, "height": 5 },
+                { "type": "rectangle", "id": "SCl4", "name": "l", "x": 26, "y": 104, "cornerRadius": 2, "fill": "#FFFFFF24", "width": 196, "height": 5 },
+                { "type": "rectangle", "id": "SCl5", "name": "l", "x": 26, "y": 122, "cornerRadius": 2, "fill": "#FFFFFF24", "width": 196, "height": 5 },
+                { "type": "rectangle", "id": "SCl6", "name": "l", "x": 100, "y": 140, "cornerRadius": 2, "fill": "#FFFFFF24", "width": 122, "height": 5 },
+                { "type": "rectangle", "id": "SCk1", "name": "k", "x": -2, "y": -2, "fill": "$accent", "cornerRadius": 2, "width": 26, "height": 4 },
+                { "type": "rectangle", "id": "SCk2", "name": "k", "x": -2, "y": -2, "fill": "$accent", "cornerRadius": 2, "width": 4, "height": 26 },
+                { "type": "rectangle", "id": "SCk3", "name": "k", "x": 224, "y": -2, "fill": "$accent", "cornerRadius": 2, "width": 26, "height": 4 },
+                { "type": "rectangle", "id": "SCk4", "name": "k", "x": 246, "y": -2, "fill": "$accent", "cornerRadius": 2, "width": 4, "height": 26 },
+                { "type": "rectangle", "id": "SCk5", "name": "k", "x": -2, "y": 328, "fill": "$accent", "cornerRadius": 2, "width": 26, "height": 4 },
+                { "type": "rectangle", "id": "SCk6", "name": "k", "x": -2, "y": 306, "fill": "$accent", "cornerRadius": 2, "width": 4, "height": 26 },
+                { "type": "rectangle", "id": "SCk7", "name": "k", "x": 224, "y": 328, "fill": "$accent", "cornerRadius": 2, "width": 26, "height": 4 },
+                { "type": "rectangle", "id": "SCk8", "name": "k", "x": 246, "y": 306, "fill": "$accent", "cornerRadius": 2, "width": 4, "height": 26 }
+              ]
+            },
+            {
+              "type": "frame", "id": "SChint", "name": "hint", "fill": "#000000A6", "cornerRadius": 999, "gap": 7, "padding": [7, 13], "alignItems": "center",
+              "children": [
+                { "type": "icon", "id": "SChintI", "name": "i", "width": 14, "height": 14, "icon": "scan", "library": "lucide", "fill": "$accent" },
+                { "type": "text", "id": "SChintT", "name": "t", "fill": "#FFFFFF", "content": "Edges detected — hold steady", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "500" }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame", "id": "SCbot", "name": "Controls", "width": "fill_container", "layout": "vertical", "gap": 18, "padding": [16, 24, 30, 24], "alignItems": "center",
+          "children": [
+            {
+              "type": "frame", "id": "SCbook", "name": "bookchip", "fill": "#FFFFFF1F", "cornerRadius": 999, "gap": 7, "padding": [7, 14], "alignItems": "center",
+              "children": [
+                { "type": "text", "id": "SCbookT", "name": "t", "fill": "#FFFFFF", "content": "نور الإيضاح", "fontFamily": "$font-ar", "fontSize": 14, "fontWeight": "normal" },
+                { "type": "icon", "id": "SCbookI", "name": "i", "width": 14, "height": 14, "icon": "chevron-down", "library": "lucide", "fill": "#FFFFFFB3" }
+              ]
+            },
+            {
+              "type": "frame", "id": "SCrow", "name": "row", "width": "fill_container", "justifyContent": "space_between", "alignItems": "center",
+              "children": [
+                { "type": "frame", "id": "SCthumb", "name": "thumb", "width": 48, "height": 60, "fill": "#FFFFFF26", "cornerRadius": 8, "stroke": "#FFFFFF40", "strokeWidth": 1 },
+                {
+                  "type": "frame", "id": "SCshutter", "name": "shutter", "width": 74, "height": 74, "fill": "#00000000", "cornerRadius": 999, "stroke": "$accent", "strokeWidth": 3, "padding": 5, "justifyContent": "center", "alignItems": "center",
+                  "children": [ { "type": "ellipse", "id": "SCshutterC", "name": "c", "fill": "$accent", "width": 58, "height": 58 } ]
+                },
+                {
+                  "type": "frame", "id": "SCauto", "name": "auto", "width": 48, "height": 48, "fill": "#FFFFFF1F", "cornerRadius": 999, "justifyContent": "center", "alignItems": "center",
+                  "children": [ { "type": "text", "id": "SCautoT", "name": "t", "fill": "$accent", "content": "AUTO", "fontFamily": "$font-ui", "fontSize": 9, "fontWeight": "700", "letterSpacing": 0.5 } ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "type": "frame",
+      "id": "RV",
+      "x": 1730,
+      "y": 0,
+      "name": "4 · Crop & Flatten",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "#000000",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame", "id": "RVtop", "name": "Top", "width": "fill_container", "height": 96, "padding": [44, 20, 0, 20], "justifyContent": "space_between", "alignItems": "center",
+          "children": [
+            { "type": "frame", "id": "RVback", "name": "back", "width": 38, "height": 38, "fill": "#FFFFFF1F", "cornerRadius": 999, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RVbackI", "name": "i", "width": 18, "height": 18, "icon": "chevron-left", "library": "lucide", "fill": "#FFFFFF" } ] },
+            { "type": "text", "id": "RVtitle", "name": "t", "fill": "#FFFFFF", "content": "Adjust corners", "fontFamily": "$font-ui", "fontSize": 15, "fontWeight": "600" },
+            { "type": "frame", "id": "RVspin", "name": "rotate", "width": 38, "height": 38, "fill": "#FFFFFF1F", "cornerRadius": 999, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RVspinI", "name": "i", "width": 17, "height": 17, "icon": "rotate-cw", "library": "lucide", "fill": "#FFFFFF" } ] }
+          ]
+        },
+        {
+          "type": "frame", "id": "RVvp", "name": "Viewport", "width": "fill_container", "height": "fill_container", "justifyContent": "center", "alignItems": "center",
+          "children": [
+            {
+              "type": "frame", "id": "RVpage", "name": "Page", "width": 296, "height": 392, "fill": "#F4F2EC", "cornerRadius": 6, "stroke": "$accent", "strokeWidth": 2, "layout": "none",
+              "children": [
+                { "type": "rectangle", "id": "RVt1", "name": "l", "x": 36, "y": 50, "cornerRadius": 2, "fill": "#2A2620", "width": 224, "height": 6 },
+                { "type": "rectangle", "id": "RVt2", "name": "l", "x": 36, "y": 74, "cornerRadius": 2, "fill": "#2A2620", "width": 224, "height": 6 },
+                { "type": "rectangle", "id": "RVt3", "name": "l", "x": 96, "y": 98, "cornerRadius": 2, "fill": "#2A2620", "width": 164, "height": 6 },
+                { "type": "rectangle", "id": "RVt4", "name": "l", "x": 36, "y": 134, "cornerRadius": 2, "fill": "#2A2620", "width": 224, "height": 6 },
+                { "type": "rectangle", "id": "RVt5", "name": "l", "x": 36, "y": 158, "cornerRadius": 2, "fill": "#2A2620", "width": 224, "height": 6 },
+                { "type": "rectangle", "id": "RVt6", "name": "l", "x": 36, "y": 182, "cornerRadius": 2, "fill": "#2A2620", "width": 188, "height": 6 },
+                { "type": "rectangle", "id": "RVt7", "name": "l", "x": 36, "y": 218, "cornerRadius": 2, "fill": "#6B6258", "width": 224, "height": 6 },
+                { "type": "rectangle", "id": "RVt8", "name": "l", "x": 36, "y": 242, "cornerRadius": 2, "fill": "#6B6258", "width": 160, "height": 6 },
+                { "type": "ellipse", "id": "RVc1", "name": "h", "x": -8, "y": -8, "fill": "$accent", "stroke": "#000000", "strokeWidth": 2, "width": 16, "height": 16 },
+                { "type": "ellipse", "id": "RVc2", "name": "h", "x": 288, "y": -8, "fill": "$accent", "stroke": "#000000", "strokeWidth": 2, "width": 16, "height": 16 },
+                { "type": "ellipse", "id": "RVc3", "name": "h", "x": -8, "y": 384, "fill": "$accent", "stroke": "#000000", "strokeWidth": 2, "width": 16, "height": 16 },
+                { "type": "ellipse", "id": "RVc4", "name": "h", "x": 288, "y": 384, "fill": "$accent", "stroke": "#000000", "strokeWidth": 2, "width": 16, "height": 16 }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame", "id": "RVbot", "name": "Controls", "width": "fill_container", "layout": "vertical", "gap": 14, "padding": [16, 24, 30, 24],
+          "children": [
+            {
+              "type": "frame", "id": "RVtog", "name": "toggles", "width": "fill_container", "gap": 8, "justifyContent": "center",
+              "children": [
+                { "type": "frame", "id": "RVtog1", "name": "t1", "fill": "$accent", "cornerRadius": 999, "gap": 6, "padding": [8, 14], "alignItems": "center", "children": [ { "type": "icon", "id": "RVtog1I", "name": "i", "width": 14, "height": 14, "icon": "check", "library": "lucide", "fill": "$accent-ink" }, { "type": "text", "id": "RVtog1T", "name": "t", "fill": "$accent-ink", "content": "Auto-flatten", "fontFamily": "$font-ui", "fontSize": 13, "fontWeight": "600" } ] },
+                { "type": "frame", "id": "RVtog2", "name": "t2", "fill": "#FFFFFF1F", "cornerRadius": 999, "gap": 6, "padding": [8, 14], "alignItems": "center", "children": [ { "type": "icon", "id": "RVtog2I", "name": "i", "width": 14, "height": 14, "icon": "wand-sparkles", "library": "lucide", "fill": "#FFFFFFB3" }, { "type": "text", "id": "RVtog2T", "name": "t", "fill": "#FFFFFFB3", "content": "Enhance", "fontFamily": "$font-ui", "fontSize": 13, "fontWeight": "600" } ] }
+              ]
+            },
+            {
+              "type": "frame", "id": "RVact", "name": "actions", "width": "fill_container", "gap": 12, "alignItems": "center",
+              "children": [
+                { "type": "frame", "id": "RVretake", "name": "retake", "width": "fill_container", "height": 52, "fill": "#FFFFFF1F", "cornerRadius": 12, "gap": 8, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RVretakeI", "name": "i", "width": 17, "height": 17, "icon": "rotate-ccw", "library": "lucide", "fill": "#FFFFFF" }, { "type": "text", "id": "RVretakeT", "name": "t", "fill": "#FFFFFF", "content": "Retake", "fontFamily": "$font-ui", "fontSize": 15, "fontWeight": "600" } ] },
+                { "type": "frame", "id": "RVuse", "name": "use", "width": "fill_container", "height": 52, "fill": "$accent", "cornerRadius": 12, "gap": 8, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RVuseI", "name": "i", "width": 18, "height": 18, "icon": "arrow-up", "library": "lucide", "fill": "$accent-ink" }, { "type": "text", "id": "RVuseT", "name": "t", "fill": "$accent-ink", "content": "Upload page", "fontFamily": "$font-ui", "fontSize": 16, "fontWeight": "700" } ] }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "type": "frame",
+      "id": "AC",
+      "x": 2240,
+      "y": 0,
+      "name": "5 · Activity",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$bg",
+      "layout": "vertical",
+      "children": [
+        { "type": "ref", "id": "ACsb", "ref": "SBAR", "name": "statusbar" },
+        {
+          "type": "frame", "id": "ACc", "name": "Content", "width": "fill_container", "height": "fill_container", "layout": "vertical", "gap": 18, "padding": [6, 20, 0, 20],
+          "children": [
+            {
+              "type": "frame", "id": "ACh", "name": "Header", "width": "fill_container", "justifyContent": "space_between", "alignItems": "center",
+              "children": [
+                { "type": "text", "id": "ACtitle", "name": "t", "fill": "$ink", "content": "Activity", "fontFamily": "$font-display", "fontSize": 30, "fontWeight": "600" },
+                { "type": "frame", "id": "ACref", "name": "refresh", "width": 40, "height": 40, "fill": "$surface", "cornerRadius": 999, "stroke": "$border", "strokeWidth": 1, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "ACrefI", "name": "i", "width": 17, "height": 17, "icon": "refresh-cw", "library": "lucide", "fill": "$text-secondary" } ] }
+              ]
+            },
+            {
+              "type": "frame", "id": "ACsum", "name": "Summary", "width": "fill_container", "fill": "$surface", "cornerRadius": 14, "stroke": "$border", "strokeWidth": 1, "padding": [14, 8], "justifyContent": "space_around", "alignItems": "center",
+              "children": [
+                { "type": "frame", "id": "ACq1", "name": "q", "layout": "vertical", "gap": 4, "alignItems": "center", "children": [ { "type": "text", "id": "ACq1v", "name": "v", "fill": "$st-done", "content": "224", "fontFamily": "$font-display", "fontSize": 22, "fontWeight": "600" }, { "type": "text", "id": "ACq1l", "name": "l", "fill": "$text-muted", "content": "done", "fontFamily": "$font-ui", "fontSize": 11, "fontWeight": "normal" } ] },
+                { "type": "rectangle", "id": "ACdv1", "name": "dv", "width": 1, "height": 30, "fill": "$hairline", "cornerRadius": 0 },
+                { "type": "frame", "id": "ACq2", "name": "q", "layout": "vertical", "gap": 4, "alignItems": "center", "children": [ { "type": "text", "id": "ACq2v", "name": "v", "fill": "$st-proc", "content": "12", "fontFamily": "$font-display", "fontSize": 22, "fontWeight": "600" }, { "type": "text", "id": "ACq2l", "name": "l", "fill": "$text-muted", "content": "queued", "fontFamily": "$font-ui", "fontSize": 11, "fontWeight": "normal" } ] },
+                { "type": "rectangle", "id": "ACdv2", "name": "dv", "width": 1, "height": 30, "fill": "$hairline", "cornerRadius": 0 },
+                { "type": "frame", "id": "ACq3", "name": "q", "layout": "vertical", "gap": 4, "alignItems": "center", "children": [ { "type": "text", "id": "ACq3v", "name": "v", "fill": "$st-fail", "content": "6", "fontFamily": "$font-display", "fontSize": 22, "fontWeight": "600" }, { "type": "text", "id": "ACq3l", "name": "l", "fill": "$text-muted", "content": "failed", "fontFamily": "$font-ui", "fontSize": 11, "fontWeight": "normal" } ] }
+              ]
+            },
+            { "type": "text", "id": "ACgh", "name": "GroupH", "fill": "$text-muted", "content": "TODAY", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "700", "letterSpacing": 1 },
+            {
+              "type": "frame", "id": "AClist", "name": "Timeline", "width": "fill_container", "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame", "id": "tl1", "name": "tl ٢٠٢", "width": "fill_container", "gap": 14, "padding": [12, 0], "alignItems": "center",
+                  "children": [
+                    { "type": "frame", "id": "tl1r", "name": "rail", "width": 14, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "ellipse", "id": "tl1d", "name": "d", "fill": "$st-proc", "stroke": "$st-proc-soft", "strokeWidth": 3, "width": 12, "height": 12 } ] },
+                    { "type": "frame", "id": "tl1m", "name": "mid", "width": "fill_container", "layout": "vertical", "gap": 2, "children": [ { "type": "text", "id": "tl1b", "name": "b", "fill": "$ink", "content": "نور الإيضاح · صفحة ٢٠٢", "fontFamily": "$font-ar", "fontSize": 16, "fontWeight": "normal" }, { "type": "text", "id": "tl1s", "name": "s", "fill": "$st-proc", "content": "transcribing · now", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "500" } ] }
+                  ]
+                },
+                { "type": "rectangle", "id": "tld1", "name": "div", "width": "fill_container", "height": 1, "fill": "$hairline", "cornerRadius": 0 },
+                {
+                  "type": "frame", "id": "tl2", "name": "tl ٢٠١", "width": "fill_container", "gap": 14, "padding": [12, 0], "alignItems": "center",
+                  "children": [
+                    { "type": "frame", "id": "tl2r", "name": "rail", "width": 14, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "ellipse", "id": "tl2d", "name": "d", "fill": "$st-done", "stroke": "$st-done-soft", "strokeWidth": 3, "width": 12, "height": 12 } ] },
+                    { "type": "frame", "id": "tl2m", "name": "mid", "width": "fill_container", "layout": "vertical", "gap": 2, "children": [ { "type": "text", "id": "tl2b", "name": "b", "fill": "$ink", "content": "نور الإيضاح · صفحة ٢٠١", "fontFamily": "$font-ar", "fontSize": 16, "fontWeight": "normal" }, { "type": "text", "id": "tl2s", "name": "s", "fill": "$text-muted", "content": "done · 1m ago", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "normal" } ] }
+                  ]
+                },
+                { "type": "rectangle", "id": "tld2", "name": "div", "width": "fill_container", "height": 1, "fill": "$hairline", "cornerRadius": 0 },
+                {
+                  "type": "frame", "id": "tl3", "name": "tl ٢٠٠", "width": "fill_container", "gap": 14, "padding": [12, 0], "alignItems": "center",
+                  "children": [
+                    { "type": "frame", "id": "tl3r", "name": "rail", "width": 14, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "ellipse", "id": "tl3d", "name": "d", "fill": "$st-done", "stroke": "$st-done-soft", "strokeWidth": 3, "width": 12, "height": 12 } ] },
+                    { "type": "frame", "id": "tl3m", "name": "mid", "width": "fill_container", "layout": "vertical", "gap": 2, "children": [ { "type": "text", "id": "tl3b", "name": "b", "fill": "$ink", "content": "نور الإيضاح · صفحة ٢٠٠", "fontFamily": "$font-ar", "fontSize": 16, "fontWeight": "normal" }, { "type": "text", "id": "tl3s", "name": "s", "fill": "$text-muted", "content": "done · 2m ago", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "normal" } ] }
+                  ]
+                },
+                { "type": "rectangle", "id": "tld3", "name": "div", "width": "fill_container", "height": 1, "fill": "$hairline", "cornerRadius": 0 },
+                {
+                  "type": "frame", "id": "tl4", "name": "tl ٧٢", "width": "fill_container", "gap": 14, "padding": [12, 0], "alignItems": "center",
+                  "children": [
+                    { "type": "frame", "id": "tl4r", "name": "rail", "width": 14, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "ellipse", "id": "tl4d", "name": "d", "fill": "$st-fail", "stroke": "$st-fail-soft", "strokeWidth": 3, "width": 12, "height": 12 } ] },
+                    { "type": "frame", "id": "tl4m", "name": "mid", "width": "fill_container", "layout": "vertical", "gap": 2, "children": [ { "type": "text", "id": "tl4b", "name": "b", "fill": "$ink", "content": "هداية النحو · صفحة ٧٢", "fontFamily": "$font-ar", "fontSize": 16, "fontWeight": "normal" }, { "type": "text", "id": "tl4s", "name": "s", "fill": "$st-fail", "content": "upload failed · 3m ago", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "500" } ] },
+                    { "type": "frame", "id": "tl4r2", "name": "retry", "fill": "$st-fail-soft", "cornerRadius": 999, "gap": 5, "padding": [6, 10], "alignItems": "center", "children": [ { "type": "icon", "id": "tl4rI", "name": "i", "width": 13, "height": 13, "icon": "rotate-cw", "library": "lucide", "fill": "$st-fail" }, { "type": "text", "id": "tl4rT", "name": "t", "fill": "$st-fail", "content": "Retry", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "600" } ] }
+                  ]
+                },
+                { "type": "rectangle", "id": "tld4", "name": "div", "width": "fill_container", "height": 1, "fill": "$hairline", "cornerRadius": 0 },
+                {
+                  "type": "frame", "id": "tl5", "name": "tl ١٥", "width": "fill_container", "gap": 14, "padding": [12, 0], "alignItems": "center",
+                  "children": [
+                    { "type": "frame", "id": "tl5r", "name": "rail", "width": 14, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "ellipse", "id": "tl5d", "name": "d", "fill": "$st-neutral", "stroke": "$st-neutral-soft", "strokeWidth": 3, "width": 12, "height": 12 } ] },
+                    { "type": "frame", "id": "tl5m", "name": "mid", "width": "fill_container", "layout": "vertical", "gap": 2, "children": [ { "type": "text", "id": "tl5b", "name": "b", "fill": "$ink", "content": "هداية النحو · صفحة ١٥", "fontFamily": "$font-ar", "fontSize": 16, "fontWeight": "normal" }, { "type": "text", "id": "tl5s", "name": "s", "fill": "$text-muted", "content": "queued · 3m ago", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "normal" } ] }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        { "type": "ref", "id": "ACtabs", "ref": "TABS", "name": "tabs", "descendants": { "TABlibU": { "fill": "#00000000" }, "TABlibI": { "fill": "$text-muted" }, "TABlibL": { "fill": "$text-muted", "fontWeight": "500" }, "TABactU": { "fill": "$accent" }, "TABactI": { "fill": "$accent" }, "TABactL": { "fill": "$accent", "fontWeight": "600" } } }
+      ]
+    },
+
+    {
+      "type": "frame",
+      "id": "RD",
+      "x": 2750,
+      "y": 0,
+      "name": "6 · Reader",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$bg",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame", "id": "RDtop", "name": "Top", "width": "fill_container", "height": 96, "padding": [44, 16, 0, 16], "justifyContent": "space_between", "alignItems": "center",
+          "children": [
+            { "type": "frame", "id": "RDback", "name": "back", "width": 40, "height": 40, "fill": "$surface", "cornerRadius": 999, "stroke": "$border", "strokeWidth": 1, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RDbackI", "name": "i", "width": 18, "height": 18, "icon": "chevron-left", "library": "lucide", "fill": "$text-secondary" } ] },
+            { "type": "frame", "id": "RDtt", "name": "tt", "layout": "vertical", "gap": 1, "alignItems": "center", "children": [ { "type": "text", "id": "RDtitle", "name": "t", "fill": "$ink", "content": "نور الإيضاح", "fontFamily": "$font-ar", "fontSize": 16, "fontWeight": "normal" }, { "type": "text", "id": "RDsub", "name": "s", "fill": "$text-muted", "content": "صفحة ٢٠٠", "fontFamily": "$font-ar", "fontSize": 11, "fontWeight": "normal" } ] },
+            { "type": "frame", "id": "RDshare", "name": "share", "width": 40, "height": 40, "fill": "$surface", "cornerRadius": 999, "stroke": "$border", "strokeWidth": 1, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RDshareI", "name": "i", "width": 17, "height": 17, "icon": "share", "library": "lucide", "fill": "$text-secondary" } ] }
+          ]
+        },
+        {
+          "type": "frame", "id": "RDc", "name": "Content", "width": "fill_container", "height": "fill_container", "layout": "vertical", "gap": 16, "padding": [12, 26, 0, 26], "alignItems": "flex_end",
+          "children": [
+            { "type": "text", "id": "RDhead", "name": "head", "fill": "$accent", "content": "بابُ التيمّم", "fontFamily": "$font-ar", "fontSize": 24, "fontWeight": "700" },
+            { "type": "text", "id": "RDm1", "name": "m", "fill": "$ink", "content": "وإذا لم يجدِ المسافرُ الماءَ الطهورَ،", "fontFamily": "$font-ar", "fontSize": 19, "fontWeight": "normal" },
+            { "type": "text", "id": "RDm2", "name": "m", "fill": "$ink", "content": "تيمَّمَ بالصعيدِ الطاهرِ بنيّةٍ،", "fontFamily": "$font-ar", "fontSize": 19, "fontWeight": "normal" },
+            { "type": "text", "id": "RDm3", "name": "m", "fill": "$ink", "content": "فمسحَ وجهَه ويديه إلى المرفقين.", "fontFamily": "$font-ar", "fontSize": 19, "fontWeight": "normal" },
+            { "type": "rectangle", "id": "RDdiv", "name": "div", "width": "fill_container", "height": 1, "fill": "$hairline", "cornerRadius": 0 },
+            { "type": "text", "id": "RDfh", "name": "fh", "fill": "$text-muted", "content": "الحاشية", "fontFamily": "$font-ar", "fontSize": 13, "fontWeight": "normal" },
+            { "type": "text", "id": "RDf1", "name": "f", "fill": "$text-secondary", "content": "(١) الصعيد: كلُّ ما صعِد على وجه الأرض.", "fontFamily": "$font-ar", "fontSize": 15, "fontWeight": "normal" }
+          ]
+        },
+        {
+          "type": "frame", "id": "RDpager", "name": "Pager", "width": "fill_container", "padding": [12, 24, 26, 24], "justifyContent": "space_between", "alignItems": "center",
+          "children": [
+            { "type": "frame", "id": "RDprev", "name": "prev", "width": 44, "height": 44, "fill": "$surface", "cornerRadius": 999, "stroke": "$border", "strokeWidth": 1, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RDprevI", "name": "i", "width": 18, "height": 18, "icon": "chevron-left", "library": "lucide", "fill": "$text-secondary" } ] },
+            { "type": "text", "id": "RDpg", "name": "pg", "fill": "$text-secondary", "content": "٢٠٠ / ٢٦٢", "fontFamily": "$font-ar", "fontSize": 15, "fontWeight": "normal" },
+            { "type": "frame", "id": "RDnext", "name": "next", "width": 44, "height": 44, "fill": "$accent", "cornerRadius": 999, "justifyContent": "center", "alignItems": "center", "children": [ { "type": "icon", "id": "RDnextI", "name": "i", "width": 18, "height": 18, "icon": "chevron-right", "library": "lucide", "fill": "$accent-ink" } ] }
+          ]
+        }
+      ]
+    },
+
+    {
+      "type": "frame",
+      "id": "ST",
+      "x": 3260,
+      "y": 0,
+      "name": "7 · Settings",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$bg",
+      "layout": "vertical",
+      "children": [
+        { "type": "ref", "id": "STsb", "ref": "SBAR", "name": "statusbar" },
+        {
+          "type": "frame", "id": "STc", "name": "Content", "width": "fill_container", "height": "fill_container", "layout": "vertical", "gap": 22, "padding": [6, 20, 0, 20],
+          "children": [
+            { "type": "text", "id": "STtitle", "name": "t", "fill": "$ink", "content": "Settings", "fontFamily": "$font-display", "fontSize": 30, "fontWeight": "600" },
+            {
+              "type": "frame", "id": "STsec", "name": "Connection", "width": "fill_container", "layout": "vertical", "gap": 10,
+              "children": [
+                { "type": "text", "id": "STsecL", "name": "l", "fill": "$text-muted", "content": "CONNECTION", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "700", "letterSpacing": 1 },
+                {
+                  "type": "frame", "id": "STcard", "name": "card", "width": "fill_container", "fill": "$surface", "cornerRadius": 14, "stroke": "$border", "strokeWidth": 1, "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame", "id": "STr1", "name": "endpoint", "width": "fill_container", "padding": [14, 16], "justifyContent": "space_between", "alignItems": "center",
+                      "children": [
+                        { "type": "frame", "id": "STr1l", "name": "l", "layout": "vertical", "gap": 3, "children": [ { "type": "text", "id": "STr1t", "name": "t", "fill": "$ink", "content": "API endpoint", "fontFamily": "$font-ui", "fontSize": 14, "fontWeight": "600" }, { "type": "text", "id": "STr1v", "name": "v", "fill": "$text-muted", "content": "qiraa.workers.dev", "fontFamily": "$font-ui", "fontSize": 13, "fontWeight": "normal" } ] },
+                        { "type": "icon", "id": "STr1i", "name": "i", "width": 16, "height": 16, "icon": "chevron-right", "library": "lucide", "fill": "$text-muted" }
+                      ]
+                    },
+                    { "type": "rectangle", "id": "STd1", "name": "div", "width": "fill_container", "height": 1, "fill": "$hairline", "cornerRadius": 0 },
+                    {
+                      "type": "frame", "id": "STr2", "name": "key", "width": "fill_container", "padding": [14, 16], "justifyContent": "space_between", "alignItems": "center",
+                      "children": [
+                        { "type": "frame", "id": "STr2l", "name": "l", "layout": "vertical", "gap": 3, "children": [ { "type": "text", "id": "STr2t", "name": "t", "fill": "$ink", "content": "API key", "fontFamily": "$font-ui", "fontSize": 14, "fontWeight": "600" }, { "type": "text", "id": "STr2v", "name": "v", "fill": "$text-muted", "content": "•••• •••• •• 3f9a", "fontFamily": "$font-ui", "fontSize": 13, "fontWeight": "normal" } ] },
+                        { "type": "icon", "id": "STr2i", "name": "i", "width": 16, "height": 16, "icon": "pencil", "library": "lucide", "fill": "$text-muted" }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame", "id": "STstatus", "name": "status", "fill": "$st-done-soft", "cornerRadius": 999, "gap": 6, "padding": [7, 12], "alignItems": "center",
+                  "children": [ { "type": "ellipse", "id": "STsd", "name": "d", "fill": "$st-done", "width": 7, "height": 7 }, { "type": "text", "id": "STst", "name": "t", "fill": "$st-done", "content": "Connected · key valid", "fontFamily": "$font-ui", "fontSize": 12, "fontWeight": "600" } ]
+                }
+              ]
+            },
+            { "type": "frame", "id": "STsp", "name": "spacer", "width": "fill_container", "height": "fill_container" },
+            {
+              "type": "frame", "id": "STclear", "name": "clear", "width": "fill_container", "height": 50, "fill": "#00000000", "cornerRadius": 12, "stroke": "$st-fail", "strokeWidth": 1, "gap": 8, "justifyContent": "center", "alignItems": "center",
+              "children": [ { "type": "icon", "id": "STclearI", "name": "i", "width": 16, "height": 16, "icon": "log-out", "library": "lucide", "fill": "$st-fail" }, { "type": "text", "id": "STclearT", "name": "t", "fill": "$st-fail", "content": "Clear API key", "fontFamily": "$font-ui", "fontSize": 14, "fontWeight": "600" } ]
+            }
+          ]
+        },
+        { "type": "ref", "id": "STtabs", "ref": "TABS", "name": "tabs", "descendants": { "TABlibU": { "fill": "#00000000" }, "TABlibI": { "fill": "$text-muted" }, "TABlibL": { "fill": "$text-muted", "fontWeight": "500" }, "TABsetU": { "fill": "$accent" }, "TABsetI": { "fill": "$accent" }, "TABsetL": { "fill": "$accent", "fontWeight": "600" } } }
+      ]
+    }
+  ],
+  "variables": {
+    "accent": { "type": "color", "value": "#E3A63C" },
+    "accent-ink": { "type": "color", "value": "#14110A" },
+    "accent-soft": { "type": "color", "value": "#2A2114" },
+    "bg": { "type": "color", "value": "#0C0D10" },
+    "border": { "type": "color", "value": "#282C34" },
+    "hairline": { "type": "color", "value": "#20242B" },
+    "ink": { "type": "color", "value": "#F4F2EC" },
+    "font-ar": { "type": "string", "value": "Amiri" },
+    "font-display": { "type": "string", "value": "Fraunces" },
+    "font-ui": { "type": "string", "value": "Inter" },
+    "st-done": { "type": "color", "value": "#46B97D" },
+    "st-done-soft": { "type": "color", "value": "#16271E" },
+    "st-fail": { "type": "color", "value": "#EE6A4D" },
+    "st-fail-soft": { "type": "color", "value": "#2E1813" },
+    "st-neutral": { "type": "color", "value": "#7C786E" },
+    "st-neutral-soft": { "type": "color", "value": "#1E2127" },
+    "st-proc": { "type": "color", "value": "#5C8DF0" },
+    "st-proc-soft": { "type": "color", "value": "#15203A" },
+    "st-review": { "type": "color", "value": "#C77DFF" },
+    "st-review-soft": { "type": "color", "value": "#221830" },
+    "surface": { "type": "color", "value": "#14161B" },
+    "surface-alt": { "type": "color", "value": "#1C1F26" },
+    "text-muted": { "type": "color", "value": "#65635D" },
+    "text-secondary": { "type": "color", "value": "#9D9A92" }
+  }
+}
