@@ -9,6 +9,7 @@ import { BookList } from "./endpoints/bookList";
 import { BookStatus } from "./endpoints/bookStatus";
 import { BookUpdate } from "./endpoints/bookUpdate";
 import { FileDelete } from "./endpoints/fileDelete";
+import { FileImage } from "./endpoints/fileImage";
 import { FileOcr } from "./endpoints/fileOcr";
 import { FileText } from "./endpoints/fileText";
 import { FileUpdate } from "./endpoints/fileUpdate";
@@ -45,6 +46,7 @@ openapi.patch("/api/books/:bookId/files/:fileId", FileUpdate);
 openapi.delete("/api/books/:bookId/files/:fileId", FileDelete);
 openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
 openapi.get("/api/books/:bookId/files/:fileId/text", FileText);
+openapi.get("/api/books/:bookId/files/:fileId/image", FileImage);
 
 // HTTP via Hono; queue consumer transcribes uploaded files.
 export default {

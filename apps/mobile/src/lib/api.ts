@@ -212,6 +212,18 @@ export const api = {
       }),
     ),
 
+  /** Image source (uri + auth header) for the original scan — pass to <Image>. */
+  imageSource: ({
+    bookId,
+    fileId,
+  }: {
+    bookId: string;
+    fileId: string;
+  }): { uri: string; headers: Record<string, string> } => ({
+    uri: `${base()}/api/books/${bookId}/files/${fileId}/image`,
+    headers: authHeaders(),
+  }),
+
   /** Validate an endpoint + key pair before saving (used by Settings). */
   ping: async ({
     endpoint,

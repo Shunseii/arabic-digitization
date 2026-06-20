@@ -30,6 +30,7 @@ export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
 
+  const [menuFile, setMenuFile] = useState<FileStatus | null>(null);
   const [editing, setEditing] = useState<FileStatus | null>(null);
   const [pageInput, setPageInput] = useState("");
 
@@ -80,6 +81,7 @@ export default function BookScreen() {
     );
 
   const startEdit = (f: FileStatus) => {
+    setMenuFile(null);
     setPageInput(f.page_number != null ? String(f.page_number) : "");
     setEditing(f);
   };
@@ -92,30 +94,21 @@ export default function BookScreen() {
     });
     setEditing(null);
   };
-
-  const openMenu = (f: FileStatus, index: number) =>
-    Alert.alert(`Page ${pageLabel(f, index)}`, undefined, [
-      { text: "Change page number", onPress: () => startEdit(f) },
-      { text: "Re-run OCR", onPress: () => retry.mutate(f.file_id) },
-      {
-        text: "Delete page",
-        style: "destructive",
-        onPress: () =>
-          Alert.alert(
-            "Delete page?",
-            "Removes the scan and its transcription. Cannot be undone.",
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => del.mutate(f.file_id),
-              },
-            ],
-          ),
-      },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const confirmDelete = (f: FileStatus) => {
+    setMenuFile(null);
+    Alert.alert(
+      "Delete page?",
+      "Removes the scan and its transcription. Cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => del.mutate(f.file_id),
+        },
+      ],
+    );
+  };
 
   return (
     <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
@@ -209,7 +202,7 @@ export default function BookScreen() {
                   </Pressable>
                   <StatusBadge state={f.state} />
                   <Pressable
-                    onPress={() => openMenu(f, i)}
+                    onPress={() => setMenuFile(f)}
                     hitSlop={8}
                     className="h-8 w-8 items-center justify-center rounded-full"
                   >
@@ -241,6 +234,58 @@ export default function BookScreen() {
         </Pressable>
       </View>
 
+      {/* Row action sheet — closes on Android back (onRequestClose) and tap-out. */}
+      <Modal
+        visible={menuFile != null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMenuFile(null)}
+      >
+        <Pressable
+          onPress={() => setMenuFile(null)}
+          className="flex-1 justify-end"
+          style={{ backgroundColor: "#00000099" }}
+        >
+          <Pressable
+            onPress={() => {}}
+            className="rounded-t-3xl border-t border-border bg-surface px-5 pt-3"
+            style={{ paddingBottom: insets.bottom + 12 }}
+          >
+            <View className="mb-2 items-center">
+              <View className="h-1 w-10 rounded-full bg-border" />
+            </View>
+            <Text className="mb-1 px-1 py-2 text-xs font-bold tracking-wide text-text-muted">
+              {menuFile ? `PAGE ${menuFile.page_number ?? "—"}` : ""}
+            </Text>
+            {menuFile && (
+              <>
+                <SheetItem
+                  icon="hash"
+                  label="Change page number"
+                  onPress={() => startEdit(menuFile)}
+                />
+                <SheetItem
+                  icon="rotate-cw"
+                  label="Re-run OCR"
+                  onPress={() => {
+                    const f = menuFile;
+                    setMenuFile(null);
+                    retry.mutate(f.file_id);
+                  }}
+                />
+                <SheetItem
+                  icon="trash-2"
+                  label="Delete page"
+                  destructive
+                  onPress={() => confirmDelete(menuFile)}
+                />
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Page-number editor. */}
       <Modal
         visible={editing != null}
         transparent
@@ -285,3 +330,29 @@ export default function BookScreen() {
     </View>
   );
 }
+
+const SheetItem = ({
+  icon,
+  label,
+  destructive,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  destructive?: boolean;
+  onPress: () => void;
+}) => (
+  <Pressable onPress={onPress} className="flex-row items-center gap-3 py-3.5">
+    <Feather
+      name={icon}
+      size={18}
+      color={destructive ? "#EE6A4D" : colors.textSecondary}
+    />
+    <Text
+      className="text-base"
+      style={{ color: destructive ? "#EE6A4D" : colors.ink }}
+    >
+      {label}
+    </Text>
+  </Pressable>
+);
