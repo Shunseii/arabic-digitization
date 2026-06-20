@@ -127,6 +127,24 @@ export interface UploadFileResponse {
   file: FileRecord;
 }
 
+export interface FileUpdateBody {
+  /** null clears the page number. */
+  page_number: number | null;
+}
+
+export interface FileUpdateResponse {
+  success: true;
+  file: FileRecord;
+}
+
+export interface FileDeleteResponse {
+  success: true;
+  deleted: {
+    file_id: string;
+    r2_objects: number;
+  };
+}
+
 export interface FileOcrResponse {
   success: true;
   file_id: string;
