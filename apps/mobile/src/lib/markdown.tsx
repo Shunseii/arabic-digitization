@@ -9,6 +9,7 @@ const RUBY = /<ruby>(.*?)<rt>(.*?)<\/rt><\/ruby>/g;
  * Renders the Markdown the OCR pipeline produces (see apps/api/src/ocr.ts):
  * `##`/`###` headings, `---` dividers, `### الحاشية` footnotes, and inline
  * `<ruby>base<rt>gloss</rt></ruby>` interlinear glosses — all right-to-left.
+ * Every text block is `selectable` so the OS highlight/copy works.
  * Intentionally small and dependency-free rather than a full CommonMark parser.
  */
 
@@ -71,6 +72,7 @@ export const Markdown = ({ source }: { source: string }) => {
         blocks.push(
           <Text
             key={key}
+            selectable
             style={{
               ...RTL,
               color: colors.textMuted,
@@ -88,6 +90,7 @@ export const Markdown = ({ source }: { source: string }) => {
       blocks.push(
         <Text
           key={key}
+          selectable
           style={{
             ...RTL,
             marginTop: major ? 8 : 4,
@@ -103,10 +106,10 @@ export const Markdown = ({ source }: { source: string }) => {
     }
 
     if (index === firstContent) {
-      // Running header (page number + chapter) printed at the top of the page.
       blocks.push(
         <Text
           key={key}
+          selectable
           style={{
             writingDirection: "rtl",
             textAlign: "center",
@@ -123,6 +126,7 @@ export const Markdown = ({ source }: { source: string }) => {
     blocks.push(
       <Text
         key={key}
+        selectable
         style={{
           ...RTL,
           color: inFootnotes ? colors.textSecondary : colors.ink,

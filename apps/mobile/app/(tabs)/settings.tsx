@@ -75,7 +75,7 @@ export default function SettingsScreen() {
       contentContainerStyle={{
         paddingTop: insets.top + 8,
         paddingHorizontal: 20,
-        paddingBottom: 24,
+        paddingBottom: insets.bottom + 90,
       }}
       keyboardShouldPersistTaps="handled"
     >

@@ -140,6 +140,26 @@ export const api = {
     ).file;
   },
 
+  /** Recent page-fragments across all books, newest first (for Activity). */
+  recentFiles: async (
+    limit = 20,
+  ): Promise<{ book_id: string; title: string; file: FileStatus }[]> => {
+    const books = await api.listBooks();
+    const groups = await Promise.all(
+      books.map(async (b) =>
+        (await api.status(b.id)).map((file) => ({
+          book_id: b.id,
+          title: b.title,
+          file,
+        })),
+      ),
+    );
+    return groups
+      .flat()
+      .sort((a, b) => b.file.updated_at - a.file.updated_at)
+      .slice(0, limit);
+  },
+
   /** Re-run OCR on a single file now (synchronous server-side). */
   rerunOcr: async ({
     bookId,

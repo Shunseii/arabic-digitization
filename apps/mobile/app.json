@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Qira'a",
+    "name": "رقمنة",
     "slug": "arabic-digitization",
     "scheme": "qiraa",
     "version": "0.0.1",
@@ -8,21 +8,35 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "backgroundColor": "#0C0D10",
+    "icon": "./assets/icon.png",
     "ios": {
+      "bundleIdentifier": "dev.qiraa.app",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "Qira'a uses the camera to scan book pages for transcription."
+        "NSCameraUsageDescription": "This app uses the camera to scan book pages for transcription."
       }
     },
     "android": {
       "package": "dev.qiraa.app",
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": ["android.permission.CAMERA"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0C0D10"
+      }
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "react-native-document-scanner-plugin",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#0C0D10"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

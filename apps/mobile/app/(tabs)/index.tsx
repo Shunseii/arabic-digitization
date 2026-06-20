@@ -102,7 +102,7 @@ export default function LibraryScreen() {
       contentContainerStyle={{
         paddingTop: insets.top + 8,
         paddingHorizontal: 20,
-        paddingBottom: 24,
+        paddingBottom: insets.bottom + 90,
       }}
       refreshControl={
         <RefreshControl
@@ -114,9 +114,7 @@ export default function LibraryScreen() {
     >
       <View className="flex-row items-center justify-between">
         <View className="gap-1">
-          <Text className="text-xs font-bold tracking-[2px] text-accent">
-            QIRA'A
-          </Text>
+          <Text className="text-base font-bold text-accent">رقمنة</Text>
           <Text className="text-[34px] font-semibold text-ink">Library</Text>
         </View>
         <View className="flex-row items-center gap-1.5 rounded-full bg-[#16271E] px-3 py-1.5">
