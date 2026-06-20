@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import {
-  Image,
   Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -16,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Centered, Loading } from "@/components/ui";
+import { ZoomableImage } from "@/components/zoomable-image";
 import { api } from "@/lib/api";
 import { Markdown } from "@/lib/markdown";
 import { colors } from "@/theme";
@@ -30,6 +30,7 @@ export default function ReaderScreen() {
   }>();
   const [index, setIndex] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [scanZoomed, setScanZoomed] = useState(false);
 
   useEffect(() => {
     SecureStore.getItemAsync("qiraa.hint.readerSwipe").then((v) => {
@@ -83,6 +84,7 @@ export default function ReaderScreen() {
       <ScrollView
         horizontal
         pagingEnabled
+        scrollEnabled={!scanZoomed}
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onScrollEnd}
       >
@@ -111,12 +113,12 @@ export default function ReaderScreen() {
 
         {/* Pane 2: original scan */}
         <View style={{ width }} className="items-center justify-center px-4">
-          <Image
+          <ZoomableImage
             source={api.imageSource({ bookId, fileId })}
             resizeMode="contain"
             style={{ width: width - 32, height: "85%" }}
-            // biome-ignore lint/suspicious/noEmptyBlockStatements: placeholder while loading
-            onError={() => {}}
+            zoomed={scanZoomed}
+            onZoomChange={setScanZoomed}
           />
         </View>
       </ScrollView>
