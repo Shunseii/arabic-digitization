@@ -165,3 +165,9 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# Expo / React Native (apps/mobile)
+.expo/
+apps/mobile/ios/
+apps/mobile/android/
+*.keystore

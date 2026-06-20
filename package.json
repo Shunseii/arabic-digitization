@@ -1,28 +1,20 @@
 {
-  "name": "cloudflare-workers-openapi",
+  "name": "qiraa",
   "version": "0.0.1",
   "private": true,
   "packageManager": "pnpm@11.5.0",
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
-    "cf-typegen": "wrangler types",
-    "typecheck": "tsc --noEmit",
+    "dev:api": "pnpm --filter @qiraa/api dev",
+    "deploy": "pnpm --filter @qiraa/api deploy",
+    "mobile": "pnpm --filter @qiraa/mobile start",
+    "android": "pnpm --filter @qiraa/mobile android",
+    "ios": "pnpm --filter @qiraa/mobile ios",
+    "typecheck": "pnpm -r typecheck",
     "check": "biome check --write",
-    "check:ci": "biome check",
-    "lint": "biome lint",
-    "format": "biome format --write"
-  },
-  "dependencies": {
-    "chanfana": "^3.3.0",
-    "hono": "^4.12.12",
-    "zod": "^4.3.6"
+    "check:ci": "biome check"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
-    "@types/node": "^25.9.3",
-    "typescript": "^6.0.3",
-    "wrangler": "^4.100.0"
+    "typescript": "^6.0.3"
   }
 }

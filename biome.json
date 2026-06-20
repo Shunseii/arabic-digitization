@@ -7,7 +7,15 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!worker-configuration.d.ts", "!.wrangler"]
+    "includes": [
+      "**",
+      "!apps/api/worker-configuration.d.ts",
+      "!**/.wrangler",
+      "!**/.expo",
+      "!apps/mobile/ios",
+      "!apps/mobile/android",
+      "!apps/mobile/global.css"
+    ]
   },
   "formatter": {
     "enabled": true,

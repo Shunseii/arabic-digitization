@@ -1,0 +1,26 @@
+{
+  "name": "@qiraa/api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "cf-typegen": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check --write",
+    "check:ci": "biome check",
+    "lint": "biome lint",
+    "format": "biome format --write"
+  },
+  "dependencies": {
+    "chanfana": "^3.3.0",
+    "hono": "^4.12.12",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.100.0"
+  }
+}

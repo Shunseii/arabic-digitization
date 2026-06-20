@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Qira'a",
+    "slug": "qiraa",
+    "scheme": "qiraa",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "backgroundColor": "#0C0D10",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Qira'a uses the camera to scan book pages for transcription."
+      }
+    },
+    "android": {
+      "package": "dev.qiraa.app",
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "react-native-document-scanner-plugin"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
