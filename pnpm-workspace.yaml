@@ -3,6 +3,11 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# Flat node_modules so Expo/Metro + React Native autolinking resolve transitive
+# deps (e.g. @expo/metro-runtime, react-native-css-interop). pnpm's default
+# isolated linker breaks this. https://docs.expo.dev/guides/monorepos
+nodeLinker: hoisted
+
 # Pre-approve build scripts for packages that need them: `workerd` downloads
 # the platform binary, `esbuild` and `sharp` (via miniflare) download/build
 # native bindings. Without these, pnpm 11+ aborts with ERR_PNPM_IGNORED_BUILDS.
