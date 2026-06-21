@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "رقمنة",
+  "productName": "Qiraa",
   "mainBinaryName": "qiraa",
   "version": "0.0.1",
   "identifier": "dev.qiraa.app",
@@ -39,6 +39,11 @@
     ],
     "category": "Productivity",
     "shortDescription": "Arabic manuscript digitization",
-    "longDescription": "Scan, OCR, and read Arabic manuscripts — the desktop companion to the Qiraa mobile app."
+    "longDescription": "Scan, OCR, and read Arabic manuscripts — the desktop companion to the Qiraa mobile app.",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "qiraa.desktop"
+      }
+    }
   }
 }
