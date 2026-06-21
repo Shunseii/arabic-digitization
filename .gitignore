@@ -171,3 +171,7 @@ dist
 apps/mobile/ios/
 apps/mobile/android/
 *.keystore
+
+# Tauri / Rust (apps/desktop) — Cargo.lock is committed for the binary.
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/

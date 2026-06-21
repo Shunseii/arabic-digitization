@@ -14,7 +14,11 @@
       "!**/.expo",
       "!apps/mobile/ios",
       "!apps/mobile/android",
-      "!apps/mobile/global.css"
+      "!apps/mobile/global.css",
+      "!apps/desktop/src/index.css",
+      "!apps/desktop/dist",
+      "!apps/desktop/src-tauri/target",
+      "!apps/desktop/src-tauri/gen"
     ]
   },
   "formatter": {
