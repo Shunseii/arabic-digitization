@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Modal,
   type NativeScrollEvent,
@@ -47,8 +47,18 @@ export default function ReaderScreen() {
     queryFn: () => api.fileText({ bookId, fileId }),
   });
 
+  const scrollRef = useRef<ScrollView>(null);
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
     setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
+
+  // Jump to the other pane programmatically. Works even while the scan is
+  // zoomed (which disables swipe gestures), so you can flip to the text and
+  // back without pinching out first.
+  const switchPane = () => {
+    const target = index === 0 ? 1 : 0;
+    scrollRef.current?.scrollTo({ x: width * target, animated: true });
+    setIndex(target);
+  };
 
   return (
     <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
@@ -78,10 +88,16 @@ export default function ReaderScreen() {
             />
           </View>
         </View>
-        <View className="h-10 w-10" />
+        <Pressable
+          onPress={switchPane}
+          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
+        >
+          <Feather name="repeat" size={16} color={colors.accent} />
+        </Pressable>
       </View>
 
       <ScrollView
+        ref={scrollRef}
         horizontal
         pagingEnabled
         scrollEnabled={!scanZoomed}
