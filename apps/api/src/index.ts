@@ -1,5 +1,6 @@
 import { fromHono } from "chanfana";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { LLMS_TXT } from "./docs";
 import { BookCreate } from "./endpoints/bookCreate";
 import { BookDelete } from "./endpoints/bookDelete";
@@ -22,6 +23,21 @@ const app = new Hono<{ Bindings: Env }>();
 // Public LLM-oriented API reference (for a local skill). Before the gate.
 app.get("/llms.txt", (c) =>
   c.body(LLMS_TXT, 200, { "content-type": "text/markdown; charset=utf-8" }),
+);
+
+// Allow the desktop webview (and any browser client) to call the API. Auth is
+// a Bearer master key with no cookies, so a wildcard origin is safe. Placed
+// before the auth gate so CORS preflight (OPTIONS, which carries no auth
+// header) is answered without hitting requireMasterKey. Harmless to the mobile
+// RN client, which isn't subject to CORS.
+app.use(
+  "/api/*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Authorization", "Content-Type"],
+    maxAge: 86400,
+  }),
 );
 
 // Gate the whole API behind the master key. Docs UI at "/" stays open.
