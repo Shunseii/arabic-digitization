@@ -81,7 +81,7 @@ export const Markdown = ({ source }: { source: string }) => {
               marginTop: 8,
             }}
           >
-            {content}
+            {inline(content, key)}
           </p>,
         );
         return;
@@ -99,7 +99,7 @@ export const Markdown = ({ source }: { source: string }) => {
             color: major ? colors.accent : colors.ink,
           }}
         >
-          {content}
+          {inline(content, key)}
         </p>,
       );
       return;
@@ -116,7 +116,7 @@ export const Markdown = ({ source }: { source: string }) => {
             fontSize: 13,
           }}
         >
-          {line}
+          {inline(line, key)}
         </p>,
       );
       return;
