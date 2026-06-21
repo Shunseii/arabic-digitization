@@ -15,3 +15,10 @@ allowBuilds:
   esbuild: true
   workerd: true
   sharp: true
+
+# Force a single react-dom across the hoisted workspace. An Expo/RN transitive
+# pulls react-dom 19.2.7 while react stays pinned at 19.1.0; the desktop app
+# (Vite) then resolves a mismatched pair and crashes with "Incompatible React
+# versions". Pin react-dom to react's version.
+overrides:
+  react-dom: "19.1.0"
