@@ -52,7 +52,7 @@ jobs:
               owner, repo,
               tag_name: tag,
               target_commitish: context.sha,
-              name: 'Qiraa Desktop (latest)',
+              name: 'رقمنة — Desktop (latest)',
               body: 'Latest desktop installers built from master. Windows (.exe) and Linux (.deb / .AppImage) — see the assets below.',
               draft: false,
               prerelease: false,
