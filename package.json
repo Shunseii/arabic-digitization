@@ -9,6 +9,8 @@
     "mobile": "pnpm --filter @qiraa/mobile start",
     "android": "pnpm --filter @qiraa/mobile android",
     "ios": "pnpm --filter @qiraa/mobile ios",
+    "desktop": "pnpm --filter @qiraa/desktop desktop",
+    "desktop:build": "pnpm --filter @qiraa/desktop desktop:build",
     "typecheck": "pnpm -r typecheck",
     "check": "biome check --write",
     "check:ci": "biome check"
