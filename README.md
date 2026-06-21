@@ -86,11 +86,58 @@ Local `wrangler dev` simulates R2/D1/Queue in `.wrangler/state` — uploads and 
 
 ## Deploy
 
+This is a monorepo with three deployables: the **API** (Cloudflare Worker), the
+**mobile** app (Expo/EAS), and the **desktop** app (Tauri). All commands run
+from the repo root unless noted.
+
+### API (Cloudflare Worker)
+
+Manual — there is no CI deploy for the Worker:
+
 ```bash
-pnpm wrangler deploy
+pnpm deploy        # = pnpm --filter @qiraa/api deploy = wrangler deploy
 ```
 
-Gives a free `*.workers.dev` URL (no custom domain or paid plan required — Queues are on the free tier). Set the production secrets first (above), or the API returns 500 until `MASTER_KEY` is configured.
+Gives a free `*.workers.dev` URL (no custom domain or paid plan required —
+Queues are on the free tier). Set the production secrets first (above), or the
+API returns 500 until `MASTER_KEY` is configured. Re-run after any change under
+`apps/api/` — including CORS/middleware — for it to go live.
+
+### Mobile (Expo / EAS)
+
+Cloud builds on EAS (profiles in `apps/mobile/eas.json`). Run from `apps/mobile`:
+
+```bash
+cd apps/mobile
+eas build --profile preview    --platform android   # internal-distribution APK
+eas build --profile production --platform android   # store build, auto-increments
+```
+
+`--no-wait` queues without blocking. The build page (printed on launch, or
+`eas build:list`) has the installable APK / store artifact. First run needs
+`eas login`; Android credentials (keystore) are managed on the Expo server.
+
+### Desktop (Tauri)
+
+Auto-deployed by CI: every push to `master` touching `apps/desktop/**` runs
+`.github/workflows/desktop-release.yml`, which builds the Windows `.exe` and
+Linux `.deb` / `.AppImage` and publishes them to a single rolling
+**`desktop-latest`** GitHub Release. No tags. Get the latest installers:
+
+```bash
+gh release download desktop-latest --pattern '*.deb' --dir ~/Downloads --clobber
+```
+
+Build installers locally instead (output in
+`apps/desktop/src-tauri/target/release/bundle/`):
+
+```bash
+pnpm desktop:build        # = pnpm --filter @qiraa/desktop desktop:build
+```
+
+The desktop app calls the API with the webview's native fetch, so the Worker's
+CORS headers (above) must be deployed for it to connect. Linux build deps and
+more detail: `apps/desktop/README.md`.
 
 ## Layout
 
