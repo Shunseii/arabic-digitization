@@ -1,19 +1,66 @@
 name: desktop-release
 
-# Build the Tauri desktop installers for Windows + Linux and attach them to a
-# GitHub Release. Triggers on a `desktop-v*` tag (e.g. `desktop-v0.1.0`) so it
-# doesn't fire on api/mobile releases. Can also be run by hand.
+# Build the Tauri desktop installers for Windows + Linux on every push to
+# master that touches the desktop app, and publish them to a single rolling
+# `desktop-latest` GitHub Release (always the newest build, no per-version
+# tags). The Release page shows the installer assets. Also runnable by hand.
 on:
   push:
-    tags:
-      - "desktop-v*"
+    branches: [master]
+    paths:
+      - "apps/desktop/**"
+      - "packages/shared/**"
+      - ".github/workflows/desktop-release.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+# Only one rolling-release build at a time; a newer push wins.
+concurrency:
+  group: desktop-release
+  cancel-in-progress: true
+
 jobs:
+  # Recreate the rolling release at the current commit so the build jobs have a
+  # release to upload their assets into. Deleting + recreating keeps a single
+  # `desktop-latest` entry pinned to the newest commit.
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.rel.outputs.id }}
+    steps:
+      - name: Ensure rolling release
+        id: rel
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = 'desktop-latest';
+            try {
+              const { data } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              await github.rest.repos.deleteRelease({ owner, repo, release_id: data.id });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+            try {
+              await github.rest.git.deleteRef({ owner, repo, ref: `tags/${tag}` });
+            } catch (e) {
+              if (e.status !== 404 && e.status !== 422) throw e;
+            }
+            const { data } = await github.rest.repos.createRelease({
+              owner, repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              name: 'Qiraa Desktop (latest)',
+              body: 'Latest desktop installers built from master. Windows (.exe) and Linux (.deb / .AppImage) — see the assets below.',
+              draft: false,
+              prerelease: false,
+            });
+            core.setOutput('id', data.id);
+
   build:
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -54,14 +101,10 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and release
+      - name: Build and upload to release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: "Qiraa Desktop ${{ github.ref_name }}"
-          releaseBody: "Desktop installers for Windows and Linux. See the assets below."
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
