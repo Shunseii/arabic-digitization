@@ -11,10 +11,12 @@ const items: { to: string; label: string; icon: LucideIcon }[] = [
 export const Sidebar = () => (
   <nav className="flex w-56 shrink-0 flex-col border-r border-hairline bg-surface">
     <div className="flex flex-col gap-0.5 px-4 pb-4 pt-7">
-      <span className="text-sm font-bold text-accent" dir="rtl">
+      <span className="text-2xl font-bold text-accent" dir="rtl">
         رقمنة
       </span>
-      <span className="text-lg font-semibold text-ink">Qiraa</span>
+      <span className="text-xs font-medium text-text-muted">
+        Arabic digitization
+      </span>
     </div>
     <div className="flex flex-col gap-1 px-3">
       {items.map(({ to, label, icon: Icon }) => (
@@ -34,9 +36,6 @@ export const Sidebar = () => (
           {label}
         </NavLink>
       ))}
-    </div>
-    <div className="mt-auto px-5 pb-5 pt-4">
-      <span className="text-xs text-text-muted">Arabic digitization</span>
     </div>
   </nav>
 );
