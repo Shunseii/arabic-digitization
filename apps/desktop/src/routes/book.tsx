@@ -29,6 +29,7 @@ export const BookScreen = () => {
   const queryClient = useQueryClient();
 
   const [menuFile, setMenuFile] = useState<FileStatus | null>(null);
+  const [errorFile, setErrorFile] = useState<FileStatus | null>(null);
   const [editing, setEditing] = useState<FileStatus | null>(null);
   const [pageInput, setPageInput] = useState("");
   const [editBook, setEditBook] = useState(false);
@@ -186,8 +187,13 @@ export const BookScreen = () => {
                   >
                     <button
                       type="button"
-                      disabled={!readable}
-                      onClick={() => navigate(`/reader/${id}/${f.file_id}`)}
+                      disabled={
+                        !readable && !(f.state === "failed" && !!f.error)
+                      }
+                      onClick={() => {
+                        if (readable) navigate(`/reader/${id}/${f.file_id}`);
+                        else if (f.error) setErrorFile(f);
+                      }}
                       className="flex flex-1 flex-row items-center gap-3 overflow-hidden text-left disabled:cursor-default"
                     >
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-alt">
@@ -254,6 +260,38 @@ export const BookScreen = () => {
               destructive
               onClick={() => confirmDelete(menuFile)}
             />
+          </div>
+        </Overlay>
+      )}
+
+      {errorFile && (
+        <Overlay onClose={() => setErrorFile(null)}>
+          <div className="flex max-h-[70vh] w-[34rem] max-w-[90vw] flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
+            <p className="text-xs font-bold tracking-wide text-st-fail">
+              OCR ERROR · PAGE {errorFile.page_number ?? "—"}
+            </p>
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-bg p-3 text-xs leading-6 text-ink">
+              {errorFile.error}
+            </pre>
+            <div className="flex flex-row items-center justify-end gap-4">
+              <button
+                type="button"
+                onClick={() =>
+                  navigator.clipboard.writeText(errorFile.error ?? "")
+                }
+              >
+                <span className="text-sm font-semibold text-text-secondary">
+                  Copy
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setErrorFile(null)}
+                className="rounded-lg bg-accent px-4 py-2"
+              >
+                <span className="text-sm font-bold text-accent-ink">Close</span>
+              </button>
+            </div>
           </div>
         </Overlay>
       )}

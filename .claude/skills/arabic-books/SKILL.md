@@ -1,6 +1,6 @@
 ---
 name: arabic-books
-description: Manage books and read status on the Arabic digitization API (the deployed Cloudflare Worker). Create books, list them with per-state counts, inspect a single book, delete a book (and all its files), poll per-file OCR status, and re-run OCR on failed files. Manually invoked — use for "/arabic-books", "create a book for <title>", "list my books", "delete <book>", "what's the OCR status of <book>", "re-run OCR on the failed pages of <book>". Does NOT upload scans and does NOT pull/reformat transcriptions — uploading is done out of band, and pulling finished text into Obsidian is the separate arabic-ocr skill.
+description: Manage books and read status on the Arabic digitization API (the deployed Cloudflare Worker), and search the digitized corpus via Meilisearch. Create books, list them with per-state counts, inspect a single book, delete a book (and all its files), poll per-file OCR status, re-run OCR on failed files, and run hybrid (lexical + semantic) search across the library. Manually invoked — use for "/arabic-books", "create a book for <title>", "list my books", "delete <book>", "what's the OCR status of <book>", "re-run OCR on the failed pages of <book>", "search the corpus for <query>", "find pages about <topic>". Does NOT upload scans and does NOT pull/reformat transcriptions — uploading is done out of band, and pulling finished text into Obsidian is the separate arabic-ocr skill.
 ---
 
 # Arabic Books — manage + monitor the digitization pipeline
@@ -14,9 +14,14 @@ Read these secret references — prefer the **1Password MCP**; fall back to the 
 - URL: `op://Arabic Digitization/API Connection Vars/ARABIC_OCR_URL`
 - Key: `op://Arabic Digitization/API Connection Vars/ARABIC_OCR_KEY`
 
-The key is a bearer secret — use it only in the `Authorization` header, never print or echo it. If either can't be read, stop and tell the user to check 1Password / `op` sign-in.
+For **search** (separate Meilisearch instance on Fly, not the Worker):
 
-All API requests send: `Authorization: Bearer <ARABIC_OCR_KEY>`.
+- Meili URL: `op://Arabic Digitization/Meilisearch/url`
+- Search key: `op://Arabic Digitization/Meilisearch/client read key` (read-only; `search` only)
+
+Both keys are bearer secrets — use them only in the `Authorization` header, never print or echo them. If a needed ref can't be read, stop and tell the user to check 1Password / `op` sign-in.
+
+API requests send `Authorization: Bearer <ARABIC_OCR_KEY>`; Meilisearch requests send `Authorization: Bearer <client read key>`.
 
 ## Endpoints this skill uses
 
@@ -32,6 +37,27 @@ Inlined for self-sufficiency. **Full, always-current reference** (use if anythin
 | POST   | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file, synchronous → `{ file_id, model, text, text_key, usage }`. Use for `failed` files.                             |
 
 File state machine: `captured → queued → processing → done` (or `failed` after retries; `needs_review` / `approved` reserved).
+
+## Search the corpus (Meilisearch)
+
+Search runs against the **Meilisearch** instance directly (not the Worker), using the read-only key. Hybrid = lexical (charabia, Arabic-aware) + semantic (bge-m3 embeddings); `semanticRatio` 0 = keyword only, 1 = semantic only.
+
+`POST <MEILI_URL>/indexes/books/search`
+
+```json
+{
+  "q": "<query>",
+  "hybrid": { "embedder": "cfbge", "semanticRatio": 0.5 },
+  "limit": 20,
+  "attributesToRetrieve": ["book_id", "book_title", "page_number", "text"],
+  "attributesToCrop": ["text"],
+  "cropLength": 40
+}
+```
+
+→ `{ hits: [ { id, book_id, book_title, page_number, text, _formatted: { text } } ] }`. `id` is the `file_id`; `_formatted.text` is the cropped snippet (strip `__ais-highlight__` / ruby / markdown markers when displaying).
+
+Notes: concept/phrase queries work well; **abstract category words** ("grammar", "fiqh") drift — vector matches what pages *say*, not their category. Search is read-only and safe to run freely.
 
 ## What this skill does NOT do
 
@@ -70,6 +96,13 @@ File state machine: `captured → queued → processing → done` (or `failed` a
 2. Confirm with the user — this wipes all the book's R2 scans, transcribed text, and rows. Irreversible.
 3. `DELETE <URL>/api/books/:bookId`.
 4. Report the returned counts: `files` rows and `r2_objects` removed.
+
+**Search the corpus**
+
+1. Resolve the Meili config (URL + read key, above).
+2. `POST <MEILI_URL>/indexes/books/search` with the body shown in "Search the corpus" (default `semanticRatio` 0.5; raise toward 1 for concept queries, lower toward 0 for exact terms/names). To scope to one book, add `"filter": "book_id = '<bookId>'"`.
+3. Render hits: `book_title` · `ص <page_number>` · cleaned snippet (strip `__ais-highlight__`, ruby, and markdown markers). Note the `file_id` (`id`) so the user can open it.
+4. If nothing comes back for an abstract term, suggest a concrete phrase (e.g. "rules of ablution" instead of "fiqh").
 
 ## Notes
 

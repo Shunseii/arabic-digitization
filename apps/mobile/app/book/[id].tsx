@@ -31,6 +31,7 @@ export default function BookScreen() {
   const queryClient = useQueryClient();
 
   const [menuFile, setMenuFile] = useState<FileStatus | null>(null);
+  const [errorFile, setErrorFile] = useState<FileStatus | null>(null);
   const [editing, setEditing] = useState<FileStatus | null>(null);
   const [pageInput, setPageInput] = useState("");
   const [editBook, setEditBook] = useState(false);
@@ -198,8 +199,11 @@ export default function BookScreen() {
                   ]}
                 >
                   <Pressable
-                    disabled={!readable}
-                    onPress={() => router.push(`/reader/${id}/${f.file_id}`)}
+                    disabled={!readable && !(f.state === "failed" && !!f.error)}
+                    onPress={() => {
+                      if (readable) router.push(`/reader/${id}/${f.file_id}`);
+                      else if (f.error) setErrorFile(f);
+                    }}
                     className="flex-1 flex-row items-center gap-3"
                   >
                     <View className="h-9 w-9 items-center justify-center rounded-full bg-surface-alt">
@@ -312,6 +316,48 @@ export default function BookScreen() {
                 />
               </>
             )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Full OCR error — opened by tapping a failed page. */}
+      <Modal
+        visible={errorFile != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorFile(null)}
+      >
+        <Pressable
+          onPress={() => setErrorFile(null)}
+          className="flex-1 items-center justify-center px-6"
+          style={{ backgroundColor: "#00000099" }}
+        >
+          <Pressable
+            onPress={() => {}}
+            className="max-h-[70%] w-full rounded-2xl border border-border bg-surface p-5"
+          >
+            <Text className="mb-3 text-xs font-bold tracking-wide text-st-fail">
+              {errorFile
+                ? `OCR ERROR · PAGE ${errorFile.page_number ?? "—"}`
+                : "OCR ERROR"}
+            </Text>
+            <ScrollView className="max-h-80">
+              <Text
+                selectable
+                className="text-sm leading-6 text-ink"
+                style={{ writingDirection: "ltr" }}
+              >
+                {errorFile?.error}
+              </Text>
+            </ScrollView>
+            <Pressable
+              onPress={() => setErrorFile(null)}
+              className="mt-4 items-center rounded-xl bg-surface-alt py-3"
+            >
+              <Text className="text-sm font-semibold text-text-secondary">
+                Close
+              </Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
