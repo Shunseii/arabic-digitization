@@ -45,6 +45,8 @@ Every `/api/*` request needs `Authorization: Bearer <MASTER_KEY>`. Full, always-
 | POST | `/api/books/:bookId/files?page=<n>` | Upload a page (raw image/PDF body); auto-enqueues OCR |
 | POST | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file (synchronous) |
 | GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`) |
+| GET | `/api/search?q=&book=&semanticRatio=&limit=` | Hybrid search across the corpus (lexical + semantic) |
+| POST | `/api/search/reindex` | Rebuild the search index from R2 (`{bookId?}`) |
 
 Upload accepts `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. `?page` is optional — supply it when the printed page number isn't legible in the shot.
 
@@ -66,13 +68,16 @@ pnpm wrangler queues create arabic-ocr
 
 ## Secrets
 
-Two secrets, never committed:
+Secrets, never committed:
 
 - `MASTER_KEY` — the bearer token gating the API. Generate with `openssl rand -hex 32`.
 - `GOOGLE_API_KEY` — Google AI Studio key for Gemini.
+- `MEILI_KEY` — Meilisearch API key for search (only needed once search is set up; see `infra/meili`). A scoped key with `search` + `documents.add`, not the master key.
 
-**Local** (`wrangler dev`): put both in `.dev.vars` (gitignored; see `.dev.vars.example`).
-**Production**: `pnpm wrangler secret put MASTER_KEY` and `pnpm wrangler secret put GOOGLE_API_KEY`. These are separate stores — keep them in sync manually if you rotate.
+`MEILI_URL` is a non-secret var in `wrangler.jsonc` (the Meilisearch instance URL).
+
+**Local** (`wrangler dev`): put the secrets in `.dev.vars` (gitignored; see `.dev.vars.example`).
+**Production**: `pnpm wrangler secret put <NAME>` for each. These are separate stores — keep them in sync manually if you rotate.
 
 ## Develop
 
@@ -92,16 +97,41 @@ from the repo root unless noted.
 
 ### API (Cloudflare Worker)
 
-Manual — there is no CI deploy for the Worker:
+Auto-deploys on push to `master` via Cloudflare's Git integration (Workers
+Builds) — merging to `master` ships the Worker, including any change under
+`apps/api/`. For a manual/local deploy:
 
 ```bash
 pnpm deploy        # = pnpm --filter @qiraa/api deploy = wrangler deploy
 ```
 
-Gives a free `*.workers.dev` URL (no custom domain or paid plan required —
-Queues are on the free tier). Set the production secrets first (above), or the
-API returns 500 until `MASTER_KEY` is configured. Re-run after any change under
-`apps/api/` — including CORS/middleware — for it to go live.
+Runs on a free `*.workers.dev` URL (no custom domain or paid plan required —
+Queues are on the free tier). Production secrets must be set in Cloudflare
+first (see Secrets above) — the API returns 500 until `MASTER_KEY` is
+configured, and search depends on `MEILI_KEY`/`MEILI_URL`.
+
+### Search (Meilisearch)
+
+Search (`GET /api/search`, auto-indexing on OCR, `POST /api/search/reindex`)
+needs a running Meilisearch instance. Unlike the Worker, Meilisearch is **not**
+auto-deployed — it's a separate, stateful service on Fly.io that you deploy
+**manually** (long-lived volume; you don't want a push restarting the DB).
+Full deploy + upgrade + indexing docs in
+[`infra/meili/README.md`](infra/meili/README.md). In short:
+
+```bash
+# 1. deploy the instance (one-time; see infra/meili/README.md for full steps)
+cd infra/meili && fly deploy -c fly.toml -a <app> --ha=false
+node setup-index.mjs            # configure index + Workers AI embedder
+
+# 2. point the Worker at it (the Worker itself redeploys on push to master)
+#    set MEILI_URL in apps/api/wrangler.jsonc, then:
+pnpm wrangler secret put MEILI_KEY    # stored in Cloudflare, survives redeploys
+#    push to master → Workers Builds redeploys the Worker with search live
+
+# 3. backfill existing scans (new scans auto-index on OCR going forward)
+curl -X POST https://<api>/api/search/reindex -H "Authorization: Bearer $MASTER_KEY"
+```
 
 ### Mobile (Expo / EAS)
 
