@@ -45,18 +45,34 @@ CF_AI_TOKEN=<cloudflare token with Workers AI: Read> \
 node setup-index.mjs
 ```
 
+## Keys
+
+Two distinct secrets:
+
+- **`MEILI_MASTER_KEY`** — you generate it (step 2 above: `openssl rand -base64
+  32`) and set it as a Fly secret. Root admin key; required to boot in
+  `production`. Store it in 1Password. Never give it to the Worker.
+- **`MEILI_KEY`** (the Worker's key) — a *scoped* key you mint from the running
+  instance using the master key. Meili auto-creates a "Default Search" key, but
+  that's search-only and can't `documents.add`, so create a custom one:
+
+```sh
+MASTER=<the master key from step 2>
+curl -X POST https://arabic-digitization-search.fly.dev/keys \
+  -H "Authorization: Bearer $MASTER" -H 'Content-Type: application/json' \
+  -d '{"description":"api worker","actions":["search","documents.add","documents.get"],"indexes":["books"],"expiresAt":null}'
+# the "key" field in the response IS your MEILI_KEY — store it in 1Password
+```
+
 ## Wire up the api Worker
 
 ```sh
 cd ../../apps/api
-# MEILI_URL is already in wrangler.jsonc vars. Set the key secret:
-wrangler secret put MEILI_KEY    # a Meili API key with search + documents.add
+# MEILI_URL is already in wrangler.jsonc vars. Set the scoped key from above:
+wrangler secret put MEILI_KEY    # paste the key minted via /keys
 wrangler types                   # regenerate Env so MEILI_URL/MEILI_KEY type-check
-wrangler deploy
+# the Worker auto-deploys on push to master (Workers Builds); or `pnpm deploy`
 ```
-
-Create a scoped Meili API key (not the master key) for the Worker via the Meili
-`/keys` API, with actions `search` + `documents.add` on the `books` index.
 
 ## Index + query
 
