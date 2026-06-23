@@ -101,6 +101,11 @@ export interface CreateBookResponse {
   book: Book;
 }
 
+export interface UpdateBookResponse {
+  success: true;
+  book: Book;
+}
+
 export interface ListBooksResponse {
   success: true;
   books: BookWithStatus[];
