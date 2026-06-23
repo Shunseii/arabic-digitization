@@ -69,6 +69,41 @@ curl "https://<api>/api/search?q=أحكام%20الوضوء&semanticRatio=0.5" \
   -H "Authorization: Bearer $MASTER_KEY"
 ```
 
+## How indexing works
+
+Two paths keep the `books` index in sync with the transcriptions in R2.
+
+### Automatic (per page, on OCR completion)
+
+When a page finishes OCR, `transcribe()` (`apps/api/src/ocr.ts`) writes the
+text to R2, marks the file `done`, then pushes that one page to Meilisearch:
+
+```
+upload scan → queue → transcribe() → R2 text + state=done → upsert page to Meili
+```
+
+This is **best-effort**: if Meilisearch is down, cold-starting, or `MEILI_URL`/
+`MEILI_KEY` aren't configured, the upsert is caught and logged — OCR still
+succeeds. The page is safe in R2/D1, and the reindex below re-syncs it. So new
+scans become searchable on their own, with no manual step.
+
+### Manual (bulk backfill / repair)
+
+`POST /api/search/reindex` rebuilds the index from R2 (the source of truth):
+reads every `done`/`needs_review`/`approved` page's text and upserts it.
+
+```sh
+# all books:
+curl -X POST https://<api>/api/search/reindex -H "Authorization: Bearer $MASTER_KEY"
+# one book:
+curl -X POST https://<api>/api/search/reindex -H "Authorization: Bearer $MASTER_KEY" \
+  -H "Content-Type: application/json" -d '{"bookId":"nur-al-idah"}'
+```
+
+Use it to: backfill pages scanned before search existed, recover anything the
+auto-index missed (Meili was asleep/down), or rebuild after a Meili version
+upgrade (the index is disposable — see "Upgrading").
+
 ## Autostop
 
 `fly.toml` scales the machine to zero when idle; the volume (hence the index)
