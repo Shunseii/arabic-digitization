@@ -20,6 +20,8 @@ export default function SettingsScreen() {
 
   const [endpoint, setEndpoint] = useState(config?.endpoint ?? "");
   const [key, setKey] = useState(config?.key ?? "");
+  const [meiliUrl, setMeiliUrl] = useState(config?.meiliUrl ?? "");
+  const [meiliKey, setMeiliKey] = useState(config?.meiliKey ?? "");
   const [busy, setBusy] = useState(false);
 
   const onSave = async () => {
@@ -37,7 +39,7 @@ export default function SettingsScreen() {
         );
         return;
       }
-      await save({ endpoint, key });
+      await save({ endpoint, key, meiliUrl, meiliKey });
       await queryClient.invalidateQueries();
       Alert.alert("Connected", "Your API is set up.");
     } catch (err) {
@@ -63,6 +65,8 @@ export default function SettingsScreen() {
             await queryClient.clear();
             setEndpoint("");
             setKey("");
+            setMeiliUrl("");
+            setMeiliKey("");
           },
         },
       ],
@@ -121,6 +125,41 @@ export default function SettingsScreen() {
           </Text>
         </View>
       )}
+
+      <Text className="mt-8 text-xs font-bold tracking-wide text-text-muted">
+        SEARCH (OPTIONAL)
+      </Text>
+      <Text className="mt-1 mb-3 text-xs text-text-muted">
+        Meilisearch URL + read-only key to enable the Search tab.
+      </Text>
+
+      <Text className="mb-2 text-xs font-medium text-text-secondary">
+        Meilisearch URL
+      </Text>
+      <TextInput
+        value={meiliUrl}
+        onChangeText={setMeiliUrl}
+        placeholder="https://your-search.fly.dev"
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        className="rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink"
+      />
+
+      <Text className="mt-4 mb-2 text-xs font-medium text-text-secondary">
+        Search key (read-only)
+      </Text>
+      <TextInput
+        value={meiliKey}
+        onChangeText={setMeiliKey}
+        placeholder="read-only search key"
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+        className="rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink"
+      />
 
       <Pressable
         onPress={onSave}

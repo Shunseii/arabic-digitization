@@ -10,6 +10,8 @@ export const SettingsScreen = () => {
 
   const [endpoint, setEndpoint] = useState(config?.endpoint ?? "");
   const [key, setKey] = useState(config?.key ?? "");
+  const [meiliUrl, setMeiliUrl] = useState(config?.meiliUrl ?? "");
+  const [meiliKey, setMeiliKey] = useState(config?.meiliKey ?? "");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
     kind: "ok" | "err";
@@ -32,7 +34,7 @@ export const SettingsScreen = () => {
         });
         return;
       }
-      await save({ endpoint, key });
+      await save({ endpoint, key, meiliUrl, meiliKey });
       await queryClient.invalidateQueries();
       setNotice({ kind: "ok", text: "Connected. Your API is set up." });
     } catch (err) {
@@ -50,6 +52,8 @@ export const SettingsScreen = () => {
     await queryClient.clear();
     setEndpoint("");
     setKey("");
+    setMeiliUrl("");
+    setMeiliKey("");
     setNotice(null);
   };
 
@@ -97,6 +101,40 @@ export const SettingsScreen = () => {
             </span>
           </div>
         )}
+
+        <p className="mt-8 text-xs font-bold tracking-wide text-text-muted">
+          SEARCH (OPTIONAL)
+        </p>
+        <p className="mt-1 text-xs text-text-muted">
+          Meilisearch URL + read-only key to enable the Search tab.
+        </p>
+
+        <span className="mt-3 mb-2 block text-xs font-medium text-text-secondary">
+          Meilisearch URL
+        </span>
+        <input
+          value={meiliUrl}
+          onChange={(e) => setMeiliUrl(e.target.value)}
+          placeholder="https://your-search.fly.dev"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
+        />
+
+        <span className="mt-4 mb-2 block text-xs font-medium text-text-secondary">
+          Search key (read-only)
+        </span>
+        <input
+          value={meiliKey}
+          onChange={(e) => setMeiliKey(e.target.value)}
+          placeholder="read-only search key"
+          type="password"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
+        />
 
         {notice && (
           <p

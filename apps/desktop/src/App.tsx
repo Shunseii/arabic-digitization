@@ -8,6 +8,7 @@ import { BookScreen } from "@/routes/book";
 import { LibraryScreen } from "@/routes/library";
 import { NewBookScreen } from "@/routes/new-book";
 import { ReaderScreen } from "@/routes/reader";
+import { SearchScreen } from "@/routes/search";
 import { SettingsScreen } from "@/routes/settings";
 import { UploadScreen } from "@/routes/upload";
 
@@ -26,6 +27,7 @@ export const App = () => (
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<LibraryScreen />} />
+          <Route path="/search" element={<SearchScreen />} />
           <Route path="/activity" element={<ActivityScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/new-book" element={<NewBookScreen />} />
