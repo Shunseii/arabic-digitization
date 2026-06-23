@@ -45,8 +45,11 @@ Every `/api/*` request needs `Authorization: Bearer <MASTER_KEY>`. Full, always-
 | POST | `/api/books/:bookId/files?page=<n>` | Upload a page (raw image/PDF body); auto-enqueues OCR |
 | POST | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file (synchronous) |
 | GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`) |
-| GET | `/api/search?q=&book=&semanticRatio=&limit=` | Hybrid search across the corpus (lexical + semantic) |
 | POST | `/api/search/reindex` | Rebuild the search index from R2 (`{bookId?}`) |
+
+Search *queries* don't go through the Worker — clients query Meilisearch
+directly with a read-only key (see `infra/meili`). The Worker only *writes* to
+the index (auto-index on OCR + the reindex above).
 
 Upload accepts `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. `?page` is optional — supply it when the printed page number isn't legible in the shot.
 
@@ -72,7 +75,7 @@ Secrets, never committed:
 
 - `MASTER_KEY` — the bearer token gating the API. Generate with `openssl rand -hex 32`.
 - `GOOGLE_API_KEY` — Google AI Studio key for Gemini.
-- `MEILI_KEY` — Meilisearch API key for search (only needed once search is set up; see `infra/meili`). A scoped key with `search` + `documents.add`, not the master key.
+- `MEILI_KEY` — Meilisearch **write** key (`documents.add`) for the Worker's indexing (only needed once search is set up; see `infra/meili`). Not the master key. Clients use a separate **read-only** search key, which never touches the Worker.
 
 `MEILI_URL` is a non-secret var in `wrangler.jsonc` (the Meilisearch instance URL).
 
@@ -124,10 +127,11 @@ Full deploy + upgrade + indexing docs in
 cd infra/meili && fly deploy -c fly.toml -a <app> --ha=false
 node setup-index.mjs            # configure index + Workers AI embedder
 
-# 2. point the Worker at it (the Worker itself redeploys on push to master)
-#    set MEILI_URL in apps/api/wrangler.jsonc, then:
-pnpm wrangler secret put MEILI_KEY    # stored in Cloudflare, survives redeploys
-#    push to master → Workers Builds redeploys the Worker with search live
+# 2. mint two scoped keys via Meili /keys (see infra/meili/README.md):
+#      - write key (documents.add) → the Worker's MEILI_KEY
+#      - read-only key (search)     → the clients
+pnpm wrangler secret put MEILI_KEY    # the WRITE key; push to master to deploy
+#    ship the read-only key + MEILI_URL to the desktop/mobile clients
 
 # 3. backfill existing scans (new scans auto-index on OCR going forward)
 curl -X POST https://<api>/api/search/reindex -H "Authorization: Bearer $MASTER_KEY"

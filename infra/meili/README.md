@@ -52,24 +52,35 @@ Two distinct secrets:
 - **`MEILI_MASTER_KEY`** — you generate it (step 2 above: `openssl rand -base64
   32`) and set it as a Fly secret. Root admin key; required to boot in
   `production`. Store it in 1Password. Never give it to the Worker.
-- **`MEILI_KEY`** (the Worker's key) — a *scoped* key you mint from the running
-  instance using the master key. Meili auto-creates a "Default Search" key, but
-  that's search-only and can't `documents.add`, so create a custom one:
+- **`MEILI_KEY`** (Worker **write** key) — used only by the Worker to index
+  (auto-index on OCR + reindex). Scope: `documents.add` on `books`.
+- **Client read-only key** — shipped to the desktop/mobile clients, which query
+  Meilisearch **directly**. Scope: `search` on `books`. Safe to expose; can't
+  write or read other indexes.
+
+Mint both from the running instance with the master key (Meili's auto-created
+"Default Search" key works as the read-only one too, but a scoped custom key is
+cleaner):
 
 ```sh
 MASTER=<the master key from step 2>
+# write key -> Worker MEILI_KEY
 curl -X POST https://arabic-digitization-search.fly.dev/keys \
   -H "Authorization: Bearer $MASTER" -H 'Content-Type: application/json' \
-  -d '{"description":"api worker","actions":["search","documents.add","documents.get"],"indexes":["books"],"expiresAt":null}'
-# the "key" field in the response IS your MEILI_KEY — store it in 1Password
+  -d '{"description":"api worker (write)","actions":["documents.add"],"indexes":["books"],"expiresAt":null}'
+# read-only key -> clients
+curl -X POST https://arabic-digitization-search.fly.dev/keys \
+  -H "Authorization: Bearer $MASTER" -H 'Content-Type: application/json' \
+  -d '{"description":"clients (search)","actions":["search"],"indexes":["books"],"expiresAt":null}'
+# each response's "key" field is the value — store both in 1Password
 ```
 
-## Wire up the api Worker
+### Wire up the api Worker
 
 ```sh
 cd ../../apps/api
-# MEILI_URL is already in wrangler.jsonc vars. Set the scoped key from above:
-wrangler secret put MEILI_KEY    # paste the key minted via /keys
+# MEILI_URL is already in wrangler.jsonc vars. Set the WRITE key from above:
+wrangler secret put MEILI_KEY    # the documents.add key
 wrangler types                   # regenerate Env so MEILI_URL/MEILI_KEY type-check
 # the Worker auto-deploys on push to master (Workers Builds); or `pnpm deploy`
 ```
@@ -77,12 +88,14 @@ wrangler types                   # regenerate Env so MEILI_URL/MEILI_KEY type-ch
 ## Index + query
 
 ```sh
-# Build/refresh the index from R2 (the source of truth):
+# Build/refresh the index from R2 (the source of truth) — via the Worker:
 curl -X POST https://<api>/api/search/reindex -H "Authorization: Bearer $MASTER_KEY"
 
-# Search (semanticRatio: 0 = keyword only, 1 = semantic only):
-curl "https://<api>/api/search?q=أحكام%20الوضوء&semanticRatio=0.5" \
-  -H "Authorization: Bearer $MASTER_KEY"
+# Search — clients hit Meilisearch DIRECTLY with the read-only key
+# (semanticRatio: 0 = keyword only, 1 = semantic only):
+curl -X POST https://arabic-digitization-search.fly.dev/indexes/books/search \
+  -H "Authorization: Bearer $READONLY_KEY" -H 'Content-Type: application/json' \
+  -d '{"q":"أحكام الوضوء","hybrid":{"embedder":"cfbge","semanticRatio":0.5}}'
 ```
 
 ## How indexing works
