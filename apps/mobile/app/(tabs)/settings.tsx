@@ -161,6 +161,15 @@ export default function SettingsScreen() {
         className="rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink"
       />
 
+      {config?.meiliUrl && config?.meiliKey && (
+        <View className="mt-4 flex-row items-center gap-1.5 self-start rounded-full bg-[#16271E] px-3 py-1.5">
+          <View className="h-1.5 w-1.5 rounded-full bg-st-done" />
+          <Text className="text-xs font-semibold text-st-done">
+            Search enabled · key saved
+          </Text>
+        </View>
+      )}
+
       <Pressable
         onPress={onSave}
         disabled={busy}

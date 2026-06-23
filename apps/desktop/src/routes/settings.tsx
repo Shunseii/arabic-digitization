@@ -136,6 +136,15 @@ export const SettingsScreen = () => {
           className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
         />
 
+        {config?.meiliUrl && config?.meiliKey && (
+          <div className="mt-4 flex w-fit flex-row items-center gap-1.5 rounded-full bg-[#16271E] px-3 py-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-st-done" />
+            <span className="text-xs font-semibold text-st-done">
+              Search enabled · key saved
+            </span>
+          </div>
+        )}
+
         {notice && (
           <p
             className="mt-4 text-sm"
