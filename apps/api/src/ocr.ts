@@ -97,7 +97,7 @@ export async function transcribe({
 
   const now = Date.now();
   await env.DB.prepare(
-    "UPDATE files SET state = 'done', text_key = ?, preview = ?, updated_at = ? WHERE file_id = ?",
+    "UPDATE files SET state = 'done', text_key = ?, preview = ?, error = NULL, updated_at = ? WHERE file_id = ?",
   )
     .bind(textKey, text.slice(0, 120), now, fileId)
     .run();
