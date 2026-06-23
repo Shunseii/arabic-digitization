@@ -5,6 +5,7 @@ import {
   Hash,
   type LucideIcon,
   MoreVertical,
+  Pencil,
   RefreshCw,
   RotateCw,
   Trash2,
@@ -30,6 +31,9 @@ export const BookScreen = () => {
   const [menuFile, setMenuFile] = useState<FileStatus | null>(null);
   const [editing, setEditing] = useState<FileStatus | null>(null);
   const [pageInput, setPageInput] = useState("");
+  const [editBook, setEditBook] = useState(false);
+  const [bookTitle, setBookTitle] = useState("");
+  const [bookInstructions, setBookInstructions] = useState("");
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["status", id] });
@@ -61,6 +65,21 @@ export const BookScreen = () => {
       api.updatePageNumber({ bookId: id, fileId, page }),
     onSettled: invalidate,
   });
+  const saveBook = useMutation({
+    mutationFn: () =>
+      api.updateBook({
+        id,
+        body: {
+          title: bookTitle.trim(),
+          ocr_instructions: bookInstructions.trim() || null,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["book", id] });
+      queryClient.invalidateQueries({ queryKey: ["books"] });
+      setEditBook(false);
+    },
+  });
 
   const files = (statusQuery.data ?? [])
     .slice()
@@ -70,6 +89,12 @@ export const BookScreen = () => {
         (b.page_number ?? Number.MAX_SAFE_INTEGER),
     );
 
+  const openBookEdit = () => {
+    const b = bookQuery.data;
+    setBookTitle(b?.title ?? "");
+    setBookInstructions(b?.ocr_instructions ?? "");
+    setEditBook(true);
+  };
   const startEdit = (f: FileStatus) => {
     setMenuFile(null);
     setPageInput(f.page_number != null ? String(f.page_number) : "");
@@ -110,6 +135,13 @@ export const BookScreen = () => {
           </span>
           <span className="text-xs text-text-muted">{files.length} pages</span>
         </div>
+        <button
+          type="button"
+          onClick={openBookEdit}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
+        >
+          <Pencil size={16} color={colors.textSecondary} />
+        </button>
         <button
           type="button"
           onClick={() => statusQuery.refetch()}
@@ -253,6 +285,57 @@ export const BookScreen = () => {
                 className="rounded-lg bg-accent px-4 py-2"
               >
                 <span className="text-sm font-bold text-accent-ink">Save</span>
+              </button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {editBook && (
+        <Overlay onClose={() => setEditBook(false)}>
+          <div className="flex w-[28rem] flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
+            <p className="text-lg font-semibold text-ink">Edit book</p>
+            <div className="flex flex-col">
+              <span className="mb-2 block text-xs font-bold tracking-wide text-text-muted">
+                TITLE
+              </span>
+              <input
+                value={bookTitle}
+                onChange={(e) => setBookTitle(e.target.value)}
+                placeholder="نور الإيضاح"
+                dir="rtl"
+                className="w-full rounded-xl border border-accent bg-bg px-4 py-3 text-lg text-ink outline-none placeholder:text-text-muted"
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="mb-2 block text-xs font-bold tracking-wide text-text-muted">
+                OCR INSTRUCTIONS · OPTIONAL
+              </span>
+              <textarea
+                value={bookInstructions}
+                onChange={(e) => setBookInstructions(e.target.value)}
+                placeholder="Preserve tashkeel. Keep footnotes at the bottom of the page."
+                className="min-h-[110px] w-full resize-y rounded-xl border border-border bg-bg px-4 py-3 text-base text-text-secondary outline-none placeholder:text-text-muted focus:border-accent"
+              />
+            </div>
+            {saveBook.error && (
+              <p className="text-sm text-st-fail">{String(saveBook.error)}</p>
+            )}
+            <div className="flex flex-row items-center justify-end gap-4">
+              <button type="button" onClick={() => setEditBook(false)}>
+                <span className="text-sm font-semibold text-text-secondary">
+                  Cancel
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => saveBook.mutate()}
+                disabled={!bookTitle.trim() || saveBook.isPending}
+                className="rounded-lg bg-accent px-4 py-2 disabled:opacity-50"
+              >
+                <span className="text-sm font-bold text-accent-ink">
+                  {saveBook.isPending ? "Saving…" : "Save"}
+                </span>
               </button>
             </div>
           </div>

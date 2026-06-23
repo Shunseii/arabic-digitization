@@ -33,6 +33,9 @@ export default function BookScreen() {
   const [menuFile, setMenuFile] = useState<FileStatus | null>(null);
   const [editing, setEditing] = useState<FileStatus | null>(null);
   const [pageInput, setPageInput] = useState("");
+  const [editBook, setEditBook] = useState(false);
+  const [bookTitle, setBookTitle] = useState("");
+  const [bookInstructions, setBookInstructions] = useState("");
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["status", id] });
@@ -64,6 +67,22 @@ export default function BookScreen() {
       api.updatePageNumber({ bookId: id, fileId, page }),
     onSettled: invalidate,
   });
+  const saveBook = useMutation({
+    mutationFn: () =>
+      api.updateBook({
+        id,
+        body: {
+          title: bookTitle.trim(),
+          ocr_instructions: bookInstructions.trim() || null,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["book", id] });
+      queryClient.invalidateQueries({ queryKey: ["books"] });
+      setEditBook(false);
+    },
+    onError: (err) => Alert.alert("Could not save book", String(err)),
+  });
 
   const files = (statusQuery.data ?? [])
     .slice()
@@ -80,6 +99,12 @@ export default function BookScreen() {
       `/scan?bookId=${id}&title=${encodeURIComponent(bookQuery.data?.title ?? "")}&startPage=${nextPage}`,
     );
 
+  const openBookEdit = () => {
+    const b = bookQuery.data;
+    setBookTitle(b?.title ?? "");
+    setBookInstructions(b?.ocr_instructions ?? "");
+    setEditBook(true);
+  };
   const startEdit = (f: FileStatus) => {
     setMenuFile(null);
     setPageInput(f.page_number != null ? String(f.page_number) : "");
@@ -129,6 +154,12 @@ export default function BookScreen() {
           </Text>
           <Text className="text-xs text-text-muted">{files.length} pages</Text>
         </View>
+        <Pressable
+          onPress={openBookEdit}
+          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
+        >
+          <Feather name="edit-2" size={16} color={colors.textSecondary} />
+        </Pressable>
       </View>
 
       {statusQuery.isLoading ? (
@@ -322,6 +353,73 @@ export default function BookScreen() {
                 className="rounded-lg bg-accent px-4 py-2"
               >
                 <Text className="text-sm font-bold text-accent-ink">Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Book editor — title + OCR instructions. */}
+      <Modal
+        visible={editBook}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditBook(false)}
+      >
+        <Pressable
+          onPress={() => setEditBook(false)}
+          className="flex-1 items-center justify-center px-8"
+          style={{ backgroundColor: "#00000099" }}
+        >
+          <Pressable
+            onPress={() => {}}
+            className="w-full gap-4 rounded-2xl border border-border bg-surface p-5"
+          >
+            <Text className="text-lg font-semibold text-ink">Edit book</Text>
+            <View>
+              <Text className="mb-2 text-xs font-bold tracking-wide text-text-muted">
+                TITLE
+              </Text>
+              <TextInput
+                value={bookTitle}
+                onChangeText={setBookTitle}
+                placeholder="نور الإيضاح"
+                placeholderTextColor={colors.textMuted}
+                className="rounded-xl border border-accent bg-bg px-4 py-3 text-lg text-ink"
+                style={{ writingDirection: "rtl" }}
+              />
+            </View>
+            <View>
+              <Text className="mb-2 text-xs font-bold tracking-wide text-text-muted">
+                OCR INSTRUCTIONS · OPTIONAL
+              </Text>
+              <TextInput
+                value={bookInstructions}
+                onChangeText={setBookInstructions}
+                placeholder="Preserve tashkeel. Keep footnotes at the bottom of the page."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                className="min-h-[100px] rounded-xl border border-border bg-bg px-4 py-3 text-base text-text-secondary"
+                textAlignVertical="top"
+              />
+            </View>
+            <View className="flex-row items-center justify-end gap-4">
+              <Pressable onPress={() => setEditBook(false)}>
+                <Text className="text-sm font-semibold text-text-secondary">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => saveBook.mutate()}
+                disabled={!bookTitle.trim() || saveBook.isPending}
+                className="rounded-lg bg-accent px-4 py-2"
+                style={{
+                  opacity: !bookTitle.trim() || saveBook.isPending ? 0.5 : 1,
+                }}
+              >
+                <Text className="text-sm font-bold text-accent-ink">
+                  {saveBook.isPending ? "Saving…" : "Save"}
+                </Text>
               </Pressable>
             </View>
           </Pressable>

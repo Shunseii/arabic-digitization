@@ -53,12 +53,16 @@ export default function ScanScreen() {
         !scannedImages?.length
       )
         return;
-      // Prefill page numbers continuing from the book's next page.
-      const base = startPage + pages.length;
-      setPages((prev) => [
-        ...prev,
-        ...scannedImages.map((uri, i) => ({ uri, page: String(base + i) })),
-      ]);
+      // Prefill new pages continuing from the last typed number, else the book's next page.
+      setPages((prev) => {
+        const last = prev[prev.length - 1];
+        const lastNum = last?.page ? Number.parseInt(last.page, 10) : null;
+        const base = lastNum !== null ? lastNum + 1 : startPage + prev.length;
+        return [
+          ...prev,
+          ...scannedImages.map((uri, i) => ({ uri, page: String(base + i) })),
+        ];
+      });
     } catch (err) {
       Alert.alert("Scan failed", String(err));
     }

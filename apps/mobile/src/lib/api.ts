@@ -3,6 +3,7 @@ import type {
   BookCreateBody,
   BookExportResponse,
   BookStatusResponse,
+  BookUpdateBody,
   CreateBookResponse,
   DeleteBookResponse,
   ExportFile,
@@ -13,6 +14,7 @@ import type {
   FileStatus,
   FileUpdateResponse,
   ListBooksResponse,
+  UpdateBookResponse,
   UploadContentType,
   UploadFileResponse,
 } from "@qiraa/shared";
@@ -67,6 +69,24 @@ export const api = {
       await asJson<CreateBookResponse>(
         await fetch(`${base()}/api/books`, {
           method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      )
+    ).book,
+
+  /** Update a book's title and/or OCR instructions. null clears instructions. */
+  updateBook: async ({
+    id,
+    body,
+  }: {
+    id: string;
+    body: BookUpdateBody;
+  }): Promise<Book> =>
+    (
+      await asJson<UpdateBookResponse>(
+        await fetch(`${base()}/api/books/${id}`, {
+          method: "PATCH",
           headers: { ...authHeaders(), "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }),
