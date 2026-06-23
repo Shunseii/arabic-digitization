@@ -1,0 +1,49 @@
+# Meilisearch for the Arabic library — lexical (charabia, Arabic-aware) + vector
+# (bge-m3 via Cloudflare Workers AI) + hybrid, in one instance.
+#
+# Deploy: see ./README.md. The index/embedder config is NOT here — it's applied
+# once by ./setup-index.mjs after the instance is up.
+#
+# Pin to the current stable Meilisearch release (check
+# https://github.com/meilisearch/meilisearch/releases). Upgrading the tag does
+# NOT auto-migrate the on-disk DB — see README "Upgrading".
+app            = "arabic-digitization-search"
+primary_region = "yyz" # set to the region nearest you / nearest the api Worker
+
+[build]
+  image = "getmeili/meilisearch:v1.31"
+
+[env]
+  MEILI_ENV          = "production"
+  MEILI_NO_ANALYTICS = "true"
+  # Keep all state on the persistent volume so it survives stop/restart.
+  MEILI_DB_PATH       = "/meili_data/data.ms"
+  MEILI_DUMP_DIR      = "/meili_data/dumps"
+  MEILI_SNAPSHOT_DIR  = "/meili_data/snapshots"
+  # MEILI_MASTER_KEY is set as a secret, never here: `fly secrets set MEILI_MASTER_KEY=...`
+
+# Persistent NVMe volume. Survives machine stop/start (unlike the root FS), so
+# the index is intact when the machine wakes from autostop. Create once:
+#   fly volumes create meili_data --region iad --size 1
+[[mounts]]
+  source      = "meili_data"
+  destination = "/meili_data"
+
+[http_service]
+  internal_port = 7700
+  force_https   = true
+  # Scale to zero when idle; Fly Proxy autostarts on the next request.
+  # First query after idle pays a ~1-5s cold start. Don't let this stop a
+  # machine mid-reindex — see README.
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "1gb"

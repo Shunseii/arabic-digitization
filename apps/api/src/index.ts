@@ -15,6 +15,8 @@ import { FileOcr } from "./endpoints/fileOcr";
 import { FileText } from "./endpoints/fileText";
 import { FileUpdate } from "./endpoints/fileUpdate";
 import { FileUpload } from "./endpoints/fileUpload";
+import { Search } from "./endpoints/search";
+import { SearchReindex } from "./endpoints/searchReindex";
 import { requireMasterKey } from "./middleware/auth";
 import { handleOcrQueue, type OcrMessage } from "./queue";
 
@@ -63,6 +65,10 @@ openapi.delete("/api/books/:bookId/files/:fileId", FileDelete);
 openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
 openapi.get("/api/books/:bookId/files/:fileId/text", FileText);
 openapi.get("/api/books/:bookId/files/:fileId/image", FileImage);
+
+// Search (hybrid, via Meilisearch — see infra/meili)
+openapi.get("/api/search", Search);
+openapi.post("/api/search/reindex", SearchReindex);
 
 // HTTP via Hono; queue consumer transcribes uploaded files.
 export default {
