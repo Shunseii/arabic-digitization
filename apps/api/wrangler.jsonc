@@ -31,6 +31,11 @@
     "consumers": [
       { "queue": "arabic-ocr", "max_batch_size": 5, "max_retries": 3 }
     ]
+  },
+  // Meilisearch (hosted on Fly, see infra/meili). MEILI_KEY is a secret:
+  // `wrangler secret put MEILI_KEY` (a Meili API key with search + documents.add).
+  "vars": {
+    "MEILI_URL": "https://arabic-digitization-search.fly.dev"
   }
   /**
    * Smart Placement

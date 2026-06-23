@@ -6,6 +6,8 @@
 // the AI Studio key. To re-introduce the gateway later, route this one fetch
 // through it.)
 
+import { upsertDocs } from "./lib/meili";
+
 const SYSTEM_PROMPT = `You transcribe scanned pages of classical Arabic printed books into clean Markdown.
 
 Rules:
@@ -41,6 +43,9 @@ interface FileRow {
   book_id: string;
   r2_key: string;
   ocr_instructions: string | null;
+  book_title: string;
+  page_number: number | null;
+  role: string | null;
 }
 
 // Global rules plus any book-specific notes, layered as a labeled supplement so
@@ -62,7 +67,8 @@ export async function transcribe({
   const useModel = model ?? MODEL;
 
   const row = await env.DB.prepare(
-    `SELECT f.file_id, f.book_id, f.r2_key, b.ocr_instructions
+    `SELECT f.file_id, f.book_id, f.r2_key, f.page_number, f.role,
+            b.ocr_instructions, b.title AS book_title
        FROM files f JOIN books b ON b.id = f.book_id
       WHERE f.file_id = ?`,
   )
@@ -95,6 +101,29 @@ export async function transcribe({
   )
     .bind(textKey, text.slice(0, 120), now, fileId)
     .run();
+
+  // Auto-index into search. Best-effort: a Meili outage (or cold start, or
+  // unconfigured MEILI_*) must not fail OCR — the page is safe in R2/D1 and
+  // POST /api/search/reindex is the backstop that re-syncs anything missed.
+  if (env.MEILI_URL && env.MEILI_KEY) {
+    try {
+      await upsertDocs({
+        env,
+        docs: [
+          {
+            id: fileId,
+            book_id: row.book_id,
+            book_title: row.book_title,
+            page_number: row.page_number,
+            role: row.role,
+            text,
+          },
+        ],
+      });
+    } catch (err) {
+      console.error(`search auto-index failed for ${fileId}: ${err}`);
+    }
+  }
 
   return { file_id: fileId, model: useModel, text, text_key: textKey, usage };
 }

@@ -45,6 +45,11 @@ Every `/api/*` request needs `Authorization: Bearer <MASTER_KEY>`. Full, always-
 | POST | `/api/books/:bookId/files?page=<n>` | Upload a page (raw image/PDF body); auto-enqueues OCR |
 | POST | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file (synchronous) |
 | GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`) |
+| POST | `/api/search/reindex` | Rebuild the search index from R2 (`{bookId?}`) |
+
+Search *queries* don't go through the Worker — clients query Meilisearch
+directly with a read-only key (see `infra/meili`). The Worker only *writes* to
+the index (auto-index on OCR + the reindex above).
 
 Upload accepts `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. `?page` is optional — supply it when the printed page number isn't legible in the shot.
 
@@ -66,13 +71,16 @@ pnpm wrangler queues create arabic-ocr
 
 ## Secrets
 
-Two secrets, never committed:
+Secrets, never committed:
 
 - `MASTER_KEY` — the bearer token gating the API. Generate with `openssl rand -hex 32`.
 - `GOOGLE_API_KEY` — Google AI Studio key for Gemini.
+- `MEILI_KEY` — Meilisearch **write** key (`documents.add`) for the Worker's indexing (only needed once search is set up; see `infra/meili`). Not the master key. Clients use a separate **read-only** search key, which never touches the Worker.
 
-**Local** (`wrangler dev`): put both in `.dev.vars` (gitignored; see `.dev.vars.example`).
-**Production**: `pnpm wrangler secret put MASTER_KEY` and `pnpm wrangler secret put GOOGLE_API_KEY`. These are separate stores — keep them in sync manually if you rotate.
+`MEILI_URL` is a non-secret var in `wrangler.jsonc` (the Meilisearch instance URL).
+
+**Local** (`wrangler dev`): put the secrets in `.dev.vars` (gitignored; see `.dev.vars.example`).
+**Production**: `pnpm wrangler secret put <NAME>` for each. These are separate stores — keep them in sync manually if you rotate.
 
 ## Develop
 
@@ -92,16 +100,42 @@ from the repo root unless noted.
 
 ### API (Cloudflare Worker)
 
-Manual — there is no CI deploy for the Worker:
+Auto-deploys on push to `master` via Cloudflare's Git integration (Workers
+Builds) — merging to `master` ships the Worker, including any change under
+`apps/api/`. For a manual/local deploy:
 
 ```bash
 pnpm deploy        # = pnpm --filter @qiraa/api deploy = wrangler deploy
 ```
 
-Gives a free `*.workers.dev` URL (no custom domain or paid plan required —
-Queues are on the free tier). Set the production secrets first (above), or the
-API returns 500 until `MASTER_KEY` is configured. Re-run after any change under
-`apps/api/` — including CORS/middleware — for it to go live.
+Runs on a free `*.workers.dev` URL (no custom domain or paid plan required —
+Queues are on the free tier). Production secrets must be set in Cloudflare
+first (see Secrets above) — the API returns 500 until `MASTER_KEY` is
+configured, and search depends on `MEILI_KEY`/`MEILI_URL`.
+
+### Search (Meilisearch)
+
+Search (`GET /api/search`, auto-indexing on OCR, `POST /api/search/reindex`)
+needs a running Meilisearch instance. Unlike the Worker, Meilisearch is **not**
+auto-deployed — it's a separate, stateful service on Fly.io that you deploy
+**manually** (long-lived volume; you don't want a push restarting the DB).
+Full deploy + upgrade + indexing docs in
+[`infra/meili/README.md`](infra/meili/README.md). In short:
+
+```bash
+# 1. deploy the instance (one-time; see infra/meili/README.md for full steps)
+cd infra/meili && fly deploy -c fly.toml -a <app> --ha=false
+node setup-index.mjs            # configure index + Workers AI embedder
+
+# 2. mint two scoped keys via Meili /keys (see infra/meili/README.md):
+#      - write key (documents.add) → the Worker's MEILI_KEY
+#      - read-only key (search)     → the clients
+pnpm wrangler secret put MEILI_KEY    # the WRITE key; push to master to deploy
+#    ship the read-only key + MEILI_URL to the desktop/mobile clients
+
+# 3. backfill existing scans (new scans auto-index on OCR going forward)
+curl -X POST https://<api>/api/search/reindex -H "Authorization: Bearer $MASTER_KEY"
+```
 
 ### Mobile (Expo / EAS)
 

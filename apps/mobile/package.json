@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
+    "@meilisearch/instant-meilisearch": "^0.31.2",
     "@qiraa/shared": "workspace:*",
     "@tanstack/react-query": "^5.59.0",
     "expo": "^54.0.0",
@@ -25,6 +26,7 @@
     "expo-system-ui": "~6.0.9",
     "nativewind": "^4.1.23",
     "react": "19.1.0",
+    "react-instantsearch-core": "^7.36.0",
     "react-native": "0.81.5",
     "react-native-document-scanner-plugin": "^1.0.0",
     "react-native-gesture-handler": "~2.28.0",

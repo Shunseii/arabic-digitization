@@ -1,9 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, BookOpen, Settings } from "lucide-react";
+import { Activity, BookOpen, Search, Settings } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const items: { to: string; label: string; icon: LucideIcon }[] = [
   { to: "/", label: "Library", icon: BookOpen },
+  { to: "/search", label: "Search", icon: Search },
   { to: "/activity", label: "Activity", icon: Activity },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
