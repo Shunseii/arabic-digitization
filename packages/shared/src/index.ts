@@ -167,3 +167,20 @@ export interface DeleteBookResponse {
     r2_objects: number;
   };
 }
+
+// One relevant passage to highlight, with every occurrence located as a
+// [start, end) char range into HighlightResponse.text.
+export interface HighlightSpan {
+  text: string;
+  ranges: [number, number][];
+}
+
+// Search-result highlighting: the page text the ranges index into (cleaned of
+// OCR markup) plus the spans an LLM judged relevant to the query. Spans that
+// couldn't be located verbatim are dropped server-side, so every range is
+// safe to wrap.
+export interface HighlightResponse {
+  success: true;
+  text: string;
+  spans: HighlightSpan[];
+}

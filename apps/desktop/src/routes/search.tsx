@@ -1,7 +1,10 @@
+import type { HighlightResponse } from "@qiraa/shared";
 import { Loader2, Search as SearchIcon, X } from "lucide-react";
 import {
   type ComponentProps,
+  type ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -13,6 +16,7 @@ import {
   useSearchBox,
 } from "react-instantsearch";
 import { Link } from "react-router-dom";
+import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
 import { Markdown } from "@/lib/markdown";
 import {
@@ -145,7 +149,86 @@ const Results = ({
   );
 };
 
+// (query, fileId) → highlight response, so reselecting a result or retyping the
+// same query doesn't re-hit the API. Session-lived; clears on reload.
+const highlightCache = new Map<string, HighlightResponse>();
+
+// Render `text` with the given char ranges wrapped in <mark>. Ranges are
+// sorted; any overlapping a region already wrapped is skipped.
+const HighlightedText = ({
+  text,
+  ranges,
+}: {
+  text: string;
+  ranges: [number, number][];
+}) => {
+  const sorted = [...ranges].sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  const parts: ReactNode[] = [];
+  let pos = 0;
+  for (const [start, end] of sorted) {
+    if (start < pos) continue; // inside an already-wrapped span
+    if (start > pos) parts.push(text.slice(pos, start));
+    parts.push(
+      <mark
+        key={start}
+        className="rounded bg-accent-soft px-0.5 text-ink ring-1 ring-accent/30"
+      >
+        {text.slice(start, end)}
+      </mark>,
+    );
+    pos = end;
+  }
+  parts.push(text.slice(pos));
+  return (
+    <div dir="rtl" className="whitespace-pre-wrap leading-8 text-ink">
+      {parts}
+    </div>
+  );
+};
+
 const Preview = ({ hit }: { hit: SearchHit | null }) => {
+  const { query } = useSearchBox();
+  const q = query.trim();
+  const [hl, setHl] = useState<HighlightResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const hitId = hit?.id;
+  const bookId = hit?.book_id;
+  useEffect(() => {
+    if (!hitId || !bookId || !q) {
+      setHl(null);
+      setLoading(false);
+      return;
+    }
+    const key = `${hitId}|${q}`;
+    const cached = highlightCache.get(key);
+    if (cached) {
+      setHl(cached);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setHl(null);
+    setLoading(true);
+    api
+      .highlight({ bookId, fileId: hitId, query: q })
+      .then((res) => {
+        if (cancelled) return;
+        highlightCache.set(key, res);
+        setHl(res);
+      })
+      // On any failure, fall through to the plain markdown view below.
+      .catch(() => {
+        if (!cancelled) setHl(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hitId, bookId, q]);
+
   if (!hit)
     return (
       <div className="flex h-full items-center justify-center">
@@ -154,6 +237,8 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
         </p>
       </div>
     );
+
+  const ranges = hl?.spans.flatMap((s) => s.ranges) ?? [];
   return (
     <div className="flex h-full flex-col">
       <div className="mb-3 flex items-center justify-between">
@@ -171,7 +256,16 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
         </Link>
       </div>
       <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-surface p-5">
-        <Markdown source={hit.text ?? ""} />
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-text-muted">
+            <Loader2 size={16} className="animate-spin" />
+            Finding the relevant passage…
+          </div>
+        ) : hl && ranges.length > 0 ? (
+          <HighlightedText text={hl.text} ranges={ranges} />
+        ) : (
+          <Markdown source={hit.text ?? ""} />
+        )}
       </div>
     </div>
   );

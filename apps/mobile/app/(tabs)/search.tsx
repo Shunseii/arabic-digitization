@@ -1,8 +1,11 @@
 import { Feather } from "@expo/vector-icons";
+import type { HighlightResponse } from "@qiraa/shared";
 import { Link, useRouter } from "expo-router";
 import {
   type ComponentProps,
+  type ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -25,6 +28,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Centered } from "@/components/ui";
+import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
 import { Markdown } from "@/lib/markdown";
 import {
@@ -144,16 +148,102 @@ const Results = ({ onSelect }: { onSelect: (hit: SearchHit) => void }) => {
   );
 };
 
-// Full-page rendered preview, opened by tapping a result.
+// (query, fileId) → highlight response, so reopening a result or retyping the
+// same query doesn't re-hit the API. Session-lived; clears on reload.
+const highlightCache = new Map<string, HighlightResponse>();
+
+// Render `text` with the given char ranges emphasized via nested <Text>.
+// Ranges are sorted; any overlapping an already-emphasized region is skipped.
+const HighlightedText = ({
+  text,
+  ranges,
+}: {
+  text: string;
+  ranges: [number, number][];
+}) => {
+  const sorted = [...ranges].sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  const parts: ReactNode[] = [];
+  let pos = 0;
+  for (const [start, end] of sorted) {
+    if (start < pos) continue;
+    if (start > pos) parts.push(text.slice(pos, start));
+    parts.push(
+      <Text
+        key={start}
+        style={{ backgroundColor: colors.accentSoft, color: colors.accent }}
+      >
+        {text.slice(start, end)}
+      </Text>,
+    );
+    pos = end;
+  }
+  parts.push(text.slice(pos));
+  return (
+    <Text
+      className="text-base leading-7 text-ink"
+      style={{ writingDirection: "rtl", textAlign: "right" }}
+    >
+      {parts}
+    </Text>
+  );
+};
+
+// Full-page rendered preview, opened by tapping a result. When there's an
+// active query, shows the LLM-picked passages highlighted; otherwise the plain
+// markdown page.
 const PreviewModal = ({
   hit,
+  query,
   onClose,
 }: {
   hit: SearchHit | null;
+  query: string;
   onClose: () => void;
 }) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const q = query.trim();
+  const [hl, setHl] = useState<HighlightResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const hitId = hit?.id;
+  const bookId = hit?.book_id;
+  useEffect(() => {
+    if (!hitId || !bookId || !q) {
+      setHl(null);
+      setLoading(false);
+      return;
+    }
+    const key = `${hitId}|${q}`;
+    const cached = highlightCache.get(key);
+    if (cached) {
+      setHl(cached);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setHl(null);
+    setLoading(true);
+    api
+      .highlight({ bookId, fileId: hitId, query: q })
+      .then((res) => {
+        if (cancelled) return;
+        highlightCache.set(key, res);
+        setHl(res);
+      })
+      // On any failure, fall through to the plain markdown view below.
+      .catch(() => {
+        if (!cancelled) setHl(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hitId, bookId, q]);
+
+  const ranges = hl?.spans.flatMap((s) => s.ranges) ?? [];
   return (
     <Modal
       visible={hit != null}
@@ -198,7 +288,18 @@ const PreviewModal = ({
             paddingBottom: insets.bottom + 24,
           }}
         >
-          <Markdown source={hit?.text ?? ""} />
+          {loading ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator size="small" color={colors.textMuted} />
+              <Text className="text-sm text-text-muted">
+                Finding the relevant passage…
+              </Text>
+            </View>
+          ) : hl && ranges.length > 0 ? (
+            <HighlightedText text={hl.text} ranges={ranges} />
+          ) : (
+            <Markdown source={hit?.text ?? ""} />
+          )}
         </ScrollView>
       </View>
     </Modal>
@@ -209,6 +310,9 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { config, ready } = useConfigState();
   const [selected, setSelected] = useState<SearchHit | null>(null);
+  // Mirrored from InstantSearch so PreviewModal (rendered outside the provider)
+  // knows the active query to request highlights for.
+  const [query, setQuery] = useState(getLastQuery());
   const searchClient = useMemo(
     () =>
       config?.meiliUrl && config.meiliKey
@@ -224,7 +328,9 @@ export default function SearchScreen() {
   const onStateChange = useCallback<
     NonNullable<ComponentProps<typeof InstantSearch>["onStateChange"]>
   >(({ uiState, setUiState }) => {
-    setLastQuery((uiState[SEARCH_INDEX] as { query?: string })?.query ?? "");
+    const q = (uiState[SEARCH_INDEX] as { query?: string })?.query ?? "";
+    setLastQuery(q);
+    setQuery(q);
     setUiState(uiState);
   }, []);
 
@@ -261,7 +367,11 @@ export default function SearchScreen() {
         </View>
         <Results onSelect={setSelected} />
       </InstantSearch>
-      <PreviewModal hit={selected} onClose={() => setSelected(null)} />
+      <PreviewModal
+        hit={selected}
+        query={query}
+        onClose={() => setSelected(null)}
+      />
     </View>
   );
 }
