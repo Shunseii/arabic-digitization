@@ -26,6 +26,14 @@
       "bucket_name": "arabic-digitization"
     }
   ],
+  // Caches search-highlight results keyed by (fileId, query). The result is
+  // deterministic and pages rarely change, so a hit avoids a Gemini call.
+  "kv_namespaces": [
+    {
+      "binding": "HIGHLIGHT_CACHE",
+      "id": "5d12646d685a452c9880001b031cede8"
+    }
+  ],
   "queues": {
     "producers": [{ "binding": "OCR_Q", "queue": "arabic-ocr" }],
     "consumers": [

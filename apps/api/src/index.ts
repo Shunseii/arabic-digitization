@@ -10,6 +10,7 @@ import { BookList } from "./endpoints/bookList";
 import { BookStatus } from "./endpoints/bookStatus";
 import { BookUpdate } from "./endpoints/bookUpdate";
 import { FileDelete } from "./endpoints/fileDelete";
+import { FileHighlight } from "./endpoints/fileHighlight";
 import { FileImage } from "./endpoints/fileImage";
 import { FileOcr } from "./endpoints/fileOcr";
 import { FileText } from "./endpoints/fileText";
@@ -64,6 +65,7 @@ openapi.delete("/api/books/:bookId/files/:fileId", FileDelete);
 openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
 openapi.get("/api/books/:bookId/files/:fileId/text", FileText);
 openapi.get("/api/books/:bookId/files/:fileId/image", FileImage);
+openapi.post("/api/books/:bookId/files/:fileId/highlight", FileHighlight);
 
 // Search indexing (writes only; clients query Meilisearch directly with a
 // read-only key — see infra/meili). Reindex rebuilds the index from R2.

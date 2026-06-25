@@ -13,6 +13,7 @@ import type {
   FileRecord,
   FileStatus,
   FileUpdateResponse,
+  HighlightResponse,
   ListBooksResponse,
   UpdateBookResponse,
   UploadContentType,
@@ -133,6 +134,28 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, await safeText(res));
     return res.text();
   },
+
+  /**
+   * Ask the API which passages on a page to highlight for a search query.
+   * Returns the cleaned page text plus located [start,end) ranges into it.
+   * Cross-lingual / semantic: an English query can light up an Arabic passage.
+   */
+  highlight: async ({
+    bookId,
+    fileId,
+    query,
+  }: {
+    bookId: string;
+    fileId: string;
+    query: string;
+  }): Promise<HighlightResponse> =>
+    asJson<HighlightResponse>(
+      await fetch(`${base()}/api/books/${bookId}/files/${fileId}/highlight`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      }),
+    ),
 
   /**
    * Upload one scanned page. The API takes the raw image bytes as the request
