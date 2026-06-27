@@ -37,15 +37,14 @@ export const ReaderScreen = () => {
     currentIndex >= 0 && currentIndex < files.length - 1
       ? files[currentIndex + 1]
       : null;
-  const goToFile = (target: string) =>
-    navigate(`/reader/${bookId}/${target}`);
+  const goToFile = (target: string) => navigate(`/reader/${bookId}/${target}`);
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-row items-center gap-3 border-b border-hairline px-6 py-3">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(`/book/${bookId}`)}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
         >
           <ChevronLeft size={18} color={colors.textSecondary} />
