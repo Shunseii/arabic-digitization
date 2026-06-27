@@ -85,7 +85,7 @@ export default function ReaderScreen() {
     <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center justify-between px-4 py-3">
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => router.replace(`/book/${bookId}`)}
           className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
         >
           <Feather name="chevron-left" size={18} color={colors.textSecondary} />

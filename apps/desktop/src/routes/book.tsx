@@ -125,7 +125,7 @@ export const BookScreen = () => {
       <div className="flex flex-row items-center gap-3 px-8 py-4">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/")}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
         >
           <ChevronLeft size={18} color={colors.textSecondary} />
