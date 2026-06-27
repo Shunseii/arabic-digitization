@@ -95,7 +95,7 @@ Local `wrangler dev` simulates R2/D1/Queue in `.wrangler/state` — uploads and 
 ## Deploy
 
 This is a monorepo with three deployables: the **API** (Cloudflare Worker), the
-**mobile** app (Expo/EAS), and the **desktop** app (Tauri). All commands run
+**mobile** app (Expo/EAS), and the **desktop** app (Electron). All commands run
 from the repo root unless noted.
 
 ### API (Cloudflare Worker)
@@ -151,31 +151,30 @@ eas build --profile production --platform android   # store build, auto-incremen
 `eas build:list`) has the installable APK / store artifact. First run needs
 `eas login`; Android credentials (keystore) are managed on the Expo server.
 
-### Desktop (Tauri)
+### Desktop (Electron)
 
 Released by hand from the **desktop-release** workflow
 (`.github/workflows/desktop-release.yml`): Actions tab → *desktop-release* →
 **Run workflow**, pick a semver `bump` (patch/minor/major) and write the
-**release notes** (required). CI bumps the version in the three source files,
+**release notes** (required). CI bumps the version in `apps/desktop/package.json`,
 commits it back to `master`, builds the Windows `.exe` and Linux `.deb` /
-`.AppImage`, and publishes them to an immutable **`desktop-v<X.Y.Z>`** release
-plus the rolling **`desktop-latest`** pointer. Full steps:
-`apps/desktop/README.md`. Get the latest installers:
+`.AppImage` with electron-builder, and publishes them to an immutable
+**`desktop-v<X.Y.Z>`** release plus the rolling **`desktop-latest`** pointer.
+Full steps: `apps/desktop/README.md`. Get the latest installers:
 
 ```bash
 gh release download desktop-latest --pattern '*.deb' --dir ~/Downloads --clobber
 ```
 
-Build installers locally instead (output in
-`apps/desktop/src-tauri/target/release/bundle/`):
+Build installers locally instead (output in `apps/desktop/release/`):
 
 ```bash
 pnpm desktop:build        # = pnpm --filter @qiraa/desktop desktop:build
 ```
 
-The desktop app calls the API with the webview's native fetch, so the Worker's
-CORS headers (above) must be deployed for it to connect. Linux build deps and
-more detail: `apps/desktop/README.md`.
+The desktop app calls the API with the renderer's native fetch, so the Worker's
+CORS headers (above) must be deployed for it to connect. More detail:
+`apps/desktop/README.md`.
 
 ## Layout
 

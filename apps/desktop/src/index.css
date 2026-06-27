@@ -16,9 +16,11 @@ body {
   margin: 0;
   background-color: #0c0d10;
   color: #f4f2ec;
+  /* Latin glyphs resolve to the system UI font; Arabic glyphs (absent from it)
+     fall through to Noto Naskh Arabic. */
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
+    "Noto Naskh Arabic", sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }

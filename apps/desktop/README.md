@@ -1,21 +1,27 @@
 # @qiraa/desktop
 
-Tauri desktop app for the Qiraa Arabic digitization project — the desktop
+Electron desktop app for the Qiraa Arabic digitization project — the desktop
 companion to `apps/mobile`. Same API, same design language (dark OLED +
 manuscript gold), same screens. Runs on **Windows** and **Linux**.
 
 ## Stack
 
-- **Tauri 2** shell (Rust), webview frontend
-- **React 19 + Vite 6 + TypeScript**
-- **Tailwind CSS 3** with the exact color tokens from the mobile app
-- **TanStack Query** for server state, **react-router** for navigation
+- **Electron** shell (`electron/main.cjs`) — chosen over a system webview
+  because Chromium shapes Arabic far better than Linux WebKitGTK.
+- **React 19 + Vite 6 + TypeScript** renderer, bundled to `dist/`.
+- **Tailwind CSS 3** with the exact color tokens from the mobile app.
+- **TanStack Query** for server state, **react-router** (`HashRouter`, so the
+  SPA loads correctly under `file://` in the packaged app) for navigation.
+- **Noto Naskh Arabic**, self-hosted via `@fontsource` (bundled into `dist/`,
+  so it works offline and satisfies the `'self'` CSP).
 - Shared `@qiraa/shared` types and a ported copy of the mobile API client,
-  markdown renderer, and theme
+  markdown renderer, and theme.
 
-Requests go through `@tauri-apps/plugin-http` (HTTP from the Rust side), which
-bypasses browser CORS — the deployed Worker sets no CORS headers, so a plain
-webview `fetch` would be blocked. See `src/lib/http.ts`.
+The renderer talks to the deployed Cloudflare Worker with a plain `fetch`. The
+Worker sends a wildcard CORS header (`Access-Control-Allow-Origin: *`), so calls
+from the `file://` (prod) and `localhost` (dev) origins are allowed. The main
+process needs no IPC, so every UI library is a build-time `devDependency` and
+the packaged app's `node_modules` is empty.
 
 ## What differs from mobile
 
@@ -26,18 +32,18 @@ webview `fetch` would be blocked. See `src/lib/http.ts`.
   Settings), same icons and accent, laid out for a wide window.
 - **Reader swipe → side-by-side panes.** Transcription and scan show together;
   the scan pane zooms with the scroll wheel, pans by drag, double-click resets.
-- **Credentials** live in the webview's `localStorage` (app-private data dir)
-  instead of the mobile OS keychain. Set them under **Settings**.
+- **Credentials** live in the webview's `localStorage` instead of the mobile OS
+  keychain. Set them under **Settings**.
 
 ## Develop
 
 ```sh
 # from the repo root
 pnpm install
-pnpm desktop          # = tauri dev (starts Vite + the native window)
+pnpm desktop          # starts Vite + the Electron window (with DevTools)
 ```
 
-Or frontend-only in a browser (no native shell, HTTP plugin disabled):
+Or frontend-only in a browser (no native shell):
 
 ```sh
 pnpm --filter @qiraa/desktop dev   # http://localhost:1420
@@ -46,11 +52,11 @@ pnpm --filter @qiraa/desktop dev   # http://localhost:1420
 ## Build installers
 
 ```sh
-pnpm desktop:build    # = tauri build
+pnpm desktop:build    # = vite build + electron-builder
 ```
 
 Produces `.deb` + `.AppImage` on Linux and `.exe` (NSIS) on Windows, under
-`apps/desktop/src-tauri/target/release/bundle/`.
+`apps/desktop/release/`.
 
 ## Release
 
@@ -65,37 +71,20 @@ Releases are cut by hand from the **desktop-release** GitHub Actions workflow
 
 The workflow then:
 
-1. Bumps the version in all three source files — `package.json`,
-   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` — and commits that back
-   to `master` (`chore(desktop): release vX.Y.Z [skip ci]`).
-2. Builds the Windows + Linux installers from that commit.
+1. Bumps the version in `apps/desktop/package.json` and commits it back to
+   `master` (`chore(desktop): release vX.Y.Z [skip ci]`).
+2. Builds the Windows + Linux installers from that commit with electron-builder.
 3. Publishes them to two GitHub Releases:
    - **`desktop-v<X.Y.Z>`** — immutable, with your release notes; the version
      history.
    - **`desktop-latest`** — rolling pointer to the newest build (stable
      download URL).
 
-Versions are kept in sync by the workflow, so don't bump them by hand. There is
-no auto-updater and no code signing yet — users download the installer from the
-release page.
-
-## System prerequisites
-
-**Rust** (stable) is required: https://rustup.rs
-
-**Linux (Debian/Ubuntu/Pop!\_OS)** also needs the WebKitGTK + build libraries:
-
-```sh
-sudo apt update
-sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
-  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-```
-
-**Windows** needs the Microsoft C++ Build Tools and WebView2 (preinstalled on
-Windows 10/11; the NSIS bundle also fetches it if absent). See
-https://tauri.app/start/prerequisites/
+There is no auto-updater and no code signing yet — users download the installer
+from the release page.
 
 ## App icons
 
-Generated from a source PNG with `pnpm tauri icon <path-to-png>` into
-`src-tauri/icons/`.
+Source icons live in `build/` (`icon.png` 512×512 for Linux, `icon.ico` for
+Windows, `icon.icns` for macOS) and are referenced from the `build` field in
+`package.json`.

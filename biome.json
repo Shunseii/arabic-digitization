@@ -17,8 +17,7 @@
       "!apps/mobile/global.css",
       "!apps/desktop/src/index.css",
       "!apps/desktop/dist",
-      "!apps/desktop/src-tauri/target",
-      "!apps/desktop/src-tauri/gen"
+      "!apps/desktop/release"
     ]
   },
   "formatter": {

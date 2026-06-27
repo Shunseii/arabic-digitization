@@ -2,12 +2,12 @@ import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// Tauri expects a fixed dev port and serves the built assets from dist/.
-// https://tauri.app/start/frontend/vite/
-const host = process.env.TAURI_DEV_HOST;
-
+// Renderer build for the Electron shell (electron/main.cjs). `base: "./"` makes
+// the built assets resolve under file:// when Electron loads dist/index.html in
+// production; the fixed dev port is what main.cjs points at in development.
 export default defineConfig({
   plugins: [react()],
+  base: "./",
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -17,15 +17,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
-    hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
-    watch: { ignored: ["**/src-tauri/**"] },
   },
-  envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
-    target:
-      process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
-    minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
-    sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    // Electron ships a recent Chromium, so target modern Chrome.
+    target: "chrome128",
+    sourcemap: false,
   },
 });

@@ -1,9 +1,9 @@
 name: desktop-release
 
 # Cut a versioned desktop release. Run by hand, picking a semver bump
-# (patch/minor/major). The workflow bumps the version in all three source
-# files, commits that back to master, then builds the Tauri installers for
-# Windows + Linux and publishes them to BOTH:
+# (patch/minor/major). The workflow bumps apps/desktop/package.json, commits it
+# back to master, then builds the Electron installers for Windows + Linux with
+# electron-builder and publishes them to BOTH:
 #   - an immutable `desktop-v<X.Y.Z>` release (the version history), and
 #   - the rolling `desktop-latest` release (always the newest build).
 on:
@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Bump the version in the three source files, commit it back to master, and
+  # Bump the version in apps/desktop/package.json, commit it back to master, and
   # create the immutable `desktop-v<X.Y.Z>` release that the build jobs upload
   # into.
   prepare:
@@ -36,7 +36,6 @@ jobs:
     outputs:
       version: ${{ steps.bump.outputs.version }}
       sha: ${{ steps.commit.outputs.sha }}
-      release_id: ${{ steps.rel.outputs.id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,20 +56,9 @@ jobs:
             else { s[2]++; }
             console.log(s.join('.'));
           ")
-          echo "Bumping $CUR -> $NEW ($GITHUB_WORKSPACE)"
-
-          # package.json
+          echo "Bumping $CUR -> $NEW"
           jq --arg v "$NEW" '.version = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
-
-          # tauri.conf.json
-          jq --arg v "$NEW" '.version = $v' src-tauri/tauri.conf.json > src-tauri/tauri.conf.json.tmp
-          mv src-tauri/tauri.conf.json.tmp src-tauri/tauri.conf.json
-
-          # Cargo.toml — only the [package] version (anchored to line start so
-          # the `version = "2"` dependency lines are left untouched).
-          sed -i "0,/^version = \"$CUR\"/s//version = \"$NEW\"/" src-tauri/Cargo.toml
-
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
 
       - name: Commit version bump
@@ -78,22 +66,16 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add apps/desktop/package.json \
-                  apps/desktop/src-tauri/tauri.conf.json \
-                  apps/desktop/src-tauri/Cargo.toml
+          git add apps/desktop/package.json
           git commit -m "chore(desktop): release v${{ steps.bump.outputs.version }} [skip ci]"
           git push origin master
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create versioned release
-        id: rel
         uses: actions/github-script@v7
         with:
           script: |
-            const { owner, repo } = context.repo;
             const version = '${{ steps.bump.outputs.version }}';
-            const sha = '${{ steps.commit.outputs.sha }}';
-            const tag = `desktop-v${version}`;
             const notes = ${{ toJSON(inputs.notes) }};
             const body = [
               notes,
@@ -101,16 +83,16 @@ jobs:
               '---',
               `Desktop installers for v${version}. Windows (.exe) and Linux (.deb / .AppImage) — see the assets below.`,
             ].join('\n');
-            const { data } = await github.rest.repos.createRelease({
-              owner, repo,
-              tag_name: tag,
-              target_commitish: sha,
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `desktop-v${version}`,
+              target_commitish: '${{ steps.commit.outputs.sha }}',
               name: `رقمنة — Desktop v${version}`,
               body,
               draft: false,
               prerelease: false,
             });
-            core.setOutput('id', data.id);
 
   build:
     needs: prepare
@@ -119,23 +101,15 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
+            builder_flag: --linux
           - platform: windows-latest
+            builder_flag: --win
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
         with:
           # Build the exact bumped commit, not whatever master moved to.
           ref: ${{ needs.prepare.outputs.sha }}
-
-      - name: Install Linux build dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential curl wget file \
-            libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev patchelf
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -146,24 +120,31 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop/src-tauri
-
-      - name: Install JS dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and upload to versioned release
-        uses: tauri-apps/tauri-action@v0
+      - name: Build renderer
+        run: pnpm --filter @qiraa/desktop build
+
+      - name: Package with electron-builder
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: apps/desktop
-          releaseId: ${{ needs.prepare.outputs.release_id }}
+          # Don't let electron-builder try to publish or code-sign; we upload
+          # the artifacts ourselves below.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm --filter @qiraa/desktop exec electron-builder ${{ matrix.builder_flag }} --publish never
+
+      - name: Upload installers to the versioned release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          shopt -s nullglob
+          cd apps/desktop/release
+          files=( *.AppImage *.deb *.exe )
+          echo "Uploading: ${files[*]}"
+          gh release upload "desktop-v$VERSION" "${files[@]}" \
+            --repo "$GITHUB_REPOSITORY" --clobber
 
   # Mirror the freshly built installers onto the rolling `desktop-latest`
   # release so there is always a stable "newest build" download URL.

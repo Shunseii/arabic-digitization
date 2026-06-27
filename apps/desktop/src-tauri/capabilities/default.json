@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "Core webview permissions. API calls use the native fetch.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
-}

@@ -15,6 +15,7 @@ allowBuilds:
   esbuild: true
   workerd: true
   sharp: true
+  electron: true
 
 # Force a single react-dom across the hoisted workspace. An Expo/RN transitive
 # pulls react-dom 19.2.7 while react stays pinned at 19.1.0; the desktop app
