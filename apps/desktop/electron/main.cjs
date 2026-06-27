@@ -5,6 +5,11 @@
 const { app, BrowserWindow, shell } = require("electron");
 const path = require("node:path");
 
+// Sets app.getName(), and on Linux the window's WM_CLASS — which must match the
+// .desktop file's StartupWMClass (electron-builder writes "Qiraa") or the dock
+// shows the raw class ("@qiraa/desktop") and finds no icon.
+app.setName("Qiraa");
+
 const isDev = !app.isPackaged;
 const DEV_URL = "http://localhost:1420";
 

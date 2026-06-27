@@ -6,6 +6,7 @@
   "description": "Scan, OCR, and read Arabic manuscripts — the desktop companion to the Qiraa mobile app.",
   "author": "Qiraa",
   "homepage": "https://github.com/Shunseii/arabic-digitization",
+  "productName": "Qiraa",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
@@ -61,7 +62,7 @@
       "maintainer": "Sufyan Khan <khan.sufyan.cs@gmail.com>",
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "category": "Office",
-      "icon": "build/icon.png",
+      "icon": "build/icons",
       "desktop": {
         "Name": "رقمنة",
         "GenericName": "Arabic digitization",
