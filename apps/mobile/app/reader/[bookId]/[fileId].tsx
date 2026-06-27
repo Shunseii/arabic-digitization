@@ -47,6 +47,27 @@ export default function ReaderScreen() {
     queryFn: () => api.fileText({ bookId, fileId }),
   });
 
+  const statusQuery = useQuery({
+    queryKey: ["status", bookId],
+    queryFn: () => api.status(bookId),
+  });
+
+  const files = (statusQuery.data ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.page_number ?? Number.MAX_SAFE_INTEGER) -
+        (b.page_number ?? Number.MAX_SAFE_INTEGER),
+    );
+  const currentIndex = files.findIndex((f) => f.file_id === fileId);
+  const prevFile = currentIndex > 0 ? files[currentIndex - 1] : null;
+  const nextFile =
+    currentIndex >= 0 && currentIndex < files.length - 1
+      ? files[currentIndex + 1]
+      : null;
+  const goToFile = (target: string) =>
+    router.replace(`/reader/${bookId}/${target}`);
+
   const scrollRef = useRef<ScrollView>(null);
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
     setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
@@ -88,12 +109,38 @@ export default function ReaderScreen() {
             />
           </View>
         </View>
-        <Pressable
-          onPress={switchPane}
-          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <Feather name="repeat" size={16} color={colors.accent} />
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={() => prevFile && goToFile(prevFile.file_id)}
+            disabled={!prevFile}
+            style={{ opacity: prevFile ? 1 : 0.4 }}
+            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
+          >
+            <Feather
+              name="chevron-left"
+              size={18}
+              color={colors.textSecondary}
+            />
+          </Pressable>
+          <Pressable
+            onPress={() => nextFile && goToFile(nextFile.file_id)}
+            disabled={!nextFile}
+            style={{ opacity: nextFile ? 1 : 0.4 }}
+            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
+          >
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={colors.textSecondary}
+            />
+          </Pressable>
+          <Pressable
+            onPress={switchPane}
+            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
+          >
+            <Feather name="repeat" size={16} color={colors.accent} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView

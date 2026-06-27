@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Centered, Loading } from "@/components/ui";
 import { ZoomableImage } from "@/components/zoomable-image";
@@ -19,6 +19,27 @@ export const ReaderScreen = () => {
     queryFn: () => api.fileText({ bookId, fileId }),
   });
 
+  const statusQuery = useQuery({
+    queryKey: ["status", bookId],
+    queryFn: () => api.status(bookId),
+  });
+
+  const files = (statusQuery.data ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.page_number ?? Number.MAX_SAFE_INTEGER) -
+        (b.page_number ?? Number.MAX_SAFE_INTEGER),
+    );
+  const currentIndex = files.findIndex((f) => f.file_id === fileId);
+  const prevFile = currentIndex > 0 ? files[currentIndex - 1] : null;
+  const nextFile =
+    currentIndex >= 0 && currentIndex < files.length - 1
+      ? files[currentIndex + 1]
+      : null;
+  const goToFile = (target: string) =>
+    navigate(`/reader/${bookId}/${target}`);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-row items-center gap-3 border-b border-hairline px-6 py-3">
@@ -32,6 +53,29 @@ export const ReaderScreen = () => {
         <span className="text-sm font-semibold text-text-secondary">
           Transcription · Scan
         </span>
+        <div className="ml-auto flex flex-row items-center gap-3">
+          {currentIndex >= 0 && (
+            <span className="text-xs text-text-muted">
+              Page {currentIndex + 1} of {files.length}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => prevFile && goToFile(prevFile.file_id)}
+            disabled={!prevFile}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface disabled:opacity-40"
+          >
+            <ChevronLeft size={18} color={colors.textSecondary} />
+          </button>
+          <button
+            type="button"
+            onClick={() => nextFile && goToFile(nextFile.file_id)}
+            disabled={!nextFile}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface disabled:opacity-40"
+          >
+            <ChevronRight size={18} color={colors.textSecondary} />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-row overflow-hidden">
