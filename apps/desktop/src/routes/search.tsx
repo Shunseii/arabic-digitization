@@ -2,7 +2,6 @@ import type { HighlightResponse } from "@qiraa/shared";
 import { Loader2, Search as SearchIcon, X } from "lucide-react";
 import {
   type ComponentProps,
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -153,80 +152,45 @@ const Results = ({
 // same query doesn't re-hit the API. Session-lived; clears on reload.
 const highlightCache = new Map<string, HighlightResponse>();
 
-// Render `text` with the given char ranges wrapped in <mark>. Ranges are
-// sorted; any overlapping a region already wrapped is skipped.
-const HighlightedText = ({
-  text,
-  ranges,
-}: {
-  text: string;
-  ranges: [number, number][];
-}) => {
-  const sorted = [...ranges].sort((a, b) => a[0] - b[0] || b[1] - a[1]);
-  const parts: ReactNode[] = [];
-  let pos = 0;
-  for (const [start, end] of sorted) {
-    if (start < pos) continue; // inside an already-wrapped span
-    if (start > pos) parts.push(text.slice(pos, start));
-    parts.push(
-      <mark
-        key={start}
-        className="rounded bg-accent-soft px-0.5 text-ink ring-1 ring-accent/30"
-      >
-        {text.slice(start, end)}
-      </mark>,
-    );
-    pos = end;
-  }
-  parts.push(text.slice(pos));
-  return (
-    <div dir="rtl" className="whitespace-pre-wrap leading-8 text-ink">
-      {parts}
-    </div>
-  );
-};
-
 const Preview = ({ hit }: { hit: SearchHit | null }) => {
   const { query } = useSearchBox();
   const q = query.trim();
   const [hl, setHl] = useState<HighlightResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const hitId = hit?.id;
   const bookId = hit?.book_id;
+  // Highlighting is an explicit action now, so drop any existing highlight when
+  // the selected result or query changes — the button re-fetches on demand.
+  // hitId/q are triggers here, not values the effect reads.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps are reset triggers
   useEffect(() => {
-    if (!hitId || !bookId || !q) {
-      setHl(null);
-      setLoading(false);
-      return;
-    }
+    setHl(null);
+    setLoading(false);
+    setFailed(false);
+  }, [hitId, q]);
+
+  const runHighlight = useCallback(() => {
+    if (!hitId || !bookId || !q) return;
     const key = `${hitId}|${q}`;
     const cached = highlightCache.get(key);
     if (cached) {
       setHl(cached);
-      setLoading(false);
       return;
     }
-    let cancelled = false;
-    setHl(null);
     setLoading(true);
+    setFailed(false);
     api
       .highlight({ bookId, fileId: hitId, query: q })
       .then((res) => {
-        if (cancelled) return;
         highlightCache.set(key, res);
         setHl(res);
       })
-      // On any failure, fall through to the plain markdown view below.
-      .catch(() => {
-        if (!cancelled) setHl(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      // Surface the failure instead of silently reverting to the button, which
+      // looks like nothing happened.
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   }, [hitId, bookId, q]);
 
   if (!hit)
@@ -238,34 +202,72 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
       </div>
     );
 
-  const ranges = hl?.spans.flatMap((s) => s.ranges) ?? [];
+  // Each relevant span, split per-line so a passage spanning a line break still
+  // matches against the per-line markdown the renderer produces.
+  const highlight = hl?.spans.flatMap((s) =>
+    s.text
+      .split(/\n+/)
+      .map((t) => t.trim())
+      .filter(Boolean),
+  );
+
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-accent">{hit.book_title}</p>
           {hit.page_number != null && (
             <p className="text-xs text-text-muted">صفحة {hit.page_number}</p>
           )}
         </div>
-        <Link
-          to={`/reader/${hit.book_id}/${hit.id}`}
-          className="text-xs font-semibold text-accent hover:underline"
-        >
-          Open in reader →
-        </Link>
+        <div className="flex items-center gap-3">
+          {q.length > 0 &&
+            (loading ? (
+              <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                <Loader2 size={14} className="animate-spin" />
+                Finding…
+              </span>
+            ) : failed ? (
+              <button
+                type="button"
+                onClick={runHighlight}
+                className="text-xs font-semibold text-st-fail hover:underline"
+              >
+                Couldn't highlight — retry
+              </button>
+            ) : hl ? (
+              highlight && highlight.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setHl(null)}
+                  className="text-xs font-semibold text-text-muted hover:text-ink"
+                >
+                  Clear highlight
+                </button>
+              ) : (
+                <span className="text-xs text-text-muted">
+                  No matching passage
+                </span>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={runHighlight}
+                className="rounded-lg border border-accent/40 px-2.5 py-1 text-xs font-semibold text-accent hover:bg-accent-soft"
+              >
+                Highlight matches
+              </button>
+            ))}
+          <Link
+            to={`/reader/${hit.book_id}/${hit.id}`}
+            className="text-xs font-semibold text-accent hover:underline"
+          >
+            Open in reader →
+          </Link>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-surface p-5">
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-text-muted">
-            <Loader2 size={16} className="animate-spin" />
-            Finding the relevant passage…
-          </div>
-        ) : hl && ranges.length > 0 ? (
-          <HighlightedText text={hl.text} ranges={ranges} />
-        ) : (
-          <Markdown source={hit.text ?? ""} />
-        )}
+        <Markdown source={hit.text ?? ""} highlight={highlight} />
       </div>
     </div>
   );
