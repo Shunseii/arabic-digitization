@@ -1,6 +1,6 @@
 [package]
 name = "qiraa-desktop"
-version = "0.0.1"
+version = "0.1.0"
 description = "Qiraa — Arabic manuscript digitization (desktop)"
 authors = ["Shunseii"]
 edition = "2021"
