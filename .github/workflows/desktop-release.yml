@@ -1,66 +1,119 @@
 name: desktop-release
 
-# Build the Tauri desktop installers for Windows + Linux on every push to
-# master that touches the desktop app, and publish them to a single rolling
-# `desktop-latest` GitHub Release (always the newest build, no per-version
-# tags). The Release page shows the installer assets. Also runnable by hand.
+# Cut a versioned desktop release. Run by hand, picking a semver bump
+# (patch/minor/major). The workflow bumps the version in all three source
+# files, commits that back to master, then builds the Tauri installers for
+# Windows + Linux and publishes them to BOTH:
+#   - an immutable `desktop-v<X.Y.Z>` release (the version history), and
+#   - the rolling `desktop-latest` release (always the newest build).
 on:
-  push:
-    branches: [master]
-    paths:
-      - "apps/desktop/**"
-      - "packages/shared/**"
-      - ".github/workflows/desktop-release.yml"
   workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver bump"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+        required: true
+      notes:
+        description: "Release notes (what changed in this version)"
+        type: string
+        required: true
 
 permissions:
   contents: write
 
-# Only one rolling-release build at a time; a newer push wins.
 concurrency:
   group: desktop-release
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  # Recreate the rolling release at the current commit so the build jobs have a
-  # release to upload their assets into. Deleting + recreating keeps a single
-  # `desktop-latest` entry pinned to the newest commit.
-  create-release:
+  # Bump the version in the three source files, commit it back to master, and
+  # create the immutable `desktop-v<X.Y.Z>` release that the build jobs upload
+  # into.
+  prepare:
     runs-on: ubuntu-latest
     outputs:
+      version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
       release_id: ${{ steps.rel.outputs.id }}
     steps:
-      - name: Ensure rolling release
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          # Use the default token so the bump commit can be pushed back.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute and apply version bump
+        id: bump
+        run: |
+          cd apps/desktop
+          CUR=$(node -p "require('./package.json').version")
+          NEW=$(node -e "
+            const s = '${CUR}'.split('.').map(Number);
+            const b = '${{ inputs.bump }}';
+            if (b === 'major') { s[0]++; s[1] = 0; s[2] = 0; }
+            else if (b === 'minor') { s[1]++; s[2] = 0; }
+            else { s[2]++; }
+            console.log(s.join('.'));
+          ")
+          echo "Bumping $CUR -> $NEW ($GITHUB_WORKSPACE)"
+
+          # package.json
+          jq --arg v "$NEW" '.version = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          # tauri.conf.json
+          jq --arg v "$NEW" '.version = $v' src-tauri/tauri.conf.json > src-tauri/tauri.conf.json.tmp
+          mv src-tauri/tauri.conf.json.tmp src-tauri/tauri.conf.json
+
+          # Cargo.toml — only the [package] version (anchored to line start so
+          # the `version = "2"` dependency lines are left untouched).
+          sed -i "0,/^version = \"$CUR\"/s//version = \"$NEW\"/" src-tauri/Cargo.toml
+
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        id: commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/package.json \
+                  apps/desktop/src-tauri/tauri.conf.json \
+                  apps/desktop/src-tauri/Cargo.toml
+          git commit -m "chore(desktop): release v${{ steps.bump.outputs.version }} [skip ci]"
+          git push origin master
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create versioned release
         id: rel
         uses: actions/github-script@v7
         with:
           script: |
             const { owner, repo } = context.repo;
-            const tag = 'desktop-latest';
-            try {
-              const { data } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              await github.rest.repos.deleteRelease({ owner, repo, release_id: data.id });
-            } catch (e) {
-              if (e.status !== 404) throw e;
-            }
-            try {
-              await github.rest.git.deleteRef({ owner, repo, ref: `tags/${tag}` });
-            } catch (e) {
-              if (e.status !== 404 && e.status !== 422) throw e;
-            }
+            const version = '${{ steps.bump.outputs.version }}';
+            const sha = '${{ steps.commit.outputs.sha }}';
+            const tag = `desktop-v${version}`;
+            const notes = ${{ toJSON(inputs.notes) }};
+            const body = [
+              notes,
+              '',
+              '---',
+              `Desktop installers for v${version}. Windows (.exe) and Linux (.deb / .AppImage) — see the assets below.`,
+            ].join('\n');
             const { data } = await github.rest.repos.createRelease({
               owner, repo,
               tag_name: tag,
-              target_commitish: context.sha,
-              name: 'رقمنة — Desktop (latest)',
-              body: 'Latest desktop installers built from master. Windows (.exe) and Linux (.deb / .AppImage) — see the assets below.',
+              target_commitish: sha,
+              name: `رقمنة — Desktop v${version}`,
+              body,
               draft: false,
               prerelease: false,
             });
             core.setOutput('id', data.id);
 
   build:
-    needs: create-release
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -70,6 +123,9 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build the exact bumped commit, not whatever master moved to.
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Install Linux build dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -101,10 +157,37 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and upload to release
+      - name: Build and upload to versioned release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          releaseId: ${{ needs.create-release.outputs.release_id }}
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+
+  # Mirror the freshly built installers onto the rolling `desktop-latest`
+  # release so there is always a stable "newest build" download URL.
+  publish-latest:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recreate desktop-latest from the versioned release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          mkdir -p latest-assets
+          gh release download "desktop-v$VERSION" \
+            --repo "$GITHUB_REPOSITORY" --dir latest-assets
+
+          # Delete the old rolling release + its tag, then recreate at this commit.
+          gh release delete desktop-latest \
+            --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+
+          gh release create desktop-latest latest-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SHA" \
+            --title "رقمنة — Desktop (latest)" \
+            --notes "$(printf '%s\n\n---\nLatest desktop installers (currently v%s). Windows (.exe) and Linux (.deb / .AppImage) — see the assets below.' "$NOTES" "$VERSION")"

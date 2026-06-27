@@ -52,6 +52,33 @@ pnpm desktop:build    # = tauri build
 Produces `.deb` + `.AppImage` on Linux and `.exe` (NSIS) on Windows, under
 `apps/desktop/src-tauri/target/release/bundle/`.
 
+## Release
+
+Releases are cut by hand from the **desktop-release** GitHub Actions workflow
+(`.github/workflows/desktop-release.yml`). Run it from the Actions tab →
+*desktop-release* → **Run workflow**, then provide:
+
+- **bump** — `patch` / `minor` / `major` (semver bump from the current version).
+- **notes** — the release notes for this version. **Required** — write what
+  changed (a short changelog) so every release has a record. This text becomes
+  the GitHub release body.
+
+The workflow then:
+
+1. Bumps the version in all three source files — `package.json`,
+   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` — and commits that back
+   to `master` (`chore(desktop): release vX.Y.Z [skip ci]`).
+2. Builds the Windows + Linux installers from that commit.
+3. Publishes them to two GitHub Releases:
+   - **`desktop-v<X.Y.Z>`** — immutable, with your release notes; the version
+     history.
+   - **`desktop-latest`** — rolling pointer to the newest build (stable
+     download URL).
+
+Versions are kept in sync by the workflow, so don't bump them by hand. There is
+no auto-updater and no code signing yet — users download the installer from the
+release page.
+
 ## System prerequisites
 
 **Rust** (stable) is required: https://rustup.rs

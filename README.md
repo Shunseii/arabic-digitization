@@ -153,10 +153,14 @@ eas build --profile production --platform android   # store build, auto-incremen
 
 ### Desktop (Tauri)
 
-Auto-deployed by CI: every push to `master` touching `apps/desktop/**` runs
-`.github/workflows/desktop-release.yml`, which builds the Windows `.exe` and
-Linux `.deb` / `.AppImage` and publishes them to a single rolling
-**`desktop-latest`** GitHub Release. No tags. Get the latest installers:
+Released by hand from the **desktop-release** workflow
+(`.github/workflows/desktop-release.yml`): Actions tab → *desktop-release* →
+**Run workflow**, pick a semver `bump` (patch/minor/major) and write the
+**release notes** (required). CI bumps the version in the three source files,
+commits it back to `master`, builds the Windows `.exe` and Linux `.deb` /
+`.AppImage`, and publishes them to an immutable **`desktop-v<X.Y.Z>`** release
+plus the rolling **`desktop-latest`** pointer. Full steps:
+`apps/desktop/README.md`. Get the latest installers:
 
 ```bash
 gh release download desktop-latest --pattern '*.deb' --dir ~/Downloads --clobber
