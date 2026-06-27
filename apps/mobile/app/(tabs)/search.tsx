@@ -3,7 +3,6 @@ import type { HighlightResponse } from "@qiraa/shared";
 import { Link, useRouter } from "expo-router";
 import {
   type ComponentProps,
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -152,45 +151,9 @@ const Results = ({ onSelect }: { onSelect: (hit: SearchHit) => void }) => {
 // same query doesn't re-hit the API. Session-lived; clears on reload.
 const highlightCache = new Map<string, HighlightResponse>();
 
-// Render `text` with the given char ranges emphasized via nested <Text>.
-// Ranges are sorted; any overlapping an already-emphasized region is skipped.
-const HighlightedText = ({
-  text,
-  ranges,
-}: {
-  text: string;
-  ranges: [number, number][];
-}) => {
-  const sorted = [...ranges].sort((a, b) => a[0] - b[0] || b[1] - a[1]);
-  const parts: ReactNode[] = [];
-  let pos = 0;
-  for (const [start, end] of sorted) {
-    if (start < pos) continue;
-    if (start > pos) parts.push(text.slice(pos, start));
-    parts.push(
-      <Text
-        key={start}
-        style={{ backgroundColor: colors.accentSoft, color: colors.accent }}
-      >
-        {text.slice(start, end)}
-      </Text>,
-    );
-    pos = end;
-  }
-  parts.push(text.slice(pos));
-  return (
-    <Text
-      className="text-base leading-7 text-ink"
-      style={{ writingDirection: "rtl", textAlign: "right" }}
-    >
-      {parts}
-    </Text>
-  );
-};
-
-// Full-page rendered preview, opened by tapping a result. When there's an
-// active query, shows the LLM-picked passages highlighted; otherwise the plain
-// markdown page.
+// Full-page rendered preview, opened by tapping a result. Renders the page with
+// the same Markdown component as the reader; tapping "Highlight matches" fetches
+// the LLM-picked passages and emphasizes them in place.
 const PreviewModal = ({
   hit,
   query,
@@ -205,45 +168,51 @@ const PreviewModal = ({
   const q = query.trim();
   const [hl, setHl] = useState<HighlightResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const hitId = hit?.id;
   const bookId = hit?.book_id;
+  // Highlighting is an explicit action now, so drop any existing highlight when
+  // the opened result or query changes — the button re-fetches on demand.
+  // hitId/q are triggers here, not values the effect reads.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps are reset triggers
   useEffect(() => {
-    if (!hitId || !bookId || !q) {
-      setHl(null);
-      setLoading(false);
-      return;
-    }
+    setHl(null);
+    setLoading(false);
+    setFailed(false);
+  }, [hitId, q]);
+
+  const runHighlight = useCallback(() => {
+    if (!hitId || !bookId || !q) return;
     const key = `${hitId}|${q}`;
     const cached = highlightCache.get(key);
     if (cached) {
       setHl(cached);
-      setLoading(false);
       return;
     }
-    let cancelled = false;
-    setHl(null);
     setLoading(true);
+    setFailed(false);
     api
       .highlight({ bookId, fileId: hitId, query: q })
       .then((res) => {
-        if (cancelled) return;
         highlightCache.set(key, res);
         setHl(res);
       })
-      // On any failure, fall through to the plain markdown view below.
-      .catch(() => {
-        if (!cancelled) setHl(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      // Surface the failure instead of silently doing nothing.
+      .catch(() => setFailed(true))
+      .finally(() => setLoading(false));
   }, [hitId, bookId, q]);
 
-  const ranges = hl?.spans.flatMap((s) => s.ranges) ?? [];
+  // Each relevant span, split per-line so a passage spanning a line break still
+  // matches against the per-line markdown the renderer produces.
+  const highlight = hl?.spans.flatMap((s) =>
+    s.text
+      .split(/\n+/)
+      .map((t) => t.trim())
+      .filter(Boolean),
+  );
+  const canHighlight = q.length > 0;
+
   return (
     <Modal
       visible={hit != null}
@@ -288,18 +257,44 @@ const PreviewModal = ({
             paddingBottom: insets.bottom + 24,
           }}
         >
-          {loading ? (
-            <View className="flex-row items-center gap-2">
-              <ActivityIndicator size="small" color={colors.textMuted} />
-              <Text className="text-sm text-text-muted">
-                Finding the relevant passage…
-              </Text>
+          {canHighlight && (
+            <View className="mb-3">
+              {loading ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator size="small" color={colors.textMuted} />
+                  <Text className="text-sm text-text-muted">Finding…</Text>
+                </View>
+              ) : failed ? (
+                <Pressable onPress={runHighlight} hitSlop={8}>
+                  <Text className="text-sm font-semibold text-st-fail">
+                    Couldn't highlight — retry
+                  </Text>
+                </Pressable>
+              ) : hl ? (
+                highlight && highlight.length > 0 ? (
+                  <Pressable onPress={() => setHl(null)} hitSlop={8}>
+                    <Text className="text-sm font-semibold text-text-muted">
+                      Clear highlight
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Text className="text-sm text-text-muted">
+                    No matching passage
+                  </Text>
+                )
+              ) : (
+                <Pressable
+                  onPress={runHighlight}
+                  className="self-start rounded-lg border border-accent px-3 py-1.5"
+                >
+                  <Text className="text-sm font-semibold text-accent">
+                    Highlight matches
+                  </Text>
+                </Pressable>
+              )}
             </View>
-          ) : hl && ranges.length > 0 ? (
-            <HighlightedText text={hl.text} ranges={ranges} />
-          ) : (
-            <Markdown source={hit?.text ?? ""} />
           )}
+          <Markdown source={hit?.text ?? ""} highlight={highlight} />
         </ScrollView>
       </View>
     </Modal>
