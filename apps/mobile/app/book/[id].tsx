@@ -20,7 +20,9 @@ import { colors } from "@/theme";
 
 const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
 const isPending = (f: FileStatus): boolean =>
-  f.state === "queued" || f.state === "processing";
+  f.state === "queued" ||
+  f.state === "processing" ||
+  f.state === "rate_limited";
 const pageLabel = (f: FileStatus, index: number): string =>
   f.page_number != null ? String(f.page_number) : `#${index + 1}`;
 

@@ -13,6 +13,7 @@ export type FileState =
   | "captured"
   | "queued"
   | "processing"
+  | "rate_limited"
   | "done"
   | "needs_review"
   | "approved"

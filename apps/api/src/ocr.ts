@@ -128,6 +128,43 @@ export async function transcribe({
   return { file_id: fileId, model: useModel, text, text_key: textKey, usage };
 }
 
+// Raised when Gemini returns a non-2xx. Carries the HTTP status and, for 429s,
+// the server-suggested retryDelay so the queue consumer can back off precisely.
+export class GeminiError extends Error {
+  readonly status: number;
+  readonly retryAfterSeconds: number | null;
+
+  constructor(status: number, body: string) {
+    super(`Gemini ${status}: ${body}`);
+    this.name = "GeminiError";
+    this.status = status;
+    this.retryAfterSeconds = parseRetryDelaySeconds(body);
+  }
+
+  // Conditions worth re-queuing rather than burning the page: rate limits (429)
+  // and transient server errors (5xx). Client errors (4xx bar 429) are terminal.
+  get isTransient(): boolean {
+    return this.status === 429 || this.status >= 500;
+  }
+}
+
+// Pull error.details[].retryDelay (e.g. "51s", "1.05s") out of a Gemini error
+// body. Returns whole seconds, or null if the body has no structured delay.
+function parseRetryDelaySeconds(body: string): number | null {
+  try {
+    const json = JSON.parse(body) as {
+      error?: { details?: Array<{ retryDelay?: string }> };
+    };
+    for (const detail of json.error?.details ?? []) {
+      const seconds = detail.retryDelay?.match(/^([\d.]+)s$/)?.[1];
+      if (seconds) return Math.ceil(parseFloat(seconds));
+    }
+  } catch {
+    // Non-JSON body — no structured delay to extract.
+  }
+  return null;
+}
+
 // Google AI Studio direct generateContent call (BYOK via env.GOOGLE_API_KEY).
 async function runGemini({
   env,
@@ -168,7 +205,7 @@ async function runGemini({
     }),
   });
   if (!res.ok) {
-    throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+    throw new GeminiError(res.status, await res.text());
   }
 
   const data = (await res.json()) as {

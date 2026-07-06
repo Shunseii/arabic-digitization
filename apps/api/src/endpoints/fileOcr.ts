@@ -1,6 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
-import { transcribe } from "../ocr";
+import { GeminiError, transcribe } from "../ocr";
 import type { AppContext } from "../types";
 
 // Manual OCR trigger — runs transcription synchronously and returns the result.
@@ -30,6 +30,7 @@ export class FileOcr extends OpenAPIRoute {
         },
       },
       "404": { description: "No such file" },
+      "429": { description: "Gemini rate limit (retry after a delay)" },
       "502": { description: "OCR / model call failed" },
     },
   };
@@ -42,7 +43,9 @@ export class FileOcr extends OpenAPIRoute {
       return c.json({ success: true, ...result });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const status = /not found|missing/i.test(message) ? 404 : 502;
+      let status: 404 | 429 | 502 = 502;
+      if (/not found|missing/i.test(message)) status = 404;
+      else if (err instanceof GeminiError && err.status === 429) status = 429;
       return c.json({ success: false, error: message }, status);
     }
   }

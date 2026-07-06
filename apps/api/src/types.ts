@@ -54,6 +54,7 @@ export const FileState = z.enum([
   "captured",
   "queued",
   "processing",
+  "rate_limited", // transient Gemini 429/5xx — awaiting an automatic re-queue
   "done",
   "needs_review",
   "approved",

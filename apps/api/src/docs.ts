@@ -16,8 +16,10 @@ Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
 - A "book" is a collection of uploaded files. Books have an id (slug) and title.
 - A "file" is one uploaded page image/PDF. Each file is OCR'd independently.
 - "Pages" are not a stored entity: group files by page_number yourself when assembling.
-- File state: captured | queued | processing | done | needs_review | approved | failed
+- File state: captured | queued | processing | rate_limited | done | needs_review | approved | failed
 - On upload a file is enqueued and OCR runs automatically (state queued -> processing -> done).
+- rate_limited is transient: a Gemini 429/5xx auto-re-queues with backoff (no action needed).
+  Only 'failed' needs a manual re-run (POST .../ocr).
 
 ## Endpoints
 

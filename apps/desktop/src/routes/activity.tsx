@@ -9,7 +9,9 @@ import { colors } from "@/theme";
 
 const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
 const isPending = (f: FileStatus): boolean =>
-  f.state === "queued" || f.state === "processing";
+  f.state === "queued" ||
+  f.state === "processing" ||
+  f.state === "rate_limited";
 
 const sum = (
   books: BookWithStatus[],
@@ -76,7 +78,10 @@ export const ActivityScreen = () => {
     );
 
   const books = booksQuery.data ?? [];
-  const queued = sum(books, "queued") + sum(books, "processing");
+  const queued =
+    sum(books, "queued") +
+    sum(books, "processing") +
+    sum(books, "rate_limited");
   const done = sum(books, "done") + sum(books, "approved");
   const failed = sum(books, "failed");
   const recent = recentQuery.data ?? [];

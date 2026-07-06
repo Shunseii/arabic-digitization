@@ -34,10 +34,21 @@
       "id": "5d12646d685a452c9880001b031cede8"
     }
   ],
+  // max_concurrency caps parallel consumer invocations. Left unset, Cloudflare
+  // autoscales to many parallel invocations that each fire a Gemini call, which
+  // blows past the model's requests-per-minute quota (the 429 storm). Capped at
+  // 2, with the per-message backoff-and-requeue in queue.ts, OCR stays under
+  // quota. max_retries is generous so a page can ride out sustained throttling.
   "queues": {
     "producers": [{ "binding": "OCR_Q", "queue": "arabic-ocr" }],
     "consumers": [
-      { "queue": "arabic-ocr", "max_batch_size": 5, "max_retries": 3 }
+      {
+        "queue": "arabic-ocr",
+        "max_batch_size": 3,
+        "max_batch_timeout": 30,
+        "max_concurrency": 2,
+        "max_retries": 10
+      }
     ]
   },
   // Meilisearch (hosted on Fly, see infra/meili). MEILI_KEY is a secret:

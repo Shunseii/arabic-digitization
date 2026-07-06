@@ -1,13 +1,25 @@
-import { transcribe } from "./ocr";
+import { GeminiError, transcribe } from "./ocr";
 
 // Message enqueued on upload; the consumer transcribes the file.
 export interface OcrMessage {
   fileId: string;
 }
 
+// Honor Gemini's suggested retryDelay as a floor, layered with exponential
+// backoff on the redelivery count, jittered to desync sibling messages, capped.
+function backoffSeconds(attempts: number, suggested: number | null): number {
+  const expo = Math.min(2 ** attempts, 120);
+  const base = Math.max(suggested ?? 0, expo);
+  return Math.ceil(base + Math.random() * 5);
+}
+
 // Queue consumer: mark processing → transcribe (sets 'done') → ack.
-// On failure, record the error, set 'failed', and retry (up to max_retries in
-// wrangler.jsonc; exhausted retries leave the file 'failed' for manual re-run).
+//
+// Transient Gemini errors (429 rate limit, 5xx) are not the page's fault: set
+// 'rate_limited' and re-queue with backoff instead of burning the page. The
+// message keeps coming back until it succeeds or Cloudflare exhausts max_retries
+// (wrangler.jsonc). Genuine failures set 'failed' and stop — retrying a missing
+// R2 object or an empty response won't help; re-run those manually via /ocr.
 export async function handleOcrQueue(
   batch: MessageBatch<OcrMessage>,
   env: Env,
@@ -24,12 +36,23 @@ export async function handleOcrQueue(
       msg.ack();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+
+      if (err instanceof GeminiError && err.isTransient) {
+        await env.DB.prepare(
+          "UPDATE files SET state = 'rate_limited', error = ?, updated_at = ? WHERE file_id = ?",
+        )
+          .bind(message.slice(0, 500), Date.now(), fileId)
+          .run();
+        msg.retry({ delaySeconds: backoffSeconds(msg.attempts, err.retryAfterSeconds) });
+        continue;
+      }
+
       await env.DB.prepare(
         "UPDATE files SET state = 'failed', error = ?, updated_at = ? WHERE file_id = ?",
       )
         .bind(message, Date.now(), fileId)
         .run();
-      msg.retry();
+      msg.ack();
     }
   }
 }
