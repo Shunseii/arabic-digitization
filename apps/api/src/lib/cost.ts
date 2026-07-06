@@ -4,8 +4,11 @@
 // USD per 1M tokens, per model. Thinking tokens bill at the output rate, so
 // they're folded into output_tokens upstream (see ocr.ts).
 //
-// ⚠️ CONFIRM these against current Google pricing — preview-model rates shift.
-// Update here only; token counts never change.
+// These are the <=200k-prompt tier rates (confirmed 2026-07-06 against
+// ai.google.dev/gemini-api/docs/pricing). Gemini 3.1 Pro has a higher tier for
+// prompts >200k tokens ($4 in / $18 out), but a single-page OCR prompt is ~2k
+// tokens and never reaches it, so the flat rate is exact here. Re-check on model
+// changes; update here only — token counts never change.
 const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
   "gemini-3.1-pro-preview": { inputPer1M: 2.0, outputPer1M: 12.0 },
 };
