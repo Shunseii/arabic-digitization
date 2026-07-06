@@ -40,7 +40,7 @@ GET /api/books/:bookId
 PATCH /api/books/:bookId
   Update a book. Body (JSON): any of { "title"?: string, "ocr_instructions"?: string|null }.
   At least one field required; ocr_instructions=null clears them. Does NOT re-OCR
-  done pages — re-run them via the per-file ocr endpoint to apply new instructions.
+  done pages — requeue them (POST .../requeue with states:["done"]) to apply them.
   200 -> { success, book: { id, title, created_at, ocr_instructions } }
   404 if missing.
 
@@ -59,6 +59,14 @@ GET /api/books/:bookId/export
   200 -> { success, book_id, files: [ { file_id, page_number, role, order_hint, state, text } ] }
   text is null if not transcribed yet. Files ordered by page_number.
 
+POST /api/books/:bookId/requeue
+  Bulk re-OCR. Body (JSON): { "states"?: FileState[] }. Moves every file in those
+  states back to 'queued' and enqueues it. Defaults to ["failed","rate_limited"].
+  All work flows through the throttled, auto-retrying consumer, so requeuing a
+  whole book at once is safe. Pass states:["done"] to re-apply new ocr_instructions.
+  200 -> { success, requeued: <n>, states: [...] }
+  404 if book missing.
+
 POST /api/books/:bookId/files?page=<n>
   Upload one page. Body = raw image/PDF bytes. Content-Type must be one of:
   image/jpeg, image/png, image/webp, application/pdf.
@@ -68,8 +76,10 @@ POST /api/books/:bookId/files?page=<n>
   404 if book missing, 415 unsupported type, 400 missing body.
 
 POST /api/books/:bookId/files/:fileId/ocr
-  Re-run OCR on a file synchronously (model is fixed: Gemini). Returns when done.
-  200 -> { success, file_id, model, text, text_key, usage }
+  (Re-)queue a single file for OCR. Enqueues onto the same throttled, auto-retrying
+  path as upload and returns immediately; poll status/export for the result.
+  202 -> { success, file_id, state: "queued" }
+  404 if file missing.
 
 GET /api/books/:bookId/files/:fileId/text
   Raw Markdown transcription (Content-Type: text/markdown).

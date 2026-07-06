@@ -5,6 +5,25 @@ export interface OcrMessage {
   fileId: string;
 }
 
+// Set a file back to 'queued' and drop it on the OCR queue. The single entry
+// point for (re-)processing a file: upload, manual re-run, and bulk requeue all
+// route through here, so every OCR goes through the throttled, auto-retrying
+// consumer rather than a synchronous call that could storm the rate limit.
+export async function enqueueOcr({
+  env,
+  fileId,
+}: {
+  env: Env;
+  fileId: string;
+}): Promise<void> {
+  await env.DB.prepare(
+    "UPDATE files SET state = 'queued', updated_at = ? WHERE file_id = ?",
+  )
+    .bind(Date.now(), fileId)
+    .run();
+  await env.OCR_Q.send({ fileId });
+}
+
 // Honor Gemini's suggested retryDelay as a floor, layered with exponential
 // backoff on the redelivery count, jittered to desync sibling messages, capped.
 function backoffSeconds(attempts: number, suggested: number | null): number {

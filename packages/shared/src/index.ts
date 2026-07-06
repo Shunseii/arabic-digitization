@@ -151,13 +151,11 @@ export interface FileDeleteResponse {
   };
 }
 
+/** OCR is now enqueued (async); poll status/export for the result. */
 export interface FileOcrResponse {
   success: true;
   file_id: string;
-  model: string;
-  text: string;
-  text_key: string;
-  usage: unknown;
+  state: "queued";
 }
 
 export interface DeleteBookResponse {

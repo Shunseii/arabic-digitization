@@ -7,6 +7,7 @@ import { BookDelete } from "./endpoints/bookDelete";
 import { BookExport } from "./endpoints/bookExport";
 import { BookFetch } from "./endpoints/bookFetch";
 import { BookList } from "./endpoints/bookList";
+import { BookRequeue } from "./endpoints/bookRequeue";
 import { BookStatus } from "./endpoints/bookStatus";
 import { BookUpdate } from "./endpoints/bookUpdate";
 import { FileDelete } from "./endpoints/fileDelete";
@@ -57,6 +58,7 @@ openapi.patch("/api/books/:bookId", BookUpdate);
 openapi.delete("/api/books/:bookId", BookDelete);
 openapi.get("/api/books/:bookId/status", BookStatus);
 openapi.get("/api/books/:bookId/export", BookExport);
+openapi.post("/api/books/:bookId/requeue", BookRequeue);
 
 // Files
 openapi.post("/api/books/:bookId/files", FileUpload);

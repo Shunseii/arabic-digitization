@@ -1,52 +1,54 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
-import { GeminiError, transcribe } from "../ocr";
+import { enqueueOcr } from "../queue";
 import type { AppContext } from "../types";
 
-// Manual OCR trigger — runs transcription synchronously and returns the result.
-// Model is fixed (the default in ocr.ts); not overridable per request.
-// The queue consumer will call the same transcribe() function.
+// Manual OCR (re-)trigger. Enqueues the file onto the OCR queue — the same
+// throttled, auto-retrying path as upload — and returns immediately. Poll the
+// book status/export endpoints for the result.
 export class FileOcr extends OpenAPIRoute {
   schema = {
     tags: ["Files"],
-    summary: "Run OCR on a file now (manual)",
+    summary: "Queue a file for (re-)OCR",
     request: {
       params: z.object({ bookId: z.string(), fileId: z.string() }),
     },
     responses: {
-      "200": {
-        description: "Transcription result",
+      "202": {
+        description: "File enqueued for OCR",
         content: {
           "application/json": {
             schema: z.object({
               success: z.boolean(),
               file_id: z.string(),
-              model: z.string(),
-              text: z.string(),
-              text_key: z.string(),
-              usage: z.unknown(),
+              state: z.literal("queued"),
             }),
           },
         },
       },
       "404": { description: "No such file" },
-      "429": { description: "Gemini rate limit (retry after a delay)" },
-      "502": { description: "OCR / model call failed" },
     },
   };
 
   async handle(c: AppContext) {
     const { params } = await this.getValidatedData<typeof this.schema>();
 
-    try {
-      const result = await transcribe({ env: c.env, fileId: params.fileId });
-      return c.json({ success: true, ...result });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      let status: 404 | 429 | 502 = 502;
-      if (/not found|missing/i.test(message)) status = 404;
-      else if (err instanceof GeminiError && err.status === 429) status = 429;
-      return c.json({ success: false, error: message }, status);
+    const file = await c.env.DB.prepare(
+      "SELECT file_id FROM files WHERE file_id = ? AND book_id = ?",
+    )
+      .bind(params.fileId, params.bookId)
+      .first<{ file_id: string }>();
+    if (!file) {
+      return c.json(
+        { success: false, error: `File '${params.fileId}' not found` },
+        404,
+      );
     }
+
+    await enqueueOcr({ env: c.env, fileId: params.fileId });
+    return c.json(
+      { success: true, file_id: params.fileId, state: "queued" },
+      202,
+    );
   }
 }
