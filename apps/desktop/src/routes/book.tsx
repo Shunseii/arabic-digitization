@@ -136,7 +136,12 @@ export const BookScreen = () => {
           <span className="truncate text-xl text-ink" dir="rtl">
             {bookQuery.data?.title ?? "…"}
           </span>
-          <span className="text-xs text-text-muted">{files.length} pages</span>
+          <span className="text-xs text-text-muted">
+            {files.length} pages
+            {bookQuery.data?.usage?.cost_usd != null
+              ? ` · $${bookQuery.data.usage.cost_usd.toFixed(2)} OCR`
+              : ""}
+          </span>
         </div>
         <button
           type="button"
@@ -216,6 +221,11 @@ export const BookScreen = () => {
                         {f.error ? (
                           <span className="truncate text-xs text-st-fail">
                             {f.error}
+                          </span>
+                        ) : null}
+                        {f.cost_usd != null ? (
+                          <span className="text-xs text-text-muted">
+                            ${f.cost_usd.toFixed(4)}
                           </span>
                         ) : null}
                       </span>

@@ -34,7 +34,9 @@ GET /api/books
   200 -> { success, books: [ { id, title, created_at, files_total, counts: {state: n} } ] }
 
 GET /api/books/:bookId
-  200 -> { success, book: { id, title, created_at, ocr_instructions, files_total, counts } }
+  200 -> { success, book: { id, title, created_at, ocr_instructions, files_total, counts,
+           usage: { input_tokens, output_tokens, cost_usd } | null } }
+  // usage aggregates the book's done pages; null if none tracked yet.
   404 if missing.
 
 PATCH /api/books/:bookId
@@ -52,7 +54,9 @@ DELETE /api/books/:bookId
 
 GET /api/books/:bookId/status
   Per-file states (no text). Poll this to watch progress.
-  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at } ] }
+  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at, input_tokens, output_tokens, cost_usd } ] }
+  // input_tokens/output_tokens/cost_usd are null for pages OCR'd before usage
+  // tracking (or not done yet); cost_usd is null if the model has no known price.
 
 GET /api/books/:bookId/export
   All files + their transcription text in one payload (for local assembly).

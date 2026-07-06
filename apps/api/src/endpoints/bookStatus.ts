@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { costUsd } from "../lib/cost";
 import { type AppContext, FileStatus } from "../types";
 
 // Per-file status for a book (no transcription text) — poll this to watch the
@@ -41,13 +42,26 @@ export class BookStatus extends OpenAPIRoute {
     }
 
     const { results } = await c.env.DB.prepare(
-      `SELECT file_id, page_number, state, role, order_hint, preview, error, updated_at
+      `SELECT file_id, page_number, state, role, order_hint, preview, error, updated_at, input_tokens, output_tokens, ocr_model
 			 FROM files WHERE book_id = ?
 			 ORDER BY page_number IS NULL, page_number, order_hint`,
     )
       .bind(params.bookId)
-      .all<z.infer<typeof FileStatus>>();
+      .all<
+        Omit<z.infer<typeof FileStatus>, "cost_usd"> & {
+          ocr_model: string | null;
+        }
+      >();
 
-    return c.json({ success: true, files: results });
+    const files = results.map(({ ocr_model, ...f }) => ({
+      ...f,
+      cost_usd: costUsd({
+        model: ocr_model,
+        inputTokens: f.input_tokens,
+        outputTokens: f.output_tokens,
+      }),
+    }));
+
+    return c.json({ success: true, files });
   }
 }

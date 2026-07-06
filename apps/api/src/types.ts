@@ -67,6 +67,16 @@ export const BookWithStatus = Book.extend({
   counts: z
     .record(z.string(), z.number().int())
     .describe("File count keyed by state (only present states appear)"),
+  // Aggregate OCR usage across the book's done pages; null if none have usage
+  // data yet. cost_usd is null if any contributing model lacks a known price.
+  usage: z
+    .object({
+      input_tokens: z.number().int(),
+      output_tokens: z.number().int(),
+      cost_usd: z.number().nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 
 // Content types we accept for an uploaded page fragment.
@@ -87,6 +97,11 @@ export const FileStatus = z.object({
   preview: z.string().nullable(),
   error: z.string().nullable(),
   updated_at: z.number().int(),
+  // OCR usage. Null for pages OCR'd before usage tracking, or not yet done.
+  // cost_usd is derived (tokens x model price); null if the model has no price.
+  input_tokens: z.number().int().nullable(),
+  output_tokens: z.number().int().nullable(),
+  cost_usd: z.number().nullable(),
 });
 
 // One file in a bulk export: metadata + the transcribed text (null if none yet).

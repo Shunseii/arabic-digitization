@@ -155,7 +155,12 @@ export default function BookScreen() {
           >
             {bookQuery.data?.title ?? "…"}
           </Text>
-          <Text className="text-xs text-text-muted">{files.length} pages</Text>
+          <Text className="text-xs text-text-muted">
+            {files.length} pages
+            {bookQuery.data?.usage?.cost_usd != null
+              ? ` · $${bookQuery.data.usage.cost_usd.toFixed(2)} OCR`
+              : ""}
+          </Text>
         </View>
         <Pressable
           onPress={openBookEdit}
@@ -233,6 +238,11 @@ export default function BookScreen() {
                           numberOfLines={1}
                         >
                           {f.error}
+                        </Text>
+                      ) : null}
+                      {f.cost_usd != null ? (
+                        <Text className="text-xs text-text-muted">
+                          ${f.cost_usd.toFixed(4)}
                         </Text>
                       ) : null}
                     </View>

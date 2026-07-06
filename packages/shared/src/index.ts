@@ -37,11 +37,22 @@ export interface Book {
   ocr_instructions?: string | null;
 }
 
+/** Aggregate OCR token usage + derived cost. */
+export interface Usage {
+  input_tokens: number;
+  output_tokens: number;
+  /** null if any contributing model has no known price. */
+  cost_usd: number | null;
+}
+
 /** Book plus a per-state file count (the dashboard/library summary). */
 export interface BookWithStatus extends Book {
   files_total: number;
   /** File count keyed by state; only present states appear. */
   counts: Partial<Record<FileState, number>>;
+  /** Aggregate usage across done pages. Present on book fetch; null if no
+   *  page has usage data yet. Omitted by the list endpoint. */
+  usage?: Usage | null;
 }
 
 /** A stored page fragment. Mirrors the `files` table. */
@@ -68,6 +79,11 @@ export interface FileStatus {
   preview: string | null;
   error: string | null;
   updated_at: number;
+  /** OCR usage; null for pages done before tracking, or not yet done. */
+  input_tokens: number | null;
+  output_tokens: number | null;
+  /** Derived (tokens x model price); null if the model has no known price. */
+  cost_usd: number | null;
 }
 
 /** One file in a bulk export: metadata + transcribed text (null if none yet). */

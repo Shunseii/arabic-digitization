@@ -30,12 +30,17 @@ export interface TranscribeOpts {
   model?: string; // bare AI Studio model id; defaults to MODEL
 }
 
+export interface Usage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
 export interface TranscribeResult {
   file_id: string;
   model: string;
   text: string;
   text_key: string;
-  usage: unknown;
+  usage: Usage;
 }
 
 interface FileRow {
@@ -97,9 +102,17 @@ export async function transcribe({
 
   const now = Date.now();
   await env.DB.prepare(
-    "UPDATE files SET state = 'done', text_key = ?, preview = ?, error = NULL, updated_at = ? WHERE file_id = ?",
+    "UPDATE files SET state = 'done', text_key = ?, preview = ?, input_tokens = ?, output_tokens = ?, ocr_model = ?, error = NULL, updated_at = ? WHERE file_id = ?",
   )
-    .bind(textKey, text.slice(0, 120), now, fileId)
+    .bind(
+      textKey,
+      text.slice(0, 120),
+      usage.inputTokens,
+      usage.outputTokens,
+      useModel,
+      now,
+      fileId,
+    )
     .run();
 
   // Auto-index into search. Best-effort: a Meili outage (or cold start, or
@@ -178,7 +191,7 @@ async function runGemini({
   mimeType: string;
   base64: string;
   systemPrompt: string;
-}): Promise<{ text: string; usage: unknown }> {
+}): Promise<{ text: string; usage: Usage }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: "POST",
@@ -210,7 +223,11 @@ async function runGemini({
 
   const data = (await res.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    usageMetadata?: unknown;
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   };
   const text = (data.candidates?.[0]?.content?.parts ?? [])
     .map((p) => p.text ?? "")
@@ -220,7 +237,17 @@ async function runGemini({
       `no text in Gemini response: ${JSON.stringify(data).slice(0, 400)}`,
     );
   }
-  return { text, usage: data.usageMetadata };
+
+  // Input = prompt (image + text). Output = visible text + thinking tokens,
+  // which bill at the output rate.
+  const um = data.usageMetadata;
+  const usage: Usage = {
+    inputTokens: um?.promptTokenCount ?? null,
+    outputTokens: um
+      ? (um.candidatesTokenCount ?? 0) + (um.thoughtsTokenCount ?? 0)
+      : null,
+  };
+  return { text, usage };
 }
 
 // Chunked base64 — avoids call-stack blowups on large images that a single
