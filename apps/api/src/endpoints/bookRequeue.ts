@@ -68,7 +68,7 @@ export class BookRequeue extends OpenAPIRoute {
 
     const now = Date.now();
     await c.env.DB.prepare(
-      `UPDATE files SET state = 'queued', updated_at = ? WHERE book_id = ? AND state IN (${placeholders})`,
+      `UPDATE files SET state = 'queued', error = NULL, updated_at = ? WHERE book_id = ? AND state IN (${placeholders})`,
     )
       .bind(now, params.bookId, ...states)
       .run();

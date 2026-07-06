@@ -17,7 +17,7 @@ export async function enqueueOcr({
   fileId: string;
 }): Promise<void> {
   await env.DB.prepare(
-    "UPDATE files SET state = 'queued', updated_at = ? WHERE file_id = ?",
+    "UPDATE files SET state = 'queued', error = NULL, updated_at = ? WHERE file_id = ?",
   )
     .bind(Date.now(), fileId)
     .run();
