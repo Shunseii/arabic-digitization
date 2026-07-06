@@ -17,6 +17,29 @@ tokenizers (no Arabic analyzer), so exact-term Arabic search is weak. charabia
 normalizes Arabic (diacritics, tatweel, alef folding) natively. We keep CF for
 what it's good at — embedding compute (bge-m3) — via Meili's REST embedder.
 
+## Two separate steps — don't conflate them
+
+Bringing this service up (or changing it) is always **two distinct actions**:
+
+1. **`fly deploy`** — runs the **Meilisearch server** itself (the `meilisearch`
+   binary + its persistent volume) on Fly. This is the only real "deploy." Use it
+   to create the instance, bump the image version, or change `fly.toml`.
+2. **`node setup-index.mjs`** — **configures the `books` index** (settings +
+   the Cloudflare Workers AI `cfbge` embedder) **inside the already-running
+   instance, over HTTP**. It is *not* a deploy and touches no Fly resources — it
+   just POSTs settings to Meili. It's idempotent, so re-running is safe.
+
+The embedder's Cloudflare `apiKey` lives **only** in Meili's stored settings
+(written by step 2) — never in Fly env/secrets, never in the `meilisearch`
+process. `setup-index.mjs` reads `CF_AI_TOKEN` from *its own* shell env (pull it
+from 1Password) and writes it into those settings.
+
+**Run `setup-index.mjs` after:** the first deploy · any settings/embedder change
+· every Meili version upgrade (a version bump rebuilds the index from scratch —
+see "Upgrading"). If you pass a stale `CF_AI_TOKEN` on any of those runs, it
+silently overwrites the good key and embedding breaks — which is exactly why the
+commands below pull the token from 1Password rather than hardcoding it.
+
 ## One-time deploy
 
 Requires the `flyctl` CLI, authenticated (`fly auth login`).
@@ -38,10 +61,13 @@ fly deploy
 Then configure the index + embedder (idempotent; re-run after settings changes):
 
 ```sh
-MEILI_URL=https://arabic-digitization-search.fly.dev \
-MEILI_MASTER_KEY=<the master key from step 2> \
-CF_ACCOUNT_ID=<cloudflare account id> \
-CF_AI_TOKEN=<cloudflare token with Workers AI: Read> \
+# Pull secrets from 1Password so a re-run can't reintroduce a stale token.
+# CF_AI_TOKEN in particular is written into Meili's embedder settings; passing
+# an expired one here silently breaks embedding until the next reindex fails.
+MEILI_URL="$(op read 'op://Arabic Digitization/Meilisearch/url')" \
+MEILI_MASTER_KEY="$(op read 'op://Arabic Digitization/Meilisearch/master key')" \
+CF_ACCOUNT_ID="$(op read 'op://Arabic Digitization/Cloudflare API Token/Account ID')" \
+CF_AI_TOKEN="$(op read 'op://Arabic Digitization/Cloudflare API Token/credential')" \
 node setup-index.mjs
 ```
 
@@ -161,7 +187,13 @@ The index is derived, disposable data (source = R2 + CF embeddings):
 fly volumes snapshot create <volume-id>      # optional safety
 # bump the image tag in fly.toml, then:
 fly deploy
-node setup-index.mjs                          # re-apply settings/embedder
+# Re-apply settings/embedder. Pull CF_AI_TOKEN (+ the rest) from 1Password —
+# see the setup-index block above — so the upgrade can't restore a stale key.
+CF_ACCOUNT_ID="$(op read 'op://Arabic Digitization/Cloudflare API Token/Account ID')" \
+CF_AI_TOKEN="$(op read 'op://Arabic Digitization/Cloudflare API Token/credential')" \
+MEILI_URL="$(op read 'op://Arabic Digitization/Meilisearch/url')" \
+MEILI_MASTER_KEY="$(op read 'op://Arabic Digitization/Meilisearch/master key')" \
+node setup-index.mjs
 curl -X POST https://<api>/api/search/reindex -H "Authorization: Bearer $MASTER_KEY"
 ```
 
