@@ -5,10 +5,17 @@
 const { app, BrowserWindow, shell } = require("electron");
 const path = require("node:path");
 
-// Sets app.getName(), and on Linux the window's WM_CLASS — which must match the
-// .desktop file's StartupWMClass (electron-builder writes "Qiraa") or the dock
-// shows the raw class ("@qiraa/desktop") and finds no icon.
-app.setName("Qiraa");
+// The app name becomes the window identity Linux uses to match the window to its
+// installed .desktop file — the X11 WM_CLASS and, crucially on Wayland (GNOME,
+// COSMIC), the xdg app_id. It must equal the .desktop basename ("qiraa.desktop")
+// or the compositor can't associate the window and shows no icon / the raw id.
+// The user-facing name stays Arabic — that comes from the .desktop `Name`, not
+// this identifier.
+app.setName("qiraa");
+// Renaming the app would move userData to ~/.config/qiraa and drop existing
+// settings (Meili creds, master key in localStorage). Pin it to the previous
+// capitalized dir so they survive.
+app.setPath("userData", path.join(app.getPath("appData"), "Qiraa"));
 
 const isDev = !app.isPackaged;
 const DEV_URL = "http://localhost:1420";
