@@ -1,7 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
-import type { AppContext } from "../types";
 import { deleteDocsByBook } from "../lib/meili";
+import type { AppContext } from "../types";
 
 // Delete a book and everything under it: its R2 objects (scans + transcribed
 // text, all under the `books/:bookId/` prefix) and its file rows, then the book

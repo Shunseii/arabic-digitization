@@ -62,7 +62,9 @@ export async function handleOcrQueue(
         )
           .bind(message.slice(0, 500), Date.now(), fileId)
           .run();
-        msg.retry({ delaySeconds: backoffSeconds(msg.attempts, err.retryAfterSeconds) });
+        msg.retry({
+          delaySeconds: backoffSeconds(msg.attempts, err.retryAfterSeconds),
+        });
         continue;
       }
 
