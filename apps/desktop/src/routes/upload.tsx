@@ -164,14 +164,14 @@ export const UploadScreen = () => {
               Drop scans here or click to choose
             </span>
             <span className="text-xs text-text-muted">
-              JPEG, PNG, WebP, or PDF · added in selection order
+              JPEG, PNG, or WebP · added in selection order
             </span>
           </button>
           <input
             ref={inputRef}
             type="file"
             multiple
-            accept="image/jpeg,image/png,image/webp,application/pdf"
+            accept="image/jpeg,image/png,image/webp"
             className="hidden"
             onChange={(e) => {
               addFiles(e.target.files);

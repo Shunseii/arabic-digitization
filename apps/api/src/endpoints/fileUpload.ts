@@ -2,7 +2,7 @@ import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { type AppContext, FileRecord, UPLOAD_CONTENT_TYPES } from "../types";
 
-// Upload one page fragment (image or PDF) into a book.
+// Upload one page fragment (image) into a book.
 //
 // Binding-through-Worker: the raw request body is streamed straight to R2, and
 // the same request inserts the files row (state='captured'). Bytes + bookkeeping
@@ -13,10 +13,10 @@ import { type AppContext, FileRecord, UPLOAD_CONTENT_TYPES } from "../types";
 export class FileUpload extends OpenAPIRoute {
   schema = {
     tags: ["Files"],
-    summary: "Upload a page fragment (raw image/PDF body) to a book",
+    summary: "Upload a page fragment (raw image body) to a book",
     description:
       "Send the file bytes as the raw request body with a matching Content-Type " +
-      "(image/jpeg, image/png, image/webp, application/pdf). Optionally pass ?page " +
+      "(image/jpeg, image/png, image/webp). Optionally pass ?page " +
       "when the printed page number is hidden in the shot.",
     request: {
       params: z.object({ bookId: z.string() }),

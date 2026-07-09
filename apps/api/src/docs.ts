@@ -14,7 +14,7 @@ Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
 
 ## Concepts
 - A "book" is a collection of uploaded files. Books have an id (slug) and title.
-- A "file" is one uploaded page image/PDF. Each file is OCR'd independently.
+- A "file" is one uploaded page image. Each file is OCR'd independently.
 - "Pages" are not a stored entity: group files by page_number yourself when assembling.
 - File state: captured | queued | processing | rate_limited | done | needs_review | approved | failed
 - On upload a file is enqueued and OCR runs automatically (state queued -> processing -> done).
@@ -72,8 +72,8 @@ POST /api/books/:bookId/requeue
   404 if book missing.
 
 POST /api/books/:bookId/files?page=<n>
-  Upload one page. Body = raw image/PDF bytes. Content-Type must be one of:
-  image/jpeg, image/png, image/webp, application/pdf.
+  Upload one page. Body = raw image bytes. Content-Type must be one of:
+  image/jpeg, image/png, image/webp.
   ?page is optional (printed page number, when not detectable from the image).
   Inserts state=queued and triggers OCR automatically.
   201 -> { success, file: { file_id, book_id, r2_key, state, page_number, ... } }

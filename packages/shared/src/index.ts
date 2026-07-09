@@ -24,7 +24,6 @@ export const UPLOAD_CONTENT_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
-  "application/pdf",
 ] as const;
 
 export type UploadContentType = (typeof UPLOAD_CONTENT_TYPES)[number];

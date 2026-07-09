@@ -84,7 +84,6 @@ export const UPLOAD_CONTENT_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
-  "application/pdf",
 ] as const;
 
 // Per-file status row (no heavy text), for the status endpoint.
