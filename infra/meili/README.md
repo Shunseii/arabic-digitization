@@ -34,11 +34,38 @@ The embedder's Cloudflare `apiKey` lives **only** in Meili's stored settings
 process. `setup-index.mjs` reads `CF_AI_TOKEN` from *its own* shell env (pull it
 from 1Password) and writes it into those settings.
 
-**Run `setup-index.mjs` after:** the first deploy · any settings/embedder change
-· every Meili version upgrade (a version bump rebuilds the index from scratch —
-see "Upgrading"). If you pass a stale `CF_AI_TOKEN` on any of those runs, it
-silently overwrites the good key and embedding breaks — which is exactly why the
-commands below pull the token from 1Password rather than hardcoding it.
+**Run `setup-index.mjs` after:**
+
+- the **first deploy** (creates the index + embedder);
+- **any edit to `setup-index.mjs`** — changing `filterableAttributes`,
+  `distinctAttribute`, `searchableAttributes`, the embedder, etc. **Editing the
+  file changes nothing on its own** — the settings live in the running Meili
+  instance, and only re-running the script POSTs them. This is the #1 footgun:
+  the file and the live index can silently drift apart;
+- **every Meili version upgrade** (a version bump rebuilds the index from
+  scratch — see "Upgrading").
+
+**Forgetting to re-run fails silently.** A missing filterable attribute doesn't
+error at settings time — it surfaces later as *rejected index tasks*: the Worker
+keeps upserting, the tasks fail server-side (e.g. `file_id is not filterable`),
+and search just returns stale/empty results with nothing in the Worker logs.
+This bit us once — `file_id` was added to the script but the live index was
+never re-configured, so no page indexed for weeks. **After running, verify:**
+
+```sh
+MASTER="$(op read 'op://Arabic Digitization/Meilisearch/master key')"
+URL=https://arabic-digitization-search.fly.dev
+# 1. live settings match the script:
+curl -s "$URL/indexes/books/settings" -H "Authorization: Bearer $MASTER" \
+  | jq '{filterableAttributes, distinctAttribute}'
+# 2. no recently failed index tasks:
+curl -s "$URL/tasks?statuses=failed&limit=5" -H "Authorization: Bearer $MASTER" \
+  | jq '.results[] | {uid, type, error: .error.code}'
+```
+
+If you pass a stale `CF_AI_TOKEN` on any run, it silently overwrites the good
+key and embedding breaks — which is why the commands below pull the token from
+1Password rather than hardcoding it.
 
 ## One-time deploy
 
@@ -131,7 +158,8 @@ Two paths keep the `books` index in sync with the transcriptions in R2.
 
 A page is not indexed as one document — it's split into overlapping ~1000-char
 chunks (`apps/api/src/lib/chunk.ts`), one Meili doc per chunk with id
-`<file_id>#<n>`, so each chunk fits the bge-m3 embedder's ~512-token window
+`<file_id>_<n>` (the separator must be `_`/`-`; Meili document ids reject `#`),
+so each chunk fits the bge-m3 embedder's ~512-token window
 (long pages no longer lose their tail to truncation). Chunks collapse back to
 one hit per page at query time via `distinctAttribute: "file_id"`. Each chunk
 doc also carries the full `page_text` (display only, not searchable) so the
