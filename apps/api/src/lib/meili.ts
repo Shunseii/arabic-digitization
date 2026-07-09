@@ -13,7 +13,9 @@ const INDEX = "books";
 // window — long pages no longer lose their tail to truncation. Chunks collapse
 // back to one hit per page at query time via distinctAttribute: "file_id".
 export interface SearchDoc {
-  id: string; // `${file_id}#${chunkIndex}` — Meili primary key (unique per chunk)
+  id: string; // `${file_id}_${chunkIndex}` — Meili primary key (unique per chunk).
+  // Separator must be `_`: Meili document ids allow only [A-Za-z0-9_-], so `#`
+  // is rejected (the file_id is a hyphenated uuid, already valid).
   file_id: string; // page id: distinct key, reader nav, re-OCR cleanup
   book_id: string;
   book_title: string;
@@ -35,7 +37,7 @@ interface PageInput {
 // Turn one transcribed page into its chunk documents. Returns [] for empty text.
 export function buildPageDocs(page: PageInput): SearchDoc[] {
   return chunkPage(page.text).map((chunk, i) => ({
-    id: `${page.file_id}#${i}`,
+    id: `${page.file_id}_${i}`,
     file_id: page.file_id,
     book_id: page.book_id,
     book_title: page.book_title,
