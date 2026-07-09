@@ -1,6 +1,6 @@
 {
   "name": "@qiraa/desktop",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "type": "module",
   "description": "Scan, OCR, and read Arabic manuscripts — the desktop companion to the Qiraa mobile app.",
