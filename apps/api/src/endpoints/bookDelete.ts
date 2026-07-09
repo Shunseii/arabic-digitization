@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import type { AppContext } from "../types";
+import { deleteDocsByBook } from "../lib/meili";
 
 // Delete a book and everything under it: its R2 objects (scans + transcribed
 // text, all under the `books/:bookId/` prefix) and its file rows, then the book
@@ -79,6 +80,18 @@ export class BookDelete extends OpenAPIRoute {
     await c.env.DB.prepare("DELETE FROM books WHERE id = ?")
       .bind(params.bookId)
       .run();
+
+    // Drop the book's pages from search. Best-effort: a Meili outage (or
+    // unconfigured MEILI_*) must not fail the delete — the source of truth is
+    // already gone from R2/D1, and POST /api/search/reindex is the backstop
+    // that reconciles any orphaned documents left behind.
+    if (c.env.MEILI_URL && c.env.MEILI_KEY) {
+      try {
+        await deleteDocsByBook({ env: c.env, bookId: params.bookId });
+      } catch (err) {
+        console.error(`search delete failed for book ${params.bookId}: ${err}`);
+      }
+    }
 
     return c.json({
       success: true,

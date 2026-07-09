@@ -67,3 +67,22 @@ export async function upsertDocs({
   })) as { taskUid: number };
   return task.taskUid;
 }
+
+// Delete every page document belonging to a book. Uses Meili's delete-by-filter
+// (book_id is a filterable attribute); one call regardless of page count.
+// Returns Meili's async taskUid.
+export async function deleteDocsByBook({
+  env,
+  bookId,
+}: {
+  env: MeiliEnv;
+  bookId: string;
+}): Promise<number> {
+  const task = (await meili({
+    env,
+    method: "POST",
+    path: `/indexes/${INDEX}/documents/delete`,
+    body: { filter: `book_id = "${bookId}"` },
+  })) as { taskUid: number };
+  return task.taskUid;
+}

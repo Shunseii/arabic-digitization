@@ -79,7 +79,8 @@ Two distinct secrets:
   32`) and set it as a Fly secret. Root admin key; required to boot in
   `production`. Store it in 1Password. Never give it to the Worker.
 - **`MEILI_KEY`** (Worker **write** key) — used only by the Worker to index
-  (auto-index on OCR + reindex). Scope: `documents.add` on `books`.
+  (auto-index on OCR + reindex) and to drop a book's pages on delete. Scope:
+  `documents.add` and `documents.delete` on `books`.
 - **Client read-only key** — shipped to the desktop/mobile clients, which query
   Meilisearch **directly**. Scope: `search` on `books`. Safe to expose; can't
   write or read other indexes.
@@ -93,7 +94,7 @@ MASTER=<the master key from step 2>
 # write key -> Worker MEILI_KEY
 curl -X POST https://arabic-digitization-search.fly.dev/keys \
   -H "Authorization: Bearer $MASTER" -H 'Content-Type: application/json' \
-  -d '{"description":"api worker (write)","actions":["documents.add"],"indexes":["books"],"expiresAt":null}'
+  -d '{"description":"api worker (write)","actions":["documents.add","documents.delete"],"indexes":["books"],"expiresAt":null}'
 # read-only key -> clients
 curl -X POST https://arabic-digitization-search.fly.dev/keys \
   -H "Authorization: Bearer $MASTER" -H 'Content-Type: application/json' \
