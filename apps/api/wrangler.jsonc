@@ -53,8 +53,15 @@
   },
   // Meilisearch (hosted on Fly, see infra/meili). MEILI_KEY is a secret:
   // `wrangler secret put MEILI_KEY` (a Meili API key with search + documents.add).
+  //
+  // CF_AIG_* target the Cloudflare AI Gateway used for the Claude OCR fallback
+  // (see ocr.ts). CF_AIG_TOKEN is a secret (the gateway's cf-aig-authorization
+  // token): `wrangler secret put CF_AIG_TOKEN`. The Anthropic key itself is
+  // stored in the gateway (BYOK), not here.
   "vars": {
-    "MEILI_URL": "https://arabic-digitization-search.fly.dev"
+    "MEILI_URL": "https://arabic-digitization-search.fly.dev",
+    "CF_AIG_ACCOUNT_ID": "9759ed7a233a1a22e2f01031de0f160a",
+    "CF_AIG_GATEWAY": "arabic-digitalization"
   }
   /**
    * Smart Placement

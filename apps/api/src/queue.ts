@@ -1,4 +1,4 @@
-import { GeminiError, transcribe } from "./ocr";
+import { OcrError, transcribe } from "./ocr";
 
 // Message enqueued on upload; the consumer transcribes the file.
 export interface OcrMessage {
@@ -56,7 +56,7 @@ export async function handleOcrQueue(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
 
-      if (err instanceof GeminiError && err.isTransient) {
+      if (err instanceof OcrError && err.isTransient) {
         await env.DB.prepare(
           "UPDATE files SET state = 'rate_limited', error = ?, updated_at = ? WHERE file_id = ?",
         )

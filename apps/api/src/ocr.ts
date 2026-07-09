@@ -1,10 +1,15 @@
 // OCR core. Single source of truth for transcription — the manual endpoint and
-// (later) the queue consumer both call transcribe().
+// the queue consumer both call transcribe().
 //
-// Gemini only, called directly against Google AI Studio with env.GOOGLE_API_KEY.
-// (The Cloudflare AI Gateway unified path was dropped: its BYOK wouldn't resolve
-// the AI Studio key. To re-introduce the gateway later, route this one fetch
-// through it.)
+// Two providers, tried in order:
+//   1. Gemini — direct to Google AI Studio with env.GOOGLE_API_KEY (primary).
+//   2. Claude — via the Cloudflare AI Gateway (fallback), used when Gemini fails
+//      for a transient/capacity reason (rate limit incl. daily quota, or 5xx).
+//
+// Claude routes through the gateway's Anthropic endpoint. The Anthropic key is
+// stored in the gateway (BYOK) — we send only the gateway auth token, never the
+// provider key. (Gemini stays direct: the gateway's BYOK never resolved the AI
+// Studio key, and pass-through there is unnecessary since the direct call works.)
 
 import { buildPageDocs, deleteDocsByFile, upsertDocs } from "./lib/meili";
 
@@ -21,6 +26,7 @@ Rules:
 - Output ONLY the transcription as Markdown (HTML ruby tags allowed). No preamble, no commentary, no code fences.`;
 
 const MODEL = "gemini-3.1-pro-preview";
+const CLAUDE_MODEL = "claude-sonnet-5";
 const USER_PROMPT = "Transcribe this page.";
 const MAX_TOKENS = 16000;
 
@@ -87,9 +93,9 @@ export async function transcribe({
   const mimeType = obj.httpMetadata?.contentType ?? "image/jpeg";
   const base64 = toBase64(new Uint8Array(await obj.arrayBuffer()));
 
-  const { text, usage } = await runGemini({
+  const { text, usage, model: ranModel } = await runWithFallback({
     env,
-    model: useModel,
+    geminiModel: useModel,
     mimeType,
     base64,
     systemPrompt: buildSystemPrompt(row.ocr_instructions),
@@ -109,7 +115,7 @@ export async function transcribe({
       text.slice(0, 120),
       usage.inputTokens,
       usage.outputTokens,
-      useModel,
+      ranModel,
       now,
       fileId,
     )
@@ -139,26 +145,98 @@ export async function transcribe({
     }
   }
 
-  return { file_id: fileId, model: useModel, text, text_key: textKey, usage };
+  return { file_id: fileId, model: ranModel, text, text_key: textKey, usage };
 }
 
-// Raised when Gemini returns a non-2xx. Carries the HTTP status and, for 429s,
-// the server-suggested retryDelay so the queue consumer can back off precisely.
-export class GeminiError extends Error {
+// Try Gemini; on a transient/capacity failure (rate limit incl. daily quota, or
+// 5xx) fall back to Claude via the AI Gateway. Terminal Gemini errors (a bad
+// request, an empty response) rethrow without falling back — Claude wouldn't
+// fare better and the masking would hide a real bug. Returns the model that
+// actually produced the text, so cost/UI attribute the page correctly.
+async function runWithFallback({
+  env,
+  geminiModel,
+  mimeType,
+  base64,
+  systemPrompt,
+}: {
+  env: Env;
+  geminiModel: string;
+  mimeType: string;
+  base64: string;
+  systemPrompt: string;
+}): Promise<{ text: string; usage: Usage; model: string }> {
+  try {
+    const r = await runGemini({
+      env,
+      model: geminiModel,
+      mimeType,
+      base64,
+      systemPrompt,
+    });
+    return { ...r, model: geminiModel };
+  } catch (err) {
+    if (!(err instanceof OcrError) || !err.isTransient) throw err;
+    console.warn(
+      `Gemini transient failure, falling back to Claude: ${err.message.slice(0, 160)}`,
+    );
+    const r = await runClaude({ env, mimeType, base64, systemPrompt });
+    return { ...r, model: CLAUDE_MODEL };
+  }
+}
+
+// Raised when an OCR provider returns a non-2xx. Carries the HTTP status and,
+// where the provider supplies one, a server-suggested retry delay so the queue
+// consumer can back off precisely.
+export class OcrError extends Error {
   readonly status: number;
   readonly retryAfterSeconds: number | null;
 
-  constructor(status: number, body: string) {
-    super(`Gemini ${status}: ${body}`);
-    this.name = "GeminiError";
+  constructor({
+    name,
+    status,
+    message,
+    retryAfterSeconds,
+  }: {
+    name: string;
+    status: number;
+    message: string;
+    retryAfterSeconds: number | null;
+  }) {
+    super(message);
+    this.name = name;
     this.status = status;
-    this.retryAfterSeconds = parseRetryDelaySeconds(body);
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 
   // Conditions worth re-queuing rather than burning the page: rate limits (429)
   // and transient server errors (5xx). Client errors (4xx bar 429) are terminal.
   get isTransient(): boolean {
     return this.status === 429 || this.status >= 500;
+  }
+}
+
+export class GeminiError extends OcrError {
+  constructor(status: number, body: string) {
+    super({
+      name: "GeminiError",
+      status,
+      message: `Gemini ${status}: ${body}`,
+      retryAfterSeconds: parseRetryDelaySeconds(body),
+    });
+  }
+}
+
+// Anthropic sends its retry hint in a `retry-after` response header, which we
+// don't thread through here — the queue's exponential backoff covers it.
+export class ClaudeError extends OcrError {
+  constructor(status: number, body: string) {
+    super({
+      name: "ClaudeError",
+      status,
+      message: `Claude ${status}: ${body}`,
+      retryAfterSeconds: null,
+    });
   }
 }
 
@@ -247,6 +325,81 @@ async function runGemini({
     outputTokens: um
       ? (um.candidatesTokenCount ?? 0) + (um.thoughtsTokenCount ?? 0)
       : null,
+  };
+  return { text, usage };
+}
+
+// Claude via the Cloudflare AI Gateway Anthropic endpoint. The Anthropic key is
+// stored in the gateway (BYOK), so we authenticate the gateway itself with
+// CF_AIG_TOKEN and send no provider key. Image-only: the corpus is images and
+// the Messages API image block takes raster media, not PDF.
+async function runClaude({
+  env,
+  mimeType,
+  base64,
+  systemPrompt,
+}: {
+  env: Env;
+  mimeType: string;
+  base64: string;
+  systemPrompt: string;
+}): Promise<{ text: string; usage: Usage }> {
+  if (!mimeType.startsWith("image/")) {
+    throw new ClaudeError(400, `Claude OCR needs an image, got '${mimeType}'`);
+  }
+
+  const url = `https://gateway.ai.cloudflare.com/v1/${env.CF_AIG_ACCOUNT_ID}/${env.CF_AIG_GATEWAY}/anthropic/v1/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+      // The gateway sits behind Cloudflare's edge; a UA-less request can trip a
+      // bot-signature block (403/1010), which is terminal in our error model.
+      "user-agent": "arabic-digitization-worker",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: MAX_TOKENS,
+      system: systemPrompt,
+      // Transcription, not reasoning — no thinking tokens to pay for.
+      thinking: { type: "disabled" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mimeType, data: base64 },
+            },
+            { type: "text", text: USER_PROMPT },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    throw new ClaudeError(res.status, await res.text());
+  }
+
+  const data = (await res.json()) as {
+    content?: Array<{ type: string; text?: string }>;
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
+  const text = (data.content ?? [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text ?? "")
+    .join("");
+  if (!text) {
+    throw new Error(
+      `no text in Claude response: ${JSON.stringify(data).slice(0, 400)}`,
+    );
+  }
+
+  const usage: Usage = {
+    inputTokens: data.usage?.input_tokens ?? null,
+    outputTokens: data.usage?.output_tokens ?? null,
   };
   return { text, usage };
 }
