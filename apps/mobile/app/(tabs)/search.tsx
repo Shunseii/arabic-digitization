@@ -13,7 +13,7 @@ import {
   InstantSearch,
   useInfiniteHits,
   useInstantSearch,
-  useMenu,
+  useRefinementList,
   useSearchBox,
 } from "react-instantsearch-core";
 import {
@@ -94,11 +94,14 @@ const SearchBar = () => {
   );
 };
 
-// Single-select book facet as a horizontal chip row. Meili facets `book_title`;
-// tapping a chip scopes results to that book, tapping it again clears. Hidden
-// until more than one book has matches.
+// Multi-select book facet as a horizontal chip row. Meili facets `book_title`;
+// tapping chips scopes results to any of them (OR), tapping again clears each.
+// Hidden until more than one book has matches.
 const BookFilter = () => {
-  const { items, refine } = useMenu({ attribute: "book_title", limit: 100 });
+  const { items, refine } = useRefinementList({
+    attribute: "book_title",
+    limit: 100,
+  });
   if (items.length <= 1) return null;
   return (
     <ScrollView
@@ -369,6 +372,12 @@ export default function SearchScreen() {
     setQuery(q);
     setUiState(uiState);
   }, []);
+  // Close the preview whenever the query changes — never show a page from a
+  // stale query.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: query is the trigger
+  useEffect(() => {
+    setSelected(null);
+  }, [query]);
 
   if (!ready) return null;
 

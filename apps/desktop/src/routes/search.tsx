@@ -12,7 +12,7 @@ import {
   InstantSearch,
   useInfiniteHits,
   useInstantSearch,
-  useMenu,
+  useRefinementList,
   useSearchBox,
 } from "react-instantsearch";
 import { Link } from "react-router-dom";
@@ -76,34 +76,73 @@ const SearchBar = () => {
   );
 };
 
-// Single-select book facet. Meili facets `book_title` (a filterable attribute);
-// picking one scopes results to that book. Hidden until more than one book has
-// matches, since a lone book is nothing to filter.
+// Multi-select book facet. Meili facets `book_title` (a filterable attribute);
+// checking books scopes results to any of them (OR). A button shows the count
+// and opens a checkbox popover. Hidden until more than one book has matches,
+// since a lone book is nothing to filter.
 const BookFilter = () => {
-  const { items, refine } = useMenu({ attribute: "book_title", limit: 100 });
+  const { items, refine } = useRefinementList({
+    attribute: "book_title",
+    limit: 100,
+  });
+  const [open, setOpen] = useState(false);
   if (items.length <= 1) return null;
-  const current = items.find((i) => i.isRefined)?.value ?? "";
+  const selectedCount = items.filter((i) => i.isRefined).length;
   return (
-    <select
-      value={current}
-      onChange={(e) => {
-        const next = e.target.value;
-        if (!next) {
-          if (current) refine(current); // re-refining the active value clears it
-        } else {
-          refine(next); // single-select: replaces any current refinement
-        }
-      }}
-      className="rounded-xl border border-border bg-surface px-3 py-3 text-sm text-ink outline-none"
-    >
-      <option value="">All books</option>
-      {items.map((i) => (
-        <option key={i.value} value={i.value}>
-          {i.label} ({i.count})
-        </option>
-      ))}
-    </select>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="h-full rounded-xl border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt"
+      >
+        {selectedCount > 0
+          ? `${selectedCount} book${selectedCount > 1 ? "s" : ""}`
+          : "All books"}
+      </button>
+      {open && (
+        <>
+          {/* Click-away backdrop closes the popover. */}
+          <button
+            type="button"
+            aria-label="Close book filter"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 z-20 mt-1 max-h-80 w-64 overflow-y-auto rounded-xl border border-border bg-surface p-2 shadow-lg">
+            {items.map((i) => (
+              <label
+                key={i.value}
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-alt"
+              >
+                <input
+                  type="checkbox"
+                  checked={i.isRefined}
+                  onChange={() => refine(i.value)}
+                  className="accent-accent"
+                />
+                <span className="flex-1 truncate text-sm text-ink">
+                  {i.label}
+                </span>
+                <span className="text-xs text-text-muted">{i.count}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
+};
+
+// Clear the selected preview whenever the search query changes, so the reader
+// pane never shows a page from a stale query.
+const ResetPreviewOnQueryChange = ({ onReset }: { onReset: () => void }) => {
+  const { query } = useSearchBox();
+  const q = query.trim();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: q is the trigger
+  useEffect(() => {
+    onReset();
+  }, [q]);
+  return null;
 };
 
 const HitCard = ({
@@ -329,6 +368,7 @@ export const SearchScreen = () => {
     setLastQuery((uiState[SEARCH_INDEX] as { query?: string })?.query ?? "");
     setUiState(uiState);
   }, []);
+  const clearSelected = useCallback(() => setSelected(null), []);
 
   if (!ready) return null;
 
@@ -355,6 +395,7 @@ export const SearchScreen = () => {
         initialUiState={initialUiState}
         onStateChange={onStateChange}
       >
+        <ResetPreviewOnQueryChange onReset={clearSelected} />
         <div className="mb-5 flex items-stretch gap-2.5">
           <div className="flex-1">
             <SearchBar />
