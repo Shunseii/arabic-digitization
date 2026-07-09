@@ -1,6 +1,12 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
-import { type SearchDoc, upsertDocs } from "../lib/meili";
+import {
+  buildPageDocs,
+  clearAllDocs,
+  deleteDocsByBook,
+  type SearchDoc,
+  upsertDocs,
+} from "../lib/meili";
 import type { AppContext } from "../types";
 
 // Rebuild the Meilisearch index from the source of truth (R2 transcriptions).
@@ -60,21 +66,33 @@ export class SearchReindex extends OpenAPIRoute {
       book_title: string;
     }>();
 
-    // Pull each transcription from R2; skip any that are missing/empty.
+    // Clear the scope first so the chunk id scheme doesn't leave stale docs
+    // behind (a page's chunk count can change). Enqueued before the upsert;
+    // Meili processes tasks FIFO, so the delete always lands first.
+    if (bookId) {
+      await deleteDocsByBook({ env: c.env, bookId });
+    } else {
+      await clearAllDocs({ env: c.env });
+    }
+
+    // Pull each transcription from R2, chunk it, and collect the chunk docs;
+    // skip any page that's missing/empty.
     const docs: SearchDoc[] = [];
     for (const r of results) {
       const obj = await c.env.BUCKET.get(r.text_key);
       if (!obj) continue;
       const text = await obj.text();
       if (!text.trim()) continue;
-      docs.push({
-        id: r.file_id,
-        book_id: r.book_id,
-        book_title: r.book_title,
-        page_number: r.page_number,
-        role: r.role,
-        text,
-      });
+      docs.push(
+        ...buildPageDocs({
+          file_id: r.file_id,
+          book_id: r.book_id,
+          book_title: r.book_title,
+          page_number: r.page_number,
+          role: r.role,
+          text,
+        }),
+      );
     }
 
     if (docs.length === 0) {

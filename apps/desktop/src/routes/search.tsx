@@ -12,6 +12,7 @@ import {
   InstantSearch,
   useInfiniteHits,
   useInstantSearch,
+  useMenu,
   useSearchBox,
 } from "react-instantsearch";
 import { Link } from "react-router-dom";
@@ -72,6 +73,36 @@ const SearchBar = () => {
         </button>
       ) : null}
     </div>
+  );
+};
+
+// Single-select book facet. Meili facets `book_title` (a filterable attribute);
+// picking one scopes results to that book. Hidden until more than one book has
+// matches, since a lone book is nothing to filter.
+const BookFilter = () => {
+  const { items, refine } = useMenu({ attribute: "book_title", limit: 100 });
+  if (items.length <= 1) return null;
+  const current = items.find((i) => i.isRefined)?.value ?? "";
+  return (
+    <select
+      value={current}
+      onChange={(e) => {
+        const next = e.target.value;
+        if (!next) {
+          if (current) refine(current); // re-refining the active value clears it
+        } else {
+          refine(next); // single-select: replaces any current refinement
+        }
+      }}
+      className="rounded-xl border border-border bg-surface px-3 py-3 text-sm text-ink outline-none"
+    >
+      <option value="">All books</option>
+      {items.map((i) => (
+        <option key={i.value} value={i.value}>
+          {i.label} ({i.count})
+        </option>
+      ))}
+    </select>
   );
 };
 
@@ -159,7 +190,8 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const hitId = hit?.id;
+  // The page id (not the chunk id) — highlight and reader both address pages.
+  const hitId = hit?.file_id;
   const bookId = hit?.book_id;
   // Highlighting is an explicit action now, so drop any existing highlight when
   // the selected result or query changes — the button re-fetches on demand.
@@ -259,7 +291,7 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
               </button>
             ))}
           <Link
-            to={`/reader/${hit.book_id}/${hit.id}`}
+            to={`/reader/${hit.book_id}/${hit.file_id}`}
             className="text-xs font-semibold text-accent hover:underline"
           >
             Open in reader →
@@ -267,7 +299,10 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-surface p-5">
-        <Markdown source={hit.text ?? ""} highlight={highlight} />
+        <Markdown
+          source={hit.page_text ?? hit.text ?? ""}
+          highlight={highlight}
+        />
       </div>
     </div>
   );
@@ -320,8 +355,11 @@ export const SearchScreen = () => {
         initialUiState={initialUiState}
         onStateChange={onStateChange}
       >
-        <div className="mb-5">
-          <SearchBar />
+        <div className="mb-5 flex items-stretch gap-2.5">
+          <div className="flex-1">
+            <SearchBar />
+          </div>
+          <BookFilter />
         </div>
         <div className="flex flex-1 gap-6 overflow-hidden pb-8">
           <div className="w-[420px] shrink-0 overflow-y-auto pr-1">

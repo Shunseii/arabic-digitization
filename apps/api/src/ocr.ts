@@ -6,7 +6,7 @@
 // the AI Studio key. To re-introduce the gateway later, route this one fetch
 // through it.)
 
-import { upsertDocs } from "./lib/meili";
+import { buildPageDocs, deleteDocsByFile, upsertDocs } from "./lib/meili";
 
 const SYSTEM_PROMPT = `You transcribe scanned pages of classical Arabic printed books into clean Markdown.
 
@@ -120,18 +120,19 @@ export async function transcribe({
   // POST /api/search/reindex is the backstop that re-syncs anything missed.
   if (env.MEILI_URL && env.MEILI_KEY) {
     try {
+      // Clear this page's prior chunks first — a re-OCR can produce a different
+      // chunk count, so upsert alone would leave stale `file_id#N` docs behind.
+      await deleteDocsByFile({ env, fileId });
       await upsertDocs({
         env,
-        docs: [
-          {
-            id: fileId,
-            book_id: row.book_id,
-            book_title: row.book_title,
-            page_number: row.page_number,
-            role: row.role,
-            text,
-          },
-        ],
+        docs: buildPageDocs({
+          file_id: fileId,
+          book_id: row.book_id,
+          book_title: row.book_title,
+          page_number: row.page_number,
+          role: row.role,
+          text,
+        }),
       });
     } catch (err) {
       console.error(`search auto-index failed for ${fileId}: ${err}`);

@@ -129,13 +129,22 @@ curl -X POST https://arabic-digitization-search.fly.dev/indexes/books/search \
 
 Two paths keep the `books` index in sync with the transcriptions in R2.
 
+A page is not indexed as one document — it's split into overlapping ~1000-char
+chunks (`apps/api/src/lib/chunk.ts`), one Meili doc per chunk with id
+`<file_id>#<n>`, so each chunk fits the bge-m3 embedder's ~512-token window
+(long pages no longer lose their tail to truncation). Chunks collapse back to
+one hit per page at query time via `distinctAttribute: "file_id"`. Each chunk
+doc also carries the full `page_text` (display only, not searchable) so the
+client preview can render the whole page.
+
 ### Automatic (per page, on OCR completion)
 
 When a page finishes OCR, `transcribe()` (`apps/api/src/ocr.ts`) writes the
-text to R2, marks the file `done`, then pushes that one page to Meilisearch:
+text to R2, marks the file `done`, deletes any prior chunks of that page (chunk
+count can change between OCR runs), then pushes the new chunks to Meilisearch:
 
 ```
-upload scan → queue → transcribe() → R2 text + state=done → upsert page to Meili
+upload scan → queue → transcribe() → R2 text + state=done → delete old chunks + upsert new chunks to Meili
 ```
 
 This is **best-effort**: if Meilisearch is down, cold-starting, or `MEILI_URL`/
@@ -146,7 +155,10 @@ scans become searchable on their own, with no manual step.
 ### Manual (bulk backfill / repair)
 
 `POST /api/search/reindex` rebuilds the index from R2 (the source of truth):
-reads every `done`/`needs_review`/`approved` page's text and upserts it.
+clears the scope first (the whole index, or just the target book's docs), then
+reads every `done`/`needs_review`/`approved` page's text, chunks it, and upserts.
+The clear is what makes the chunk id scheme safe — it drops any stale docs from
+a previous run so nothing is orphaned.
 
 ```sh
 # all books:

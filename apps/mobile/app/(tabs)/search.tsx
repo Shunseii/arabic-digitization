@@ -13,6 +13,7 @@ import {
   InstantSearch,
   useInfiniteHits,
   useInstantSearch,
+  useMenu,
   useSearchBox,
 } from "react-instantsearch-core";
 import {
@@ -93,6 +94,42 @@ const SearchBar = () => {
   );
 };
 
+// Single-select book facet as a horizontal chip row. Meili facets `book_title`;
+// tapping a chip scopes results to that book, tapping it again clears. Hidden
+// until more than one book has matches.
+const BookFilter = () => {
+  const { items, refine } = useMenu({ attribute: "book_title", limit: 100 });
+  if (items.length <= 1) return null;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+    >
+      {items.map((i) => (
+        <Pressable
+          key={i.value}
+          onPress={() => refine(i.value)}
+          className={`rounded-full border px-3 py-1.5 ${
+            i.isRefined
+              ? "border-accent bg-accent-soft"
+              : "border-border bg-surface"
+          }`}
+        >
+          <Text
+            className={`text-xs font-semibold ${
+              i.isRefined ? "text-accent" : "text-text-secondary"
+            }`}
+            numberOfLines={1}
+          >
+            {i.label} ({i.count})
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+};
+
 const Hit = ({
   hit,
   onSelect,
@@ -170,7 +207,8 @@ const PreviewModal = ({
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const hitId = hit?.id;
+  // The page id (not the chunk id) — highlight and reader both address pages.
+  const hitId = hit?.file_id;
   const bookId = hit?.book_id;
   // Highlighting is an explicit action now, so drop any existing highlight when
   // the opened result or query changes — the button re-fetches on demand.
@@ -242,7 +280,7 @@ const PreviewModal = ({
             <Pressable
               onPress={() => {
                 onClose();
-                router.push(`/reader/${hit.book_id}/${hit.id}`);
+                router.push(`/reader/${hit.book_id}/${hit.file_id}`);
               }}
               hitSlop={8}
             >
@@ -294,7 +332,10 @@ const PreviewModal = ({
               )}
             </View>
           )}
-          <Markdown source={hit?.text ?? ""} highlight={highlight} />
+          <Markdown
+            source={hit?.page_text ?? hit?.text ?? ""}
+            highlight={highlight}
+          />
         </ScrollView>
       </View>
     </Modal>
@@ -359,6 +400,9 @@ export default function SearchScreen() {
       >
         <View className="mb-3">
           <SearchBar />
+        </View>
+        <View className="mb-3">
+          <BookFilter />
         </View>
         <Results onSelect={setSelected} />
       </InstantSearch>

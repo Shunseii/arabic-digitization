@@ -70,8 +70,18 @@ async function main() {
   // {text:[...]} and reads vectors from response.result.data.
   const settings = {
     searchableAttributes: ["text", "book_title"],
-    filterableAttributes: ["book_id", "role", "page_number"],
+    filterableAttributes: [
+      "book_id",
+      "book_title",
+      "role",
+      "page_number",
+      "file_id",
+    ],
     sortableAttributes: ["page_number"],
+    // One page is indexed as several overlapping chunks (see api/src/lib/chunk.ts);
+    // collapse them back to a single best hit per page. Also lets book_title
+    // power the faceted book filter in the clients.
+    distinctAttribute: "file_id",
     embedders: {
       [EMBEDDER]: {
         source: "rest",

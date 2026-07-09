@@ -6,15 +6,24 @@ import { instantMeiliSearch } from "@meilisearch/instant-meilisearch";
 export const SEARCH_INDEX = "books";
 const EMBEDDER = "cfbge";
 const SEMANTIC_RATIO = 0.5;
-// Drop hybrid matches below this ranking score (0-1). Tune to taste.
+// Absolute floor: drop hybrid matches below this ranking score (0-1). Applied
+// server-side by Meili, so pagination counts stay correct.
 const SCORE_THRESHOLD = 0.5;
+// Adaptive tail cutoff: within a result page, drop hits more than this far below
+// the top hit's score. The semantic half always returns *something* for any
+// query; a weak query yields a low, flat score band, and this trims the long
+// tail of barely-relevant pages that the absolute floor alone lets through.
+const RELATIVE_SCORE_GAP = 0.2;
 
 export type SearchHit = {
-  id: string;
+  id: string; // chunk id (`${file_id}#${i}`) — unique per result, list key
+  file_id: string; // page id — reader nav + highlight target
   book_id: string;
   book_title: string;
   page_number: number | null;
-  text: string;
+  text: string; // matched chunk text
+  page_text?: string; // full page markdown — preview render
+  _rankingScore?: number;
   _formatted?: { text?: string };
 };
 
@@ -31,20 +40,52 @@ export const makeSearchClient = (config: {
   const cacheKey = `${config.url}|${config.key}`;
   let client = clientCache.get(cacheKey);
   if (!client) {
-    client = instantMeiliSearch(config.url, config.key, {
+    const base = instantMeiliSearch(config.url, config.key, {
       primaryKey: "id",
       // No empty-query "show everything" — blank box shows nothing.
       placeholderSearch: false,
       meiliSearchParams: {
         hybrid: { embedder: EMBEDDER, semanticRatio: SEMANTIC_RATIO },
         rankingScoreThreshold: SCORE_THRESHOLD,
+        showRankingScore: true,
         attributesToCrop: ["text"],
         cropLength: 40,
       },
     }).searchClient;
+    client = withRelativeScoreCutoff(base);
     clientCache.set(cacheKey, client);
   }
   return client;
+};
+
+// Wrap the search client to trim each result page's weak tail relative to its
+// top hit (see RELATIVE_SCORE_GAP). Best-effort: if a response carries no
+// `_rankingScore`, hits fall back to being kept, so this only ever tightens.
+const withRelativeScoreCutoff = (base: SearchClient): SearchClient => {
+  const trim = (response: { results: unknown[] }) => ({
+    ...response,
+    results: response.results.map((raw) => {
+      const result = raw as { hits?: SearchHit[] };
+      const hits = result.hits;
+      if (!hits?.length) return raw;
+      const top = hits[0]._rankingScore ?? 1;
+      return {
+        ...result,
+        hits: hits.filter(
+          (h) => (h._rankingScore ?? 1) >= top - RELATIVE_SCORE_GAP,
+        ),
+      };
+    }),
+  });
+  // The client's `search` is an overload union (query vs composition); wrapping
+  // it precisely isn't worth it, so delegate and re-type the response.
+  const rawSearch = base.search as (
+    r: unknown,
+  ) => Promise<{ results: unknown[] }>;
+  return {
+    ...base,
+    search: (requests: unknown) => rawSearch(requests).then(trim),
+  } as SearchClient;
 };
 
 // Stable object reference for the InstantSearch `future` prop.
