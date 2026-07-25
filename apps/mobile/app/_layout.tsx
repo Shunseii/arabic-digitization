@@ -29,6 +29,7 @@ export default function RootLayout() {
               />
               <Stack.Screen name="scan" />
               <Stack.Screen name="book/[id]" />
+              <Stack.Screen name="work/[id]" />
               <Stack.Screen name="reader/[bookId]/[fileId]" />
             </Stack>
           </ConfigProvider>

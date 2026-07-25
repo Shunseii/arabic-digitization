@@ -28,12 +28,35 @@ export const UPLOAD_CONTENT_TYPES = [
 
 export type UploadContentType = (typeof UPLOAD_CONTENT_TYPES)[number];
 
-/** A book: top-level collection of scanned page fragments. */
+/** A book: one copy/scan of a work. Copies of one work share a work_id. */
 export interface Book {
   id: string;
   title: string;
   created_at: number;
+  /** The work this copy belongs to; null/undefined = ungrouped/standalone. */
+  work_id?: string | null;
   ocr_instructions?: string | null;
+}
+
+/** A tag (subject/genre), shared across works. */
+export interface Tag {
+  id: string;
+  name: string;
+}
+
+/** A work: the abstract book that copies (Book rows) belong to. */
+export interface Work {
+  id: string;
+  name: string;
+  author?: string | null;
+  created_at: number;
+  /** Tag names attached to this work. */
+  tags: string[];
+}
+
+/** Work plus a count of its copies (the library group header). */
+export interface WorkWithCounts extends Work {
+  copies_total: number;
 }
 
 /** Aggregate OCR token usage + derived cost. */
@@ -102,13 +125,37 @@ export interface BookCreateBody {
   /** Optional explicit slug id (a-z0-9-); a UUID is generated if omitted. */
   id?: string;
   ocr_instructions?: string;
+  /** Attach to an existing work; if omitted a work is auto-created from the title. */
+  work_id?: string;
 }
 
 export interface BookUpdateBody {
   title?: string;
   /** null clears the stored instructions. */
   ocr_instructions?: string | null;
+  /** Reassign to a work; null unlinks (flat). */
+  work_id?: string | null;
 }
+
+export interface WorkCreateBody {
+  name: string;
+  author?: string;
+  /** Tag names; created on write if new. */
+  tags?: string[];
+  /** Optional explicit slug id (a-z0-9-); a UUID is generated if omitted. */
+  id?: string;
+}
+
+export interface WorkUpdateBody {
+  name?: string;
+  /** null clears the author. */
+  author?: string | null;
+  /** Replaces the full tag set; tags created on write if new. */
+  tags?: string[];
+}
+
+/** How to treat a work's copies when the work is deleted. */
+export type WorkDeleteMode = "unlink" | "delete";
 
 // --- Response envelopes (the api wraps payloads in { success, ... }) ---
 
@@ -179,6 +226,42 @@ export interface DeleteBookResponse {
     book_id: string;
     files: number;
     r2_objects: number;
+  };
+}
+
+export interface CreateWorkResponse {
+  success: true;
+  work: Work;
+}
+
+export interface UpdateWorkResponse {
+  success: true;
+  work: Work;
+}
+
+export interface ListWorksResponse {
+  success: true;
+  works: WorkWithCounts[];
+}
+
+export interface FetchWorkResponse {
+  success: true;
+  work: Work;
+}
+
+export interface ListTagsResponse {
+  success: true;
+  tags: Tag[];
+}
+
+/** unlink: copies flattened (work_id -> null). delete: copies cascade-deleted. */
+export interface DeleteWorkResponse {
+  success: true;
+  deleted: {
+    work_id: string;
+    mode: WorkDeleteMode;
+    /** Copies unlinked (mode=unlink) or deleted (mode=delete). */
+    copies: number;
   };
 }
 

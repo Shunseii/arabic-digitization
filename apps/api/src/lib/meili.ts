@@ -19,6 +19,14 @@ export interface SearchDoc {
   file_id: string; // page id: distinct key, reader nav, re-OCR cleanup
   book_id: string;
   book_title: string;
+  // Work-level fields, denormalized onto every chunk so the clients can facet by
+  // work/author/tags without a join. Null/empty when the copy has no work
+  // (work_id NULL). Kept in sync by reindexing a work's books on edit — see
+  // lib/reindex.ts.
+  work_id: string | null;
+  work_name: string | null;
+  author: string | null;
+  tags: string[];
   page_number: number | null;
   role: string | null;
   text: string; // this chunk's text — searchable + embedded
@@ -29,6 +37,10 @@ interface PageInput {
   file_id: string;
   book_id: string;
   book_title: string;
+  work_id: string | null;
+  work_name: string | null;
+  author: string | null;
+  tags: string[];
   page_number: number | null;
   role: string | null;
   text: string;
@@ -41,6 +53,10 @@ export function buildPageDocs(page: PageInput): SearchDoc[] {
     file_id: page.file_id,
     book_id: page.book_id,
     book_title: page.book_title,
+    work_id: page.work_id,
+    work_name: page.work_name,
+    author: page.author,
+    tags: page.tags,
     page_number: page.page_number,
     role: page.role,
     text: chunk,

@@ -18,6 +18,12 @@ import { FileText } from "./endpoints/fileText";
 import { FileUpdate } from "./endpoints/fileUpdate";
 import { FileUpload } from "./endpoints/fileUpload";
 import { SearchReindex } from "./endpoints/searchReindex";
+import { TagList } from "./endpoints/tagList";
+import { WorkCreate } from "./endpoints/workCreate";
+import { WorkDelete } from "./endpoints/workDelete";
+import { WorkFetch } from "./endpoints/workFetch";
+import { WorkList } from "./endpoints/workList";
+import { WorkUpdate } from "./endpoints/workUpdate";
 import { requireMasterKey } from "./middleware/auth";
 import { handleOcrQueue, type OcrMessage } from "./queue";
 
@@ -59,6 +65,14 @@ openapi.delete("/api/books/:bookId", BookDelete);
 openapi.get("/api/books/:bookId/status", BookStatus);
 openapi.get("/api/books/:bookId/export", BookExport);
 openapi.post("/api/books/:bookId/requeue", BookRequeue);
+
+// Works (the abstract book; a book row is one copy of a work)
+openapi.post("/api/works", WorkCreate);
+openapi.get("/api/works", WorkList);
+openapi.get("/api/works/:workId", WorkFetch);
+openapi.patch("/api/works/:workId", WorkUpdate);
+openapi.delete("/api/works/:workId", WorkDelete);
+openapi.get("/api/tags", TagList);
 
 // Files
 openapi.post("/api/books/:bookId/files", FileUpload);

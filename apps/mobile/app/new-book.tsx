@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApiError, api } from "@/lib/api";
+import { useConfigState } from "@/lib/config-context";
 import { colors } from "@/theme";
 
 export default function NewBookScreen() {
@@ -19,17 +20,29 @@ export default function NewBookScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const { configured } = useConfigState();
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
+  // null = auto-create a new work from the title; otherwise attach to this work.
+  const [workId, setWorkId] = useState<string | null>(null);
+
+  const worksQuery = useQuery({
+    queryKey: ["works"],
+    queryFn: api.listWorks,
+    enabled: configured,
+  });
+  const works = worksQuery.data ?? [];
 
   const mutation = useMutation({
     mutationFn: () =>
       api.createBook({
         title: title.trim(),
         ocr_instructions: instructions.trim() || undefined,
+        work_id: workId ?? undefined,
       }),
     onSuccess: async (book) => {
       await queryClient.invalidateQueries({ queryKey: ["books"] });
+      await queryClient.invalidateQueries({ queryKey: ["works"] });
       router.replace(`/book/${book.id}`);
     },
     onError: (err) => {
@@ -71,6 +84,56 @@ export default function NewBookScreen() {
         className="rounded-xl border border-accent bg-surface px-4 py-3.5 text-lg text-ink"
         style={{ writingDirection: "rtl" }}
       />
+
+      <Text className="mt-5 mb-2 text-xs font-bold tracking-wide text-text-muted">
+        WORK · OPTIONAL
+      </Text>
+      <Text className="mb-2 text-xs text-text-muted">
+        Attach this copy to an existing work, or leave it to auto-create a new
+        one from the title.
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+      >
+        <Pressable
+          onPress={() => setWorkId(null)}
+          className={`rounded-full border px-3 py-1.5 ${
+            workId === null
+              ? "border-accent bg-accent-soft"
+              : "border-border bg-surface"
+          }`}
+        >
+          <Text
+            className={`text-xs font-semibold ${
+              workId === null ? "text-accent" : "text-text-secondary"
+            }`}
+          >
+            + New work
+          </Text>
+        </Pressable>
+        {works.map((w) => (
+          <Pressable
+            key={w.id}
+            onPress={() => setWorkId(w.id)}
+            className={`rounded-full border px-3 py-1.5 ${
+              workId === w.id
+                ? "border-accent bg-accent-soft"
+                : "border-border bg-surface"
+            }`}
+          >
+            <Text
+              className={`text-xs font-semibold ${
+                workId === w.id ? "text-accent" : "text-text-secondary"
+              }`}
+              numberOfLines={1}
+            >
+              {w.name} ({w.copies_total})
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       <Text className="mt-5 mb-2 text-xs font-bold tracking-wide text-text-muted">
         OCR INSTRUCTIONS · OPTIONAL

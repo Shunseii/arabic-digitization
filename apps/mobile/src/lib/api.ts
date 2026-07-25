@@ -5,9 +5,12 @@ import type {
   BookStatusResponse,
   BookUpdateBody,
   CreateBookResponse,
+  CreateWorkResponse,
   DeleteBookResponse,
+  DeleteWorkResponse,
   ExportFile,
   FetchBookResponse,
+  FetchWorkResponse,
   FileDeleteResponse,
   FileOcrResponse,
   FileRecord,
@@ -15,9 +18,16 @@ import type {
   FileUpdateResponse,
   HighlightResponse,
   ListBooksResponse,
+  ListTagsResponse,
+  ListWorksResponse,
   UpdateBookResponse,
+  UpdateWorkResponse,
   UploadContentType,
   UploadFileResponse,
+  Work,
+  WorkCreateBody,
+  WorkDeleteMode,
+  WorkUpdateBody,
 } from "@qiraa/shared";
 import { getConfig } from "./config";
 
@@ -101,6 +111,72 @@ export const api = {
         headers: authHeaders(),
       }),
     ),
+
+  // --- Works & tags ---
+
+  listWorks: async (): Promise<ListWorksResponse["works"]> =>
+    (
+      await asJson<ListWorksResponse>(
+        await fetch(`${base()}/api/works`, { headers: authHeaders() }),
+      )
+    ).works,
+
+  getWork: async (id: string): Promise<Work> =>
+    (
+      await asJson<FetchWorkResponse>(
+        await fetch(`${base()}/api/works/${id}`, { headers: authHeaders() }),
+      )
+    ).work,
+
+  createWork: async (body: WorkCreateBody): Promise<Work> =>
+    (
+      await asJson<CreateWorkResponse>(
+        await fetch(`${base()}/api/works`, {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      )
+    ).work,
+
+  updateWork: async ({
+    id,
+    body,
+  }: {
+    id: string;
+    body: WorkUpdateBody;
+  }): Promise<Work> =>
+    (
+      await asJson<UpdateWorkResponse>(
+        await fetch(`${base()}/api/works/${id}`, {
+          method: "PATCH",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      )
+    ).work,
+
+  /** Delete a work. mode "unlink" flattens its copies; "delete" cascade-deletes them. */
+  deleteWork: async ({
+    id,
+    mode = "unlink",
+  }: {
+    id: string;
+    mode?: WorkDeleteMode;
+  }): Promise<DeleteWorkResponse> =>
+    asJson<DeleteWorkResponse>(
+      await fetch(`${base()}/api/works/${id}?copies=${mode}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      }),
+    ),
+
+  listTags: async (): Promise<ListTagsResponse["tags"]> =>
+    (
+      await asJson<ListTagsResponse>(
+        await fetch(`${base()}/api/tags`, { headers: authHeaders() }),
+      )
+    ).tags,
 
   status: async (id: string): Promise<FileStatus[]> =>
     (

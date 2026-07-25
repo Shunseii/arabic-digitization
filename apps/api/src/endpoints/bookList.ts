@@ -7,6 +7,7 @@ interface BookCountRow {
   id: string;
   title: string;
   created_at: number;
+  work_id: string | null;
   files_total: number;
   state: string | null;
   state_count: number;
@@ -35,7 +36,7 @@ export class BookList extends OpenAPIRoute {
     // One row per (book, state); books with no files yield a single row with
     // NULL state. Assemble into per-book count maps in JS.
     const { results } = await c.env.DB.prepare(
-      `SELECT b.id, b.title, b.created_at,
+      `SELECT b.id, b.title, b.created_at, b.work_id,
 			        (SELECT COUNT(*) FROM files WHERE book_id = b.id) AS files_total,
 			        f.state AS state,
 			        COUNT(f.file_id) AS state_count
@@ -54,6 +55,7 @@ export class BookList extends OpenAPIRoute {
           id: row.id,
           title: row.title,
           created_at: row.created_at,
+          work_id: row.work_id,
           files_total: row.files_total,
           counts: {},
         } satisfies z.infer<typeof BookWithStatus>);

@@ -1,5 +1,6 @@
 import type { HighlightResponse } from "@qiraa/shared";
-import { Loader2, Search as SearchIcon, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, Loader2, Search as SearchIcon, X } from "lucide-react";
 import {
   type ComponentProps,
   useCallback,
@@ -76,18 +77,18 @@ const SearchBar = () => {
   );
 };
 
-// Multi-select book facet. Meili facets `book_title` (a filterable attribute);
-// checking books scopes results to any of them (OR). A button shows the count
-// and opens a checkbox popover. Hidden until more than one book has matches,
-// since a lone book is nothing to filter.
-const BookFilter = () => {
-  const { items, refine } = useRefinementList({
-    attribute: "book_title",
-    limit: 100,
-  });
+// Popover shell: a labeled button showing the active count that opens a
+// scrollable panel with a click-away backdrop. Shared by the filters below.
+const FilterPopover = ({
+  label,
+  activeCount,
+  children,
+}: {
+  label: string;
+  activeCount: number;
+  children: React.ReactNode;
+}) => {
   const [open, setOpen] = useState(false);
-  if (items.length <= 1) return null;
-  const selectedCount = items.filter((i) => i.isRefined).length;
   return (
     <div className="relative">
       <button
@@ -95,41 +96,184 @@ const BookFilter = () => {
         onClick={() => setOpen((o) => !o)}
         className="h-full rounded-xl border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt"
       >
-        {selectedCount > 0
-          ? `${selectedCount} book${selectedCount > 1 ? "s" : ""}`
-          : "All books"}
+        {activeCount > 0 ? `${label}: ${activeCount}` : `All ${label}`}
       </button>
       {open && (
         <>
           {/* Click-away backdrop closes the popover. */}
           <button
             type="button"
-            aria-label="Close book filter"
+            aria-label={`Close ${label} filter`}
             className="fixed inset-0 z-10 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 z-20 mt-1 max-h-80 w-64 overflow-y-auto rounded-xl border border-border bg-surface p-2 shadow-lg">
-            {items.map((i) => (
-              <label
-                key={i.value}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-alt"
-              >
-                <input
-                  type="checkbox"
-                  checked={i.isRefined}
-                  onChange={() => refine(i.value)}
-                  className="accent-accent"
-                />
-                <span className="flex-1 truncate text-sm text-ink">
-                  {i.label}
-                </span>
-                <span className="text-xs text-text-muted">{i.count}</span>
-              </label>
-            ))}
+          <div className="absolute right-0 z-20 mt-1 max-h-80 w-72 overflow-y-auto rounded-xl border border-border bg-surface p-2 shadow-lg">
+            {children}
           </div>
         </>
       )}
     </div>
+  );
+};
+
+// Work → title nested filter. Top level is the work (Meili facet `work_name`);
+// expanding a work reveals its individual copies (facet `book_title`). Checking a
+// work scopes to all its copies; checking a title scopes to that one copy. Meili
+// ANDs across the two attributes and ORs within each. The parent/child structure
+// isn't in the facet data, so we build it from the works + books APIs and read
+// counts / refinement state off the two refinement lists. Copies whose work is
+// unknown (legacy, work_id NULL) are listed flat under "Ungrouped".
+const WorkTitleFilter = () => {
+  const work = useRefinementList({ attribute: "work_name", limit: 500 });
+  const title = useRefinementList({ attribute: "book_title", limit: 1000 });
+  const { configured } = useConfigState();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Static work → titles structure (independent of the query).
+  const { data: tree } = useQuery({
+    queryKey: ["work-title-tree"],
+    enabled: configured,
+    queryFn: async () => {
+      const [works, books] = await Promise.all([
+        api.listWorks(),
+        api.listBooks(),
+      ]);
+      const nameById = new Map(works.map((w) => [w.id, w.name]));
+      const grouped = new Map<string, Set<string>>();
+      const ungrouped = new Set<string>();
+      for (const b of books) {
+        const wn = b.work_id ? nameById.get(b.work_id) : undefined;
+        if (wn) {
+          const set = grouped.get(wn) ?? new Set<string>();
+          set.add(b.title);
+          grouped.set(wn, set);
+        } else {
+          ungrouped.add(b.title);
+        }
+      }
+      return { grouped, ungrouped };
+    },
+  });
+
+  const titleItem = useMemo(
+    () => new Map(title.items.map((i) => [i.value, i])),
+    [title.items],
+  );
+  const workItem = useMemo(
+    () => new Map(work.items.map((i) => [i.value, i])),
+    [work.items],
+  );
+
+  if (!tree) return null;
+  const activeCount =
+    work.items.filter((i) => i.isRefined).length +
+    title.items.filter((i) => i.isRefined).length;
+
+  const toggleExpand = (name: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  const TitleRow = ({ t }: { t: string }) => {
+    const item = titleItem.get(t);
+    if (!item) return null; // no matches for the current query
+    return (
+      <label className="flex cursor-pointer items-center gap-2 rounded-lg py-1 pl-7 pr-2 hover:bg-surface-alt">
+        <input
+          type="checkbox"
+          checked={item.isRefined}
+          onChange={() => title.refine(t)}
+          className="accent-accent"
+        />
+        <span className="flex-1 truncate text-sm text-ink">{t}</span>
+        <span className="text-xs text-text-muted">{item.count}</span>
+      </label>
+    );
+  };
+
+  return (
+    <FilterPopover label="works" activeCount={activeCount}>
+      {[...tree.grouped.entries()].map(([name, titles]) => {
+        const wItem = workItem.get(name);
+        const isOpen = expanded.has(name);
+        return (
+          <div key={name}>
+            <div className="flex items-center gap-1 rounded-lg pr-2 hover:bg-surface-alt">
+              <button
+                type="button"
+                aria-label={isOpen ? "Collapse" : "Expand"}
+                onClick={() => toggleExpand(name)}
+                className="p-1 text-text-muted"
+              >
+                <ChevronRight
+                  size={14}
+                  className={`transition-transform ${isOpen ? "rotate-90" : ""}`}
+                />
+              </button>
+              <label className="flex flex-1 cursor-pointer items-center gap-2 py-1.5">
+                <input
+                  type="checkbox"
+                  checked={wItem?.isRefined ?? false}
+                  disabled={!wItem}
+                  onChange={() => work.refine(name)}
+                  className="accent-accent"
+                />
+                <span className="flex-1 truncate text-sm font-medium text-ink">
+                  {name}
+                </span>
+                {wItem && (
+                  <span className="text-xs text-text-muted">{wItem.count}</span>
+                )}
+              </label>
+            </div>
+            {isOpen && [...titles].map((t) => <TitleRow key={t} t={t} />)}
+          </div>
+        );
+      })}
+      {tree.ungrouped.size > 0 && (
+        <div className="mt-1 border-t border-hairline pt-1">
+          <p className="px-2 py-1 text-xs font-medium text-text-muted">
+            Ungrouped
+          </p>
+          {[...tree.ungrouped].map((t) => (
+            <TitleRow key={t} t={t} />
+          ))}
+        </div>
+      )}
+    </FilterPopover>
+  );
+};
+
+// Tag facet (Meili array attribute `tags`). Multi-select is OR within the facet,
+// natively. Hidden until at least one tag exists in the current result set.
+const TagFilter = () => {
+  const { items, refine } = useRefinementList({
+    attribute: "tags",
+    limit: 200,
+  });
+  if (items.length === 0) return null;
+  const activeCount = items.filter((i) => i.isRefined).length;
+  return (
+    <FilterPopover label="tags" activeCount={activeCount}>
+      {items.map((i) => (
+        <label
+          key={i.value}
+          className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-alt"
+        >
+          <input
+            type="checkbox"
+            checked={i.isRefined}
+            onChange={() => refine(i.value)}
+            className="accent-accent"
+          />
+          <span className="flex-1 truncate text-sm text-ink">{i.label}</span>
+          <span className="text-xs text-text-muted">{i.count}</span>
+        </label>
+      ))}
+    </FilterPopover>
   );
 };
 
@@ -400,7 +544,8 @@ export const SearchScreen = () => {
           <div className="flex-1">
             <SearchBar />
           </div>
-          <BookFilter />
+          <WorkTitleFilter />
+          <TagFilter />
         </div>
         <div className="flex flex-1 gap-6 overflow-hidden pb-8">
           <div className="w-[420px] shrink-0 overflow-y-auto pr-1">

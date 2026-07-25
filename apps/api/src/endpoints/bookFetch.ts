@@ -37,7 +37,7 @@ export class BookFetch extends OpenAPIRoute {
     const { params } = await this.getValidatedData<typeof this.schema>();
 
     const book = await c.env.DB.prepare(
-      "SELECT id, title, created_at, ocr_instructions FROM books WHERE id = ?",
+      "SELECT id, title, created_at, ocr_instructions, work_id FROM books WHERE id = ?",
     )
       .bind(params.bookId)
       .first<{
@@ -45,6 +45,7 @@ export class BookFetch extends OpenAPIRoute {
         title: string;
         created_at: number;
         ocr_instructions: string | null;
+        work_id: string | null;
       }>();
 
     if (!book) {

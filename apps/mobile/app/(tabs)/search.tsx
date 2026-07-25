@@ -94,42 +94,57 @@ const SearchBar = () => {
   );
 };
 
-// Multi-select book facet as a horizontal chip row. Meili facets `book_title`;
-// tapping chips scopes results to any of them (OR), tapping again clears each.
-// Hidden until more than one book has matches.
-const BookFilter = () => {
-  const { items, refine } = useRefinementList({
-    attribute: "book_title",
-    limit: 100,
-  });
-  if (items.length <= 1) return null;
+// A multi-select facet as a labeled horizontal chip row. Tapping chips scopes
+// results to any of them (OR within the attribute; Meili ANDs across attributes),
+// tapping again clears each. Hidden until it has more than `minItems` values in
+// the current result set, so empty/trivial filters don't take up space.
+//
+// The three rows together give the search filter set: Works (facet `work_name`)
+// for filtering by book, Titles (`book_title`) to drill into a specific copy, and
+// Tags (`tags`). This is the flat mobile analog of the desktop nested filter.
+const FacetChips = ({
+  attribute,
+  label,
+  minItems = 1,
+}: {
+  attribute: string;
+  label: string;
+  minItems?: number;
+}) => {
+  const { items, refine } = useRefinementList({ attribute, limit: 200 });
+  if (items.length <= minItems) return null;
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ gap: 8, paddingRight: 8 }}
-    >
-      {items.map((i) => (
-        <Pressable
-          key={i.value}
-          onPress={() => refine(i.value)}
-          className={`rounded-full border px-3 py-1.5 ${
-            i.isRefined
-              ? "border-accent bg-accent-soft"
-              : "border-border bg-surface"
-          }`}
-        >
-          <Text
-            className={`text-xs font-semibold ${
-              i.isRefined ? "text-accent" : "text-text-secondary"
+    <View className="mb-2 flex-row items-center gap-2">
+      <Text className="w-12 text-xs font-semibold text-text-muted">
+        {label}
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+      >
+        {items.map((i) => (
+          <Pressable
+            key={i.value}
+            onPress={() => refine(i.value)}
+            className={`rounded-full border px-3 py-1.5 ${
+              i.isRefined
+                ? "border-accent bg-accent-soft"
+                : "border-border bg-surface"
             }`}
-            numberOfLines={1}
           >
-            {i.label} ({i.count})
-          </Text>
-        </Pressable>
-      ))}
-    </ScrollView>
+            <Text
+              className={`text-xs font-semibold ${
+                i.isRefined ? "text-accent" : "text-text-secondary"
+              }`}
+              numberOfLines={1}
+            >
+              {i.label} ({i.count})
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -410,8 +425,10 @@ export default function SearchScreen() {
         <View className="mb-3">
           <SearchBar />
         </View>
-        <View className="mb-3">
-          <BookFilter />
+        <View className="mb-1">
+          <FacetChips attribute="work_name" label="Works" />
+          <FacetChips attribute="book_title" label="Titles" />
+          <FacetChips attribute="tags" label="Tags" minItems={0} />
         </View>
         <Results onSelect={setSelected} />
       </InstantSearch>
