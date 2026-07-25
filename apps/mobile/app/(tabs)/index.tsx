@@ -1,6 +1,8 @@
-import type { BookWithStatus } from "@qiraa/shared";
+import { Feather } from "@expo/vector-icons";
+import type { BookWithStatus, WorkWithCounts } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -64,6 +66,90 @@ const BookCard = ({ book }: { book: BookWithStatus }) => {
   );
 };
 
+// A grid of book cards, 2-up with wrapping — shared by flat and grouped views.
+const BookGrid = ({
+  books,
+  footer,
+}: {
+  books: BookWithStatus[];
+  footer?: React.ReactNode;
+}) => (
+  <View className="flex-row flex-wrap gap-3.5">
+    {books.map((book) => (
+      <View key={book.id} className="w-[47%] grow">
+        <BookCard book={book} />
+      </View>
+    ))}
+    {footer}
+  </View>
+);
+
+const WorkGroup = ({
+  work,
+  books,
+}: {
+  work: WorkWithCounts | null;
+  books: BookWithStatus[];
+}) => (
+  <View className="mt-6">
+    <View className="flex-row flex-wrap items-baseline gap-x-2.5 gap-y-1">
+      <Text className="text-lg font-semibold text-ink">
+        {work ? work.name : "Ungrouped"}
+      </Text>
+      {work?.author ? (
+        <Text className="text-sm text-text-muted">{work.author}</Text>
+      ) : null}
+      <Text className="text-xs text-text-muted">
+        {books.length} {books.length === 1 ? "copy" : "copies"}
+      </Text>
+      {work ? (
+        <Link href={`/work/${work.id}`} asChild>
+          <Pressable className="flex-row items-center gap-1" hitSlop={8}>
+            <Feather name="edit-2" size={11} color={colors.textMuted} />
+            <Text className="text-xs font-medium text-text-muted">Edit</Text>
+          </Pressable>
+        </Link>
+      ) : null}
+    </View>
+    {work && work.tags.length > 0 ? (
+      <View className="mt-1.5 flex-row flex-wrap gap-1.5">
+        {work.tags.map((t) => (
+          <View key={t} className="rounded-full bg-accent-soft px-2 py-0.5">
+            <Text className="text-xs text-accent">{t}</Text>
+          </View>
+        ))}
+      </View>
+    ) : null}
+    <View className="mt-3">
+      <BookGrid books={books} />
+    </View>
+  </View>
+);
+
+// Toggleable pill — used for the flat/group toggle and the tag chips.
+const Chip = ({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) => (
+  <Pressable
+    onPress={onPress}
+    className={`rounded-full border px-3 py-1.5 ${
+      active ? "border-accent bg-accent-soft" : "border-border bg-surface"
+    }`}
+  >
+    <Text
+      className={`text-sm font-medium ${active ? "text-accent" : "text-text-muted"}`}
+    >
+      {label}
+    </Text>
+  </Pressable>
+);
+
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -80,6 +166,45 @@ export default function LibraryScreen() {
         ? 5000
         : false,
   });
+  const worksQuery = useQuery({
+    queryKey: ["works"],
+    queryFn: api.listWorks,
+    enabled: configured,
+  });
+
+  const [grouped, setGrouped] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const toggleTag = (name: string) =>
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  const works = useMemo(() => worksQuery.data ?? [], [worksQuery.data]);
+  const worksById = useMemo(
+    () => new Map(works.map((w) => [w.id, w])),
+    [works],
+  );
+  const tagOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const w of works) for (const t of w.tags) names.add(t);
+    return [...names].sort();
+  }, [works]);
+
+  const books = useMemo(() => booksQuery.data ?? [], [booksQuery.data]);
+
+  // Work + tag filtering (tags OR). Standalone books drop out under a tag filter.
+  const filtered = useMemo(
+    () =>
+      books.filter((b) => {
+        if (selectedTags.size === 0) return true;
+        const work = b.work_id ? worksById.get(b.work_id) : undefined;
+        return !!work && work.tags.some((t) => selectedTags.has(t));
+      }),
+    [books, selectedTags, worksById],
+  );
 
   if (!ready) return <Loading />;
 
@@ -99,8 +224,37 @@ export default function LibraryScreen() {
     );
   }
 
-  const books = booksQuery.data ?? [];
-  const totalPages = books.reduce((n, b) => n + b.files_total, 0);
+  const totalPages = filtered.reduce((n, b) => n + b.files_total, 0);
+
+  // Grouped buckets: works newest-first (query order), standalone trailing.
+  const byWork = new Map<string, BookWithStatus[]>();
+  const ungrouped: BookWithStatus[] = [];
+  for (const b of filtered) {
+    if (b.work_id && worksById.has(b.work_id)) {
+      const list = byWork.get(b.work_id) ?? [];
+      list.push(b);
+      byWork.set(b.work_id, list);
+    } else {
+      ungrouped.push(b);
+    }
+  }
+  const orderedGroups = works
+    .filter((w) => byWork.has(w.id))
+    .map((w) => ({ work: w, books: byWork.get(w.id) ?? [] }));
+
+  const newBookButton = (
+    <Pressable
+      onPress={() => router.push("/new-book")}
+      className="w-[47%] grow items-center justify-center gap-2.5 rounded-2xl border border-border py-8"
+    >
+      <View className="h-11 w-11 items-center justify-center rounded-full bg-accent-soft">
+        <Text className="text-2xl text-accent">+</Text>
+      </View>
+      <Text className="text-sm font-semibold text-text-secondary">
+        New book
+      </Text>
+    </Pressable>
+  );
 
   return (
     <ScrollView
@@ -136,27 +290,58 @@ export default function LibraryScreen() {
       ) : (
         <>
           <Text className="mt-1 text-sm text-text-muted">
-            {books.length} {books.length === 1 ? "book" : "books"} ·{" "}
+            {filtered.length} {filtered.length === 1 ? "book" : "books"} ·{" "}
             {totalPages} pages
           </Text>
-          <View className="mt-5 flex-row flex-wrap gap-3.5">
-            {books.map((book) => (
-              <View key={book.id} className="w-[47%] grow">
-                <BookCard book={book} />
-              </View>
-            ))}
-            <Pressable
-              onPress={() => router.push("/new-book")}
-              className="w-[47%] grow items-center justify-center gap-2.5 rounded-2xl border border-border py-8"
-            >
-              <View className="h-11 w-11 items-center justify-center rounded-full bg-accent-soft">
-                <Text className="text-2xl text-accent">+</Text>
-              </View>
-              <Text className="text-sm font-semibold text-text-secondary">
-                New book
-              </Text>
-            </Pressable>
+
+          <View className="mt-4 flex-row gap-2">
+            <Chip
+              label="Flat"
+              active={!grouped}
+              onPress={() => setGrouped(false)}
+            />
+            <Chip
+              label="Group by work"
+              active={grouped}
+              onPress={() => setGrouped(true)}
+            />
           </View>
+
+          {tagOptions.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mt-3"
+              contentContainerStyle={{ gap: 8 }}
+            >
+              {tagOptions.map((t) => (
+                <Chip
+                  key={t}
+                  label={t}
+                  active={selectedTags.has(t)}
+                  onPress={() => toggleTag(t)}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
+
+          {grouped ? (
+            <>
+              {orderedGroups.map(({ work, books: groupBooks }) => (
+                <WorkGroup key={work.id} work={work} books={groupBooks} />
+              ))}
+              {ungrouped.length > 0 ? (
+                <WorkGroup work={null} books={ungrouped} />
+              ) : null}
+              <View className="mt-6">
+                <BookGrid books={[]} footer={newBookButton} />
+              </View>
+            </>
+          ) : (
+            <View className="mt-5">
+              <BookGrid books={filtered} footer={newBookButton} />
+            </View>
+          )}
         </>
       )}
     </ScrollView>

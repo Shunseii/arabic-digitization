@@ -38,12 +38,27 @@ export class BookCreate extends OpenAPIRoute {
     const created_at = Date.now();
     const ocr_instructions = body.ocr_instructions ?? null;
 
+    // A copy always belongs to a work: attach to the given one, or auto-create a
+    // work named after the copy so nothing lands ungrouped going forward.
+    // (Legacy books predate this and stay work_id NULL until manually assigned.)
+    let work_id = body.work_id ?? null;
+    const statements: D1PreparedStatement[] = [];
+    if (!work_id) {
+      work_id = crypto.randomUUID();
+      statements.push(
+        c.env.DB.prepare(
+          "INSERT INTO works (id, name, author, created_at) VALUES (?, ?, NULL, ?)",
+        ).bind(work_id, body.title, created_at),
+      );
+    }
+    statements.push(
+      c.env.DB.prepare(
+        "INSERT INTO books (id, title, created_at, ocr_instructions, work_id) VALUES (?, ?, ?, ?, ?)",
+      ).bind(id, body.title, created_at, ocr_instructions, work_id),
+    );
+
     try {
-      await c.env.DB.prepare(
-        "INSERT INTO books (id, title, created_at, ocr_instructions) VALUES (?, ?, ?, ?)",
-      )
-        .bind(id, body.title, created_at, ocr_instructions)
-        .run();
+      await c.env.DB.batch(statements);
     } catch (err) {
       // UNIQUE constraint on the primary key → id collision
       if (err instanceof Error && /UNIQUE/i.test(err.message)) {
@@ -58,7 +73,7 @@ export class BookCreate extends OpenAPIRoute {
     return c.json(
       {
         success: true,
-        book: { id, title: body.title, created_at, ocr_instructions },
+        book: { id, title: body.title, created_at, ocr_instructions, work_id },
       },
       201,
     );

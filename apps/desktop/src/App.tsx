@@ -11,6 +11,7 @@ import { ReaderScreen } from "@/routes/reader";
 import { SearchScreen } from "@/routes/search";
 import { SettingsScreen } from "@/routes/settings";
 import { UploadScreen } from "@/routes/upload";
+import { WorkScreen } from "@/routes/work";
 
 const AppLayout = () => (
   <div className="flex h-screen w-screen overflow-hidden bg-bg text-ink">
@@ -32,6 +33,7 @@ export const App = () => (
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/new-book" element={<NewBookScreen />} />
           <Route path="/book/:id" element={<BookScreen />} />
+          <Route path="/work/:id" element={<WorkScreen />} />
           <Route path="/upload/:bookId" element={<UploadScreen />} />
           <Route path="/reader/:bookId/:fileId" element={<ReaderScreen />} />
         </Route>

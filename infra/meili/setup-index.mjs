@@ -69,10 +69,14 @@ async function main() {
   // Embedder: Cloudflare Workers AI bge-m3 over the REST source. Meili posts
   // {text:[...]} and reads vectors from response.result.data.
   const settings = {
-    searchableAttributes: ["text", "book_title"],
+    searchableAttributes: ["text", "book_title", "work_name", "author"],
     filterableAttributes: [
       "book_id",
       "book_title",
+      "work_id",
+      "work_name",
+      "author",
+      "tags",
       "role",
       "page_number",
       "file_id",

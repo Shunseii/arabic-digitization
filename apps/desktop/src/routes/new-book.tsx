@@ -1,26 +1,39 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Zap } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "@/lib/api";
+import { useConfigState } from "@/lib/config-context";
 import { colors } from "@/theme";
 
 export const NewBookScreen = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { configured } = useConfigState();
 
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // null = auto-create a new work from the title; otherwise attach to this work.
+  const [workId, setWorkId] = useState<string | null>(null);
+
+  const worksQuery = useQuery({
+    queryKey: ["works"],
+    queryFn: api.listWorks,
+    enabled: configured,
+  });
+  const works = worksQuery.data ?? [];
 
   const mutation = useMutation({
     mutationFn: () =>
       api.createBook({
         title: title.trim(),
         ocr_instructions: instructions.trim() || undefined,
+        work_id: workId ?? undefined,
       }),
     onSuccess: async (book) => {
       await queryClient.invalidateQueries({ queryKey: ["books"] });
+      await queryClient.invalidateQueries({ queryKey: ["works"] });
       navigate(`/book/${book.id}`, { replace: true });
     },
     onError: (err) => {
@@ -54,6 +67,41 @@ export const NewBookScreen = () => {
           dir="rtl"
           className="w-full rounded-xl border border-accent bg-surface px-4 py-3.5 text-lg text-ink outline-none placeholder:text-text-muted"
         />
+
+        <span className="mt-5 mb-2 block text-xs font-bold tracking-wide text-text-muted">
+          WORK · OPTIONAL
+        </span>
+        <p className="mb-2 text-xs text-text-muted">
+          Attach this copy to an existing work, or leave it to auto-create a new
+          one from the title.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setWorkId(null)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+              workId === null
+                ? "border-accent bg-accent-soft text-accent"
+                : "border-border bg-surface text-text-secondary hover:bg-surface-alt"
+            }`}
+          >
+            + New work
+          </button>
+          {works.map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              onClick={() => setWorkId(w.id)}
+              className={`max-w-[220px] truncate rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                workId === w.id
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-border bg-surface text-text-secondary hover:bg-surface-alt"
+              }`}
+            >
+              {w.name} ({w.copies_total})
+            </button>
+          ))}
+        </div>
 
         <span className="mt-5 mb-2 block text-xs font-bold tracking-wide text-text-muted">
           OCR INSTRUCTIONS · OPTIONAL

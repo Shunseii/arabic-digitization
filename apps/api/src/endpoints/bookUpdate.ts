@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { reindexBook } from "../lib/reindex";
 import { type AppContext, Book, BookUpdateBody } from "../types";
 
 export class BookUpdate extends OpenAPIRoute {
@@ -46,6 +47,10 @@ export class BookUpdate extends OpenAPIRoute {
       sets.push("ocr_instructions = ?");
       binds.push(body.ocr_instructions);
     }
+    if (body.work_id !== undefined) {
+      sets.push("work_id = ?");
+      binds.push(body.work_id); // null unlinks (flat)
+    }
 
     const result = await c.env.DB.prepare(
       `UPDATE books SET ${sets.join(", ")} WHERE id = ?`,
@@ -60,8 +65,24 @@ export class BookUpdate extends OpenAPIRoute {
       );
     }
 
+    // Both title (indexed as book_title) and work_id (drives work_name/author/
+    // tags) are denormalized onto this book's search docs — reindex to resync.
+    // Best-effort: search staleness must not fail the write (reindex is the
+    // backstop). Only when Meili is configured and a denormalized field moved.
+    const denormChanged =
+      body.title !== undefined || body.work_id !== undefined;
+    if (denormChanged && c.env.MEILI_URL && c.env.MEILI_KEY) {
+      try {
+        await reindexBook({ env: c.env, bookId: params.bookId });
+      } catch (err) {
+        console.error(
+          `search reindex failed for book ${params.bookId}: ${err}`,
+        );
+      }
+    }
+
     const book = await c.env.DB.prepare(
-      "SELECT id, title, created_at, ocr_instructions FROM books WHERE id = ?",
+      "SELECT id, title, created_at, ocr_instructions, work_id FROM books WHERE id = ?",
     )
       .bind(params.bookId)
       .first();
