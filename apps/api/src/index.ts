@@ -25,7 +25,7 @@ import { WorkFetch } from "./endpoints/workFetch";
 import { WorkList } from "./endpoints/workList";
 import { WorkUpdate } from "./endpoints/workUpdate";
 import { requireMasterKey } from "./middleware/auth";
-import { handleOcrQueue, type OcrMessage } from "./queue";
+import { handleOcrQueue, type QueueMessage } from "./queue";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -91,4 +91,4 @@ openapi.post("/api/search/reindex", SearchReindex);
 export default {
   fetch: app.fetch,
   queue: handleOcrQueue,
-} satisfies ExportedHandler<Env, OcrMessage>;
+} satisfies ExportedHandler<Env, QueueMessage>;

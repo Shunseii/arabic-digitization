@@ -6,7 +6,6 @@
 
 import {
   buildPageDocs,
-  clearAllDocs,
   deleteDocsByBook,
   type SearchDoc,
   upsertDocs,
@@ -109,20 +108,24 @@ export interface ReindexResult {
 
 // Reindex a single book: clear its docs, rebuild from R2, upsert. The delete is
 // enqueued before the upsert; Meili is FIFO so it always lands first (a page's
-// chunk count can change between runs).
+// chunk count can change between runs). `index` targets the live index by
+// default, or a staging index while building a swap.
 export async function reindexBook({
   env,
   bookId,
+  index,
 }: {
   env: Env;
   bookId: string;
+  index?: string;
 }): Promise<ReindexResult> {
   const { results } = await env.DB.prepare(`${PAGE_SQL} AND f.book_id = ?`)
     .bind(bookId)
     .all<PageRow>();
-  await deleteDocsByBook({ env, bookId });
+  await deleteDocsByBook({ env, bookId, index });
   const docs = await buildDocs({ env, rows: results });
-  const taskUid = docs.length > 0 ? await upsertDocs({ env, docs }) : null;
+  const taskUid =
+    docs.length > 0 ? await upsertDocs({ env, docs, index }) : null;
   return { indexed: docs.length, taskUid };
 }
 
@@ -144,22 +147,4 @@ export async function reindexWork({
   for (const b of results) {
     await reindexBook({ env, bookId: b.id });
   }
-}
-
-// Full rebuild across every book (optionally one book). Clears the whole index
-// (or just the book's docs) first so the chunk id scheme leaves nothing stale.
-export async function reindexAll({
-  env,
-  bookId,
-}: {
-  env: Env;
-  bookId?: string;
-}): Promise<ReindexResult> {
-  if (bookId) return reindexBook({ env, bookId });
-
-  const { results } = await env.DB.prepare(PAGE_SQL).all<PageRow>();
-  await clearAllDocs({ env });
-  const docs = await buildDocs({ env, rows: results });
-  const taskUid = docs.length > 0 ? await upsertDocs({ env, docs }) : null;
-  return { indexed: docs.length, taskUid };
 }

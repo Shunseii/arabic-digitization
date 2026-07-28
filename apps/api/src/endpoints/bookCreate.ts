@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { setWorkTags } from "../lib/tags";
 import { type AppContext, Book, BookCreateBody } from "../types";
 
 export class BookCreate extends OpenAPIRoute {
@@ -42,6 +43,7 @@ export class BookCreate extends OpenAPIRoute {
     // work named after the copy so nothing lands ungrouped going forward.
     // (Legacy books predate this and stay work_id NULL until manually assigned.)
     let work_id = body.work_id ?? null;
+    const autoCreatedWork = !work_id;
     const statements: D1PreparedStatement[] = [];
     if (!work_id) {
       work_id = crypto.randomUUID();
@@ -68,6 +70,11 @@ export class BookCreate extends OpenAPIRoute {
         );
       }
       throw err;
+    }
+
+    // Tags belong to the work, so only meaningful for an auto-created one.
+    if (autoCreatedWork && body.tags && body.tags.length > 0 && work_id) {
+      await setWorkTags({ env: c.env, workId: work_id, names: body.tags });
     }
 
     return c.json(

@@ -1,8 +1,67 @@
+import {
+  deleteIndex,
+  LIVE_INDEX,
+  STAGING_INDEX,
+  swapIndexes,
+} from "./lib/meili";
+import { reindexBook } from "./lib/reindex";
 import { OcrError, transcribe } from "./ocr";
 
 // Message enqueued on upload; the consumer transcribes the file.
 export interface OcrMessage {
   fileId: string;
+}
+
+// A step in a full search rebuild. Each message reindexes one book into the
+// staging index, then chains the next; the final step atomically swaps staging
+// into the live index. Sequential + one book per message keeps every invocation
+// under the Worker's CPU/subrequest/memory limits, and the live index is only
+// ever replaced by an atomic swap — never cleared mid-rebuild.
+export interface ReindexMessage {
+  kind: "reindex_chain";
+  bookIds: string[];
+  cursor: number;
+}
+
+export type QueueMessage = OcrMessage | ReindexMessage;
+
+function isReindex(body: QueueMessage): body is ReindexMessage {
+  return (body as ReindexMessage).kind === "reindex_chain";
+}
+
+// Process one book of a rebuild into the staging index, then either chain the
+// next book or, on the last, swap staging over live and drop the old data.
+async function handleReindexStep(
+  msg: Message<ReindexMessage>,
+  env: Env,
+): Promise<void> {
+  const { bookIds, cursor } = msg.body;
+  const bookId = bookIds[cursor];
+  if (bookId === undefined) {
+    msg.ack();
+    return;
+  }
+  try {
+    await reindexBook({ env, bookId, index: STAGING_INDEX });
+    if (cursor + 1 < bookIds.length) {
+      await env.OCR_Q.send({
+        kind: "reindex_chain",
+        bookIds,
+        cursor: cursor + 1,
+      });
+    } else {
+      // All books built into staging → flip it live in one atomic step, then
+      // delete the now-stale index (which holds the previous live data).
+      await swapIndexes({ env, a: LIVE_INDEX, b: STAGING_INDEX });
+      await deleteIndex({ env, index: STAGING_INDEX });
+    }
+    msg.ack();
+  } catch (err) {
+    // Retry this same book (reindexBook is idempotent per book). A persistent
+    // failure just stalls the chain with no swap — the live index is untouched.
+    console.error(`reindex step ${cursor}/${bookIds.length} failed: ${err}`);
+    msg.retry({ delaySeconds: 30 });
+  }
 }
 
 // Set a file back to 'queued' and drop it on the OCR queue. The single entry
@@ -40,10 +99,15 @@ function backoffSeconds(attempts: number, suggested: number | null): number {
 // (wrangler.jsonc). Genuine failures set 'failed' and stop — retrying a missing
 // R2 object or an empty response won't help; re-run those manually via /ocr.
 export async function handleOcrQueue(
-  batch: MessageBatch<OcrMessage>,
+  batch: MessageBatch<QueueMessage>,
   env: Env,
 ): Promise<void> {
   for (const msg of batch.messages) {
+    // Full-rebuild steps share this queue; dispatch them separately.
+    if (isReindex(msg.body)) {
+      await handleReindexStep(msg as Message<ReindexMessage>, env);
+      continue;
+    }
     const { fileId } = msg.body;
     try {
       await env.DB.prepare(

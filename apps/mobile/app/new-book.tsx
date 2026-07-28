@@ -25,6 +25,14 @@ export default function NewBookScreen() {
   const [instructions, setInstructions] = useState("");
   // null = auto-create a new work from the title; otherwise attach to this work.
   const [workId, setWorkId] = useState<string | null>(null);
+  // Tags for the auto-created work; only meaningful when workId is null.
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const addTag = (raw: string) => {
+    const t = raw.trim();
+    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
+    setTagInput("");
+  };
 
   const worksQuery = useQuery({
     queryKey: ["works"],
@@ -39,6 +47,7 @@ export default function NewBookScreen() {
         title: title.trim(),
         ocr_instructions: instructions.trim() || undefined,
         work_id: workId ?? undefined,
+        tags: workId === null && tags.length > 0 ? tags : undefined,
       }),
     onSuccess: async (book) => {
       await queryClient.invalidateQueries({ queryKey: ["books"] });
@@ -134,6 +143,38 @@ export default function NewBookScreen() {
           </Pressable>
         ))}
       </ScrollView>
+
+      {workId === null ? (
+        <>
+          <Text className="mt-5 mb-2 text-xs font-bold tracking-wide text-text-muted">
+            TAGS · OPTIONAL
+          </Text>
+          {tags.length > 0 ? (
+            <View className="mb-2 flex-row flex-wrap gap-1.5">
+              {tags.map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setTags((prev) => prev.filter((x) => x !== t))}
+                  className="flex-row items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1"
+                >
+                  <Text className="text-xs text-accent">{t}</Text>
+                  <Feather name="x" size={12} color={colors.accent} />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <TextInput
+            value={tagInput}
+            onChangeText={setTagInput}
+            onSubmitEditing={() => addTag(tagInput)}
+            onBlur={() => tagInput.trim() && addTag(tagInput)}
+            placeholder="Add a tag, then return"
+            placeholderTextColor={colors.textMuted}
+            returnKeyType="done"
+            className="rounded-xl border border-border bg-surface px-4 py-3 text-base text-ink"
+          />
+        </>
+      ) : null}
 
       <Text className="mt-5 mb-2 text-xs font-bold tracking-wide text-text-muted">
         OCR INSTRUCTIONS · OPTIONAL
