@@ -127,6 +127,8 @@ export interface BookCreateBody {
   ocr_instructions?: string;
   /** Attach to an existing work; if omitted a work is auto-created from the title. */
   work_id?: string;
+  /** Tags for the auto-created work (created on write); ignored when work_id is given. */
+  tags?: string[];
 }
 
 export interface BookUpdateBody {

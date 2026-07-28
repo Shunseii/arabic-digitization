@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Zap } from "lucide-react";
+import { ChevronLeft, X, Zap } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "@/lib/api";
@@ -16,6 +16,14 @@ export const NewBookScreen = () => {
   const [error, setError] = useState<string | null>(null);
   // null = auto-create a new work from the title; otherwise attach to this work.
   const [workId, setWorkId] = useState<string | null>(null);
+  // Tags for the auto-created work; only meaningful when workId is null.
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const addTag = (raw: string) => {
+    const t = raw.trim();
+    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
+    setTagInput("");
+  };
 
   const worksQuery = useQuery({
     queryKey: ["works"],
@@ -30,6 +38,7 @@ export const NewBookScreen = () => {
         title: title.trim(),
         ocr_instructions: instructions.trim() || undefined,
         work_id: workId ?? undefined,
+        tags: workId === null && tags.length > 0 ? tags : undefined,
       }),
     onSuccess: async (book) => {
       await queryClient.invalidateQueries({ queryKey: ["books"] });
@@ -102,6 +111,48 @@ export const NewBookScreen = () => {
             </button>
           ))}
         </div>
+
+        {workId === null && (
+          <>
+            <span className="mt-5 mb-2 block text-xs font-bold tracking-wide text-text-muted">
+              TAGS · OPTIONAL
+            </span>
+            {tags.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {tags.map((t) => (
+                  <span
+                    key={t}
+                    className="flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent"
+                  >
+                    {t}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTags((prev) => prev.filter((x) => x !== t))
+                      }
+                      aria-label={`Remove ${t}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  addTag(tagInput);
+                }
+              }}
+              onBlur={() => tagInput.trim() && addTag(tagInput)}
+              placeholder="Add a tag, then Enter"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
+            />
+          </>
+        )}
 
         <span className="mt-5 mb-2 block text-xs font-bold tracking-wide text-text-muted">
           OCR INSTRUCTIONS · OPTIONAL

@@ -97,18 +97,21 @@ async function meili({
   return json;
 }
 
-// Upsert a batch of chunk documents. Returns Meili's async taskUid.
+// Upsert a batch of chunk documents. Returns Meili's async taskUid. `index`
+// defaults to the live index but can target a staging index during a swap build.
 export async function upsertDocs({
   env,
   docs,
+  index = INDEX,
 }: {
   env: MeiliEnv;
   docs: SearchDoc[];
+  index?: string;
 }): Promise<number> {
   const task = (await meili({
     env,
     method: "POST",
-    path: `/indexes/${INDEX}/documents`,
+    path: `/indexes/${index}/documents`,
     body: docs,
   })) as { taskUid: number };
   return task.taskUid;
@@ -120,14 +123,16 @@ export async function upsertDocs({
 export async function deleteDocsByFile({
   env,
   fileId,
+  index = INDEX,
 }: {
   env: MeiliEnv;
   fileId: string;
+  index?: string;
 }): Promise<number> {
   const task = (await meili({
     env,
     method: "POST",
-    path: `/indexes/${INDEX}/documents/delete`,
+    path: `/indexes/${index}/documents/delete`,
     body: { filter: `file_id = "${fileId}"` },
   })) as { taskUid: number };
   return task.taskUid;
@@ -139,14 +144,16 @@ export async function deleteDocsByFile({
 export async function deleteDocsByBook({
   env,
   bookId,
+  index = INDEX,
 }: {
   env: MeiliEnv;
   bookId: string;
+  index?: string;
 }): Promise<number> {
   const task = (await meili({
     env,
     method: "POST",
-    path: `/indexes/${INDEX}/documents/delete`,
+    path: `/indexes/${index}/documents/delete`,
     body: { filter: `book_id = "${bookId}"` },
   })) as { taskUid: number };
   return task.taskUid;
@@ -163,6 +170,129 @@ export async function clearAllDocs({
     env,
     method: "DELETE",
     path: `/indexes/${INDEX}/documents`,
+  })) as { taskUid: number };
+  return task.taskUid;
+}
+
+// --- Index management (for the zero-downtime swap reindex) ---
+
+// Live search index name. A full rebuild is done into a staging index and then
+// atomically swapped in, so the live index is never emptied mid-rebuild.
+export const LIVE_INDEX = INDEX;
+export const STAGING_INDEX = "books_tmp";
+
+const EMBEDDER = "cfbge";
+const EMBED_DIMENSIONS = 1024; // @cf/baai/bge-m3
+
+interface EmbedderEnv {
+  CF_ACCOUNT_ID: string;
+  CF_AI_TOKEN: string;
+}
+
+// The full index settings, kept in lockstep with infra/meili/setup-index.mjs.
+// The embedder calls Cloudflare Workers AI at index + query time; its key is the
+// CF token now stored as a Worker secret (so a staging index can be built with a
+// working embedder without the external bootstrap script).
+export function buildIndexSettings(env: EmbedderEnv) {
+  return {
+    searchableAttributes: ["text", "book_title", "work_name", "author"],
+    filterableAttributes: [
+      "book_id",
+      "book_title",
+      "work_id",
+      "work_name",
+      "author",
+      "tags",
+      "role",
+      "page_number",
+      "file_id",
+    ],
+    sortableAttributes: ["page_number"],
+    distinctAttribute: "file_id",
+    embedders: {
+      [EMBEDDER]: {
+        source: "rest",
+        url: `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/@cf/baai/bge-m3`,
+        apiKey: env.CF_AI_TOKEN,
+        dimensions: EMBED_DIMENSIONS,
+        request: { text: ["{{text}}", "{{..}}"] },
+        response: { result: { data: ["{{embedding}}", "{{..}}"] } },
+        documentTemplate: "{{doc.text}}",
+      },
+    },
+  };
+}
+
+// Create an index (id primary key). Idempotent: an existing index is fine.
+export async function createIndex({
+  env,
+  index,
+}: {
+  env: MeiliEnv;
+  index: string;
+}): Promise<void> {
+  try {
+    await meili({
+      env,
+      method: "POST",
+      path: "/indexes",
+      body: { uid: index, primaryKey: "id" },
+    });
+  } catch (err) {
+    if (!String(err).includes("index_already_exists")) throw err;
+  }
+}
+
+// Delete an index. Idempotent: a missing index is fine.
+export async function deleteIndex({
+  env,
+  index,
+}: {
+  env: MeiliEnv;
+  index: string;
+}): Promise<void> {
+  try {
+    await meili({ env, method: "DELETE", path: `/indexes/${index}` });
+  } catch (err) {
+    if (!String(err).includes("index_not_found")) throw err;
+  }
+}
+
+// Apply index settings (searchable/filterable/embedder/…). Returns the taskUid.
+export async function applySettings({
+  env,
+  index,
+  settings,
+}: {
+  env: MeiliEnv;
+  index: string;
+  settings: ReturnType<typeof buildIndexSettings>;
+}): Promise<number> {
+  const task = (await meili({
+    env,
+    method: "PATCH",
+    path: `/indexes/${index}/settings`,
+    body: settings,
+  })) as { taskUid: number };
+  return task.taskUid;
+}
+
+// Atomically swap two indexes (their uid→data mapping). One Meili task; queries
+// to `a` flip to `b`'s data in a single step, never seeing an empty index.
+export async function swapIndexes({
+  env,
+  a,
+  b,
+}: {
+  env: MeiliEnv;
+  a: string;
+  b: string;
+}): Promise<number> {
+  const task = (await meili({
+    env,
+    method: "POST",
+    path: "/swap-indexes",
+    body: [{ indexes: [a, b] }],
   })) as { taskUid: number };
   return task.taskUid;
 }

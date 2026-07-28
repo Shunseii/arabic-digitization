@@ -42,6 +42,12 @@ export const BookCreateBody = z.object({
     .describe(
       "Attach this copy to an existing work; if omitted a work is auto-created from the title",
     ),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Tags for the auto-created work (created on write); ignored when work_id is given",
+    ),
 });
 
 // PATCH body: every field optional; only provided fields are updated.
