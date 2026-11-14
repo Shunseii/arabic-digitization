@@ -21,7 +21,7 @@
       "permissions": ["android.permission.CAMERA", "android.permission.CAMERA"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0C0D10"
+        "backgroundColor": "#f5f0e6"
       }
     },
     "plugins": [
@@ -36,7 +36,7 @@
           "imageWidth": 200,
           "backgroundColor": "#f5f0e6",
           "dark": {
-            "image": "./assets/splash-icon.png",
+            "image": "./assets/splash-icon-dark.png",
             "backgroundColor": "#0f0e0c"
           }
         }
