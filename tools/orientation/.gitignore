@@ -2,3 +2,4 @@ data/
 *.pt
 *.onnx
 .venv/
+__pycache__/
