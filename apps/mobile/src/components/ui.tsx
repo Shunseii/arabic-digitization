@@ -359,6 +359,8 @@ export const TextField = ({
   );
 };
 
+const ARABIC = /[\u0600-\u06FF]/;
+
 export const SearchField = ({
   value,
   onChangeText,
@@ -383,8 +385,15 @@ export const SearchField = ({
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
-        className="flex-1 font-ar text-[16px] text-ink"
-        style={{ writingDirection: "auto" }}
+        // Naskh's tall line metrics push Latin text (and the English
+        // placeholder) off the icon's centre line; only use it for Arabic.
+        className={`h-full flex-1 text-ink ${ARABIC.test(value) ? "font-ar text-[16px]" : "font-body text-[15px]"}`}
+        style={{
+          writingDirection: "auto",
+          paddingVertical: 0,
+          includeFontPadding: false,
+          textAlignVertical: "center",
+        }}
       />
       {value ? (
         <Pressable onPress={() => onChangeText("")} hitSlop={8}>
