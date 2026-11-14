@@ -54,6 +54,10 @@ export function ZoomableImage({
   const pinchActive = useSharedValue(false);
   // True only while two fingers are down; a pan defers to the pinch then.
   const pinching = useSharedValue(false);
+  // Fingers down, counted from touch events. Android's pinch update for a
+  // lifting finger still reports two pointers but already moves the focal
+  // point to the remaining finger, so its own pointer count can't be trusted.
+  const touches = useSharedValue(0);
   // Pan position = offset + finger translation. Rebased while a pinch moves
   // the image, so a pan that outlives the pinch continues from where the
   // pinch left it instead of snapping back.
@@ -94,19 +98,29 @@ export function ZoomableImage({
   // Focal points are relative to the untransformed frame; convert them to
   // offsets from its centre.
   const pinch = Gesture.Pinch()
+    .onTouchesDown((e) => {
+      touches.value = e.numberOfTouches;
+    })
+    .onTouchesUp((e) => {
+      touches.value = e.numberOfTouches;
+    })
+    .onTouchesCancelled(() => {
+      touches.value = 0;
+    })
     .onStart(() => {
       pinchActive.value = true;
       anchor.value = null;
     })
     .onUpdate((e) => {
-      pinching.value = e.numberOfPointers >= 2;
+      const pointers = Math.min(touches.value, e.numberOfPointers);
+      pinching.value = pointers >= 2;
       const step = pinchStep({
         current: current(),
         anchor: anchor.value,
         gestureScale: e.scale,
         fx: e.focalX - width.value / 2,
         fy: e.focalY - height.value / 2,
-        pointers: e.numberOfPointers,
+        pointers,
       });
       anchor.value = step.anchor;
       scale.value = step.transform.s;
