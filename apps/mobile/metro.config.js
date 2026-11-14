@@ -15,4 +15,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, "node_modules"),
 ];
 
+// The on-device page orientation model ships as an asset.
+config.resolver.assetExts.push("onnx");
+
 module.exports = withNativeWind(config, { input: "./global.css" });

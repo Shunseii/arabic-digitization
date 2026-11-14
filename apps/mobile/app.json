@@ -3,7 +3,7 @@
     "name": "رقمنة",
     "slug": "arabic-digitization",
     "scheme": "qiraa",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -40,7 +40,9 @@
             "backgroundColor": "#0f0e0c"
           }
         }
-      ]
+      ],
+      "expo-asset",
+      "onnxruntime-react-native"
     ],
     "experiments": {
       "typedRoutes": true

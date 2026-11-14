@@ -29,6 +29,7 @@ import {
 } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { DURATION, EASE_OUT } from "@/lib/motion";
+import { rotateImage, uprightPage } from "@/lib/orientation";
 import { useColors } from "@/theme";
 
 // Removing a page reflows the ones after it (and renumbers them), so let the
@@ -44,9 +45,16 @@ const TILE_EXIT = new Keyframe({
 }).duration(DURATION.fast);
 
 interface Captured {
+  id: string;
   uri: string;
   page: string; // editable; blank = upload without a page number
+  /** Orientation check still running; upload waits for it. */
+  checking: boolean;
+  /** Turned upright automatically (clockwise degrees), for the badge. */
+  autoRotated: number;
 }
+
+let nextCaptureId = 0;
 
 const SCREEN_PADDING = 24;
 const GRID_GAP = 20;
@@ -102,17 +110,54 @@ export default function ScanScreen() {
         !scannedImages?.length
       )
         return;
+      const captured: Captured[] = scannedImages.map((uri) => ({
+        id: String(nextCaptureId++),
+        uri,
+        page: "",
+        checking: true,
+        autoRotated: 0,
+      }));
       setPages((prev) => {
         const base = nextPageNumber({ pages: prev, startPage });
         return [
           ...prev,
-          ...scannedImages.map((uri, i) => ({ uri, page: String(base + i) })),
+          ...captured.map((p, i) => ({ ...p, page: String(base + i) })),
         ];
       });
+      // ML Kit often picks the wrong "up"; turn each page upright in turn.
+      for (const p of captured) {
+        const { uri, rotated } = await uprightPage(p.uri);
+        updatePage({
+          id: p.id,
+          patch: { uri, autoRotated: rotated, checking: false },
+        });
+      }
     } catch (err) {
       Alert.alert("Scan failed", String(err));
     }
   };
+
+  const updatePage = ({
+    id,
+    patch,
+  }: {
+    id: string;
+    patch: Partial<Captured>;
+  }) =>
+    setPages((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+
+  const rotatePage = async (p: Captured) => {
+    updatePage({ id: p.id, patch: { checking: true } });
+    try {
+      const uri = await rotateImage({ uri: p.uri, degrees: 90 });
+      updatePage({ id: p.id, patch: { uri, checking: false, autoRotated: 0 } });
+    } catch (err) {
+      updatePage({ id: p.id, patch: { checking: false } });
+      Alert.alert("Could not rotate", String(err));
+    }
+  };
+
+  const checking = pages.some((p) => p.checking);
 
   const setPageAt = ({ index, value }: { index: number; value: string }) =>
     setPages((prev) =>
@@ -277,7 +322,7 @@ export default function ScanScreen() {
             >
               {pages.map((p, i) => (
                 <Animated.View
-                  key={p.uri}
+                  key={p.id}
                   layout={TILE_LAYOUT}
                   entering={TILE_ENTER}
                   exiting={TILE_EXIT}
@@ -292,6 +337,44 @@ export default function ScanScreen() {
                     />
                     <View className="absolute right-2 top-2">
                       {tileBadge(i)}
+                    </View>
+                    <View className="absolute bottom-2 left-2">
+                      {p.checking ? (
+                        <View className="h-9 flex-row items-center gap-1.5 rounded-full bg-surface px-3">
+                          <ActivityIndicator size="small" color={c.accent} />
+                          <T variant="caption" className="font-body text-ink-2">
+                            Checking
+                          </T>
+                        </View>
+                      ) : (
+                        <View className="flex-row items-center gap-1.5">
+                          {busy ? null : (
+                            <Pressable
+                              onPress={() => rotatePage(p)}
+                              hitSlop={6}
+                              accessibilityRole="button"
+                              accessibilityLabel="Rotate page 90 degrees"
+                              className="size-9 items-center justify-center rounded-full bg-surface active:opacity-70"
+                            >
+                              <Feather
+                                name="rotate-cw"
+                                size={16}
+                                color={c.ink}
+                              />
+                            </Pressable>
+                          )}
+                          {p.autoRotated ? (
+                            <View className="h-7 justify-center rounded-full bg-surface px-2.5">
+                              <T
+                                variant="caption"
+                                className="font-body text-accent"
+                              >
+                                Turned upright
+                              </T>
+                            </View>
+                          ) : null}
+                        </View>
+                      )}
                     </View>
                   </View>
                   <View className="flex-row items-center gap-2">
@@ -330,9 +413,10 @@ export default function ScanScreen() {
               className="flex-1"
             />
             <Button
-              label={`Upload ${pages.length}`}
-              icon="arrow-up"
+              label={checking ? "Checking…" : `Upload ${pages.length}`}
+              icon={checking ? undefined : "arrow-up"}
               onPress={upload}
+              disabled={checking}
               className="flex-1"
             />
           </View>
