@@ -1,24 +1,39 @@
-import { Feather } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useMemo } from "react";
+import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Centered, Loading } from "@/components/ui";
-import { ApiError, api } from "@/lib/api";
-import { colors } from "@/theme";
+import {
+  BookRows,
+  inFlightCount,
+  transcribedCount,
+} from "@/components/book-row";
+import {
+  ActionBar,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Header,
+  IconButton,
+  ListCard,
+  Loading,
+  T,
+} from "@/components/ui";
+import { api } from "@/lib/api";
 
-export default function WorkScreen() {
+const Stat = ({ value, label }: { value: string; label: string }) => (
+  <View className="flex-1 gap-0.5">
+    <T variant="title">{value}</T>
+    <T variant="small" className="text-ink-3">
+      {label}
+    </T>
+  </View>
+);
+
+export default function WorkDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const workId = id ?? "";
 
@@ -27,182 +42,145 @@ export default function WorkScreen() {
     queryFn: () => api.getWork(workId),
     enabled: !!workId,
   });
-
-  const [name, setName] = useState("");
-  const [author, setAuthor] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
-
-  useEffect(() => {
-    const w = workQuery.data;
-    if (!w) return;
-    setName(w.name);
-    setAuthor(w.author ?? "");
-    setTags(w.tags);
-  }, [workQuery.data]);
-
-  const invalidate = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["works"] }),
-      queryClient.invalidateQueries({ queryKey: ["work", workId] }),
-      queryClient.invalidateQueries({ queryKey: ["books"] }),
-    ]);
-  };
-
-  const save = useMutation({
-    mutationFn: () =>
-      api.updateWork({
-        id: workId,
-        body: { name: name.trim(), author: author.trim() || null, tags },
-      }),
-    onSuccess: async () => {
-      await invalidate();
-      router.back();
-    },
-    onError: (err) =>
-      Alert.alert(
-        "Could not save",
-        err instanceof ApiError ? `${err.status}: ${err.message}` : String(err),
-      ),
+  const booksQuery = useQuery({
+    queryKey: ["books"],
+    queryFn: api.listBooks,
+    refetchInterval: (q) =>
+      q.state.data?.some((b) => inFlightCount(b) > 0) ? 5000 : false,
   });
 
-  const remove = useMutation({
-    mutationFn: (mode: "unlink" | "delete") =>
-      api.deleteWork({ id: workId, mode }),
-    onSuccess: async () => {
-      await invalidate();
-      router.replace("/");
-    },
-    onError: (err) =>
-      Alert.alert(
-        "Could not delete",
-        err instanceof ApiError ? `${err.status}: ${err.message}` : String(err),
-      ),
-  });
+  const copies = useMemo(
+    () => (booksQuery.data ?? []).filter((b) => b.work_id === workId),
+    [booksQuery.data, workId],
+  );
 
-  const confirmDelete = () =>
-    Alert.alert(
-      "Delete work",
-      "Keep its copies (they become ungrouped), or delete them too?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Keep copies", onPress: () => remove.mutate("unlink") },
-        {
-          text: "Delete all copies",
-          style: "destructive",
-          onPress: () => remove.mutate("delete"),
-        },
-      ],
-    );
+  const goToEdit = () => router.push(`/work/edit/${workId}`);
 
-  const addTag = (raw: string) => {
-    const t = raw.trim();
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
-    setTagInput("");
-  };
+  const header = (
+    <View style={{ paddingTop: insets.top }}>
+      <Header
+        onLeft={() => router.back()}
+        right={
+          workQuery.data ? (
+            <IconButton icon="edit-2" onPress={goToEdit} />
+          ) : undefined
+        }
+      />
+    </View>
+  );
 
-  if (workQuery.isLoading) return <Loading />;
-  if (workQuery.isError || !workQuery.data)
+  if (workQuery.isLoading) {
     return (
-      <Centered>
-        <Text className="text-sm text-st-fail">Couldn't load this work.</Text>
-      </Centered>
+      <View className="flex-1 bg-bg">
+        {header}
+        <Loading />
+      </View>
     );
+  }
 
-  const busy = save.isPending || remove.isPending;
+  const work = workQuery.data;
+  if (workQuery.isError || !work) {
+    return (
+      <View className="flex-1 bg-bg">
+        {header}
+        <View className="flex-1 justify-center pb-24">
+          <EmptyState
+            icon="alert-circle"
+            title="Couldn't load this work"
+            body="Check your connection, then go back and try again."
+            action={
+              <Button
+                label="Go back"
+                variant="secondary"
+                onPress={() => router.back()}
+              />
+            }
+          />
+        </View>
+      </View>
+    );
+  }
+
+  const totalPages = copies.reduce((n, b) => n + b.files_total, 0);
+  const transcribed = copies.reduce((n, b) => n + transcribedCount(b), 0);
+  const percent =
+    totalPages > 0 ? Math.round((transcribed / totalPages) * 100) : 0;
 
   return (
-    <ScrollView
-      className="flex-1 bg-bg"
-      contentContainerStyle={{
-        paddingTop: insets.top + 8,
-        paddingHorizontal: 20,
-        paddingBottom: insets.bottom + 24,
-        flexGrow: 1,
-      }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View className="flex-row items-center gap-3">
-        <Pressable
-          onPress={() => router.back()}
-          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <Feather name="chevron-left" size={18} color={colors.textSecondary} />
-        </Pressable>
-        <Text className="text-[26px] font-semibold text-ink">Edit work</Text>
-      </View>
-
-      <Text className="mt-6 mb-2 text-xs font-bold tracking-wide text-text-muted">
-        NAME
-      </Text>
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        className="rounded-xl border border-accent bg-surface px-4 py-3.5 text-lg text-ink"
-        style={{ writingDirection: "rtl" }}
-      />
-
-      <Text className="mt-5 mb-2 text-xs font-bold tracking-wide text-text-muted">
-        AUTHOR · OPTIONAL
-      </Text>
-      <TextInput
-        value={author}
-        onChangeText={setAuthor}
-        placeholder="ابن قدامة"
-        placeholderTextColor={colors.textMuted}
-        className="rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink"
-        style={{ writingDirection: "rtl" }}
-      />
-
-      <Text className="mt-5 mb-2 text-xs font-bold tracking-wide text-text-muted">
-        TAGS · OPTIONAL
-      </Text>
-      {tags.length > 0 ? (
-        <View className="mb-2 flex-row flex-wrap gap-1.5">
-          {tags.map((t) => (
-            <Pressable
-              key={t}
-              onPress={() => setTags((prev) => prev.filter((x) => x !== t))}
-              className="flex-row items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1"
+    <View className="flex-1 bg-bg">
+      {header}
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}
+      >
+        <View className="mt-2 gap-1.5">
+          <T variant="overline" className="text-ink-3">
+            Work
+          </T>
+          <T
+            variant="arTitle"
+            className="text-4xl leading-[52px]"
+            style={{ textAlign: "left" }}
+          >
+            {work.name}
+          </T>
+          {work.author ? (
+            <T
+              variant="arSmall"
+              className="font-ar text-ink-2"
+              style={{ textAlign: "left" }}
             >
-              <Text className="text-xs text-accent">{t}</Text>
-              <Feather name="x" size={12} color={colors.accent} />
-            </Pressable>
-          ))}
+              {work.author}
+            </T>
+          ) : null}
+          {work.tags.length > 0 ? (
+            <View className="mt-1 flex-row flex-wrap gap-1.5">
+              {work.tags.map((tag) => (
+                <Badge key={tag} label={tag} tone="accent" dot={false} />
+              ))}
+            </View>
+          ) : null}
         </View>
-      ) : null}
-      <TextInput
-        value={tagInput}
-        onChangeText={setTagInput}
-        onSubmitEditing={() => addTag(tagInput)}
-        onBlur={() => tagInput.trim() && addTag(tagInput)}
-        placeholder="Add a tag, then return"
-        placeholderTextColor={colors.textMuted}
-        returnKeyType="done"
-        className="rounded-xl border border-border bg-surface px-4 py-3 text-base text-ink"
-      />
 
-      <View className="flex-1" />
+        <Card className="mt-6 flex-row px-4 py-3.5">
+          <Stat
+            value={copies.length.toLocaleString()}
+            label={copies.length === 1 ? "copy" : "copies"}
+          />
+          <Stat
+            value={totalPages.toLocaleString()}
+            label={totalPages === 1 ? "page" : "pages"}
+          />
+          <Stat value={`${percent}%`} label="transcribed" />
+        </Card>
 
-      <Pressable
-        onPress={() => save.mutate()}
-        disabled={!name.trim() || busy}
-        className="mt-6 items-center justify-center rounded-xl bg-accent py-4"
-        style={{ opacity: !name.trim() || busy ? 0.5 : 1 }}
-      >
-        <Text className="text-base font-bold text-accent-ink">
-          {save.isPending ? "Saving…" : "Save changes"}
-        </Text>
-      </Pressable>
-
-      <Pressable
-        onPress={confirmDelete}
-        disabled={busy}
-        className="mt-3 items-center py-2"
-        style={{ opacity: busy ? 0.5 : 1 }}
-      >
-        <Text className="text-sm font-semibold text-st-fail">Delete work…</Text>
-      </Pressable>
-    </ScrollView>
+        <T variant="overline" className="mb-2 mt-7 text-ink-3">
+          Copies
+        </T>
+        {booksQuery.isLoading ? (
+          <View className="py-6">
+            <Loading />
+          </View>
+        ) : copies.length > 0 ? (
+          <ListCard>
+            <BookRows books={copies} />
+          </ListCard>
+        ) : (
+          <T variant="small" className="text-ink-3">
+            No copies yet.
+          </T>
+        )}
+      </ScrollView>
+      <ActionBar>
+        <Button
+          label="Add a copy"
+          icon="plus"
+          variant="secondary"
+          onPress={() =>
+            router.push({ pathname: "/new-book", params: { workId } })
+          }
+        />
+      </ActionBar>
+    </View>
   );
 }

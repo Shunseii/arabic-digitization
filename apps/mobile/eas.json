@@ -7,16 +7,21 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "node": "22.13.0"
+      "node": "22.13.0",
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "node": "22.13.0"
+      "android": {
+        "buildType": "apk"
+      },
+      "node": "22.13.0",
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "node": "22.13.0"
+      "node": "22.13.0",
+      "channel": "production"
     }
   },
   "submit": {

@@ -5,9 +5,9 @@
     "scheme": "qiraa",
     "version": "0.0.1",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "backgroundColor": "#0C0D10",
+    "backgroundColor": "#f5f0e6",
     "icon": "./assets/icon.png",
     "ios": {
       "bundleIdentifier": "dev.qiraa.app",
@@ -18,10 +18,10 @@
     },
     "android": {
       "package": "dev.qiraa.app",
-      "permissions": ["android.permission.CAMERA"],
+      "permissions": ["android.permission.CAMERA", "android.permission.CAMERA"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0C0D10"
+        "backgroundColor": "#f5f0e6"
       }
     },
     "plugins": [
@@ -34,7 +34,11 @@
         {
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
-          "backgroundColor": "#0C0D10"
+          "backgroundColor": "#f5f0e6",
+          "dark": {
+            "image": "./assets/splash-icon-dark.png",
+            "backgroundColor": "#0f0e0c"
+          }
         }
       ]
     ],
@@ -47,6 +51,12 @@
         "projectId": "7a0894c3-84f9-401e-8cfa-3646a8f8061a"
       }
     },
-    "owner": "shunsei"
+    "owner": "shunsei",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7a0894c3-84f9-401e-8cfa-3646a8f8061a"
+    }
   }
 }

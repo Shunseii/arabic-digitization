@@ -174,3 +174,4 @@ apps/mobile/android/
 
 # Electron build output (apps/desktop) — installers + unpacked app.
 apps/desktop/release/
+.lamsa/

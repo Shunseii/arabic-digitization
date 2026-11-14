@@ -15,6 +15,7 @@
       "!apps/mobile/ios",
       "!apps/mobile/android",
       "!apps/mobile/global.css",
+      "!apps/mobile/src/tokens.css",
       "!apps/desktop/src/index.css",
       "!apps/desktop/dist",
       "!apps/desktop/release"
