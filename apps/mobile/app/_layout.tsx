@@ -49,9 +49,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={[{ flex: 1 }, isDark ? themeVars.dark : themeVars.light]}>
         <SafeAreaProvider>
-          <BottomSheetModalProvider>
-            <QueryClientProvider client={queryClient}>
-              <ConfigProvider>
+          <QueryClientProvider client={queryClient}>
+            <ConfigProvider>
+              <BottomSheetModalProvider>
                 <StatusBar style={isDark ? "light" : "dark"} />
                 <Stack
                   screenOptions={{
@@ -75,9 +75,9 @@ export default function RootLayout() {
                   />
                   <Stack.Screen name="reader/[bookId]/[fileId]" />
                 </Stack>
-              </ConfigProvider>
-            </QueryClientProvider>
-          </BottomSheetModalProvider>
+              </BottomSheetModalProvider>
+            </ConfigProvider>
+          </QueryClientProvider>
         </SafeAreaProvider>
       </View>
     </GestureHandlerRootView>

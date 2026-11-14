@@ -1,16 +1,18 @@
 import { Feather } from "@expo/vector-icons";
 import type { WorkWithCounts } from "@qiraa/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import {
+  Button,
   Chip,
   Divider,
   FieldLabel,
-  Input,
   SearchField,
   Sheet,
   T,
 } from "@/components/ui";
+import { api } from "@/lib/api";
 import { matchesSearch } from "@/lib/text";
 import { useColors } from "@/theme";
 
@@ -214,6 +216,11 @@ export const WorkPicker = ({
   );
 };
 
+/**
+ * Tag field: selected tags as removable chips plus an "Add tag" chip that
+ * opens a drawer listing every existing tag, with a search field that can
+ * also create a new tag.
+ */
 export const TagEditor = ({
   tags,
   onChange,
@@ -226,12 +233,33 @@ export const TagEditor = ({
   helper?: string;
 }) => {
   const c = useColors();
-  const [input, setInput] = useState("");
-  const add = () => {
-    const t = input.trim();
-    if (t && !tags.includes(t)) onChange([...tags, t]);
-    setInput("");
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const tagsQuery = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
+
+  const allTags = [
+    ...new Set([...(tagsQuery.data ?? []).map((t) => t.name), ...tags]),
+  ].sort((a, b) => a.localeCompare(b));
+  const visible = allTags.filter((t) => matchesSearch({ query, fields: [t] }));
+  const typed = query.trim();
+  const canCreate =
+    typed.length > 0 &&
+    !allTags.some((t) => t.toLowerCase() === typed.toLowerCase());
+
+  const toggle = (tag: string) =>
+    onChange(
+      tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag],
+    );
+  const create = () => {
+    if (!canCreate) return;
+    onChange([...tags, typed]);
+    setQuery("");
   };
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+  };
+
   return (
     <View className="gap-2.5">
       <View className="gap-1">
@@ -244,26 +272,61 @@ export const TagEditor = ({
       </View>
       <View className="flex-row flex-wrap gap-2">
         {tags.map((t) => (
-          <Chip
-            key={t}
-            label={t}
-            removable
-            onPress={() => onChange(tags.filter((x) => x !== t))}
-          />
+          <Chip key={t} label={t} removable onPress={() => toggle(t)} />
         ))}
-        <Input
-          value={input}
-          onChangeText={setInput}
-          onSubmitEditing={add}
-          onBlur={add}
-          blurOnSubmit={false}
-          placeholder="+ Add tag"
-          placeholderTextColor={c.ink}
-          returnKeyType="done"
-          autoCapitalize="none"
-          className="h-[34px] min-w-24 rounded-full border border-line bg-surface px-3.5 font-body-medium text-[13px] text-ink"
-        />
+        <Chip label="+ Add tag" onPress={() => setOpen(true)} />
       </View>
+
+      <Sheet
+        visible={open}
+        onClose={close}
+        title="Tags"
+        scrollable
+        stickyContent={
+          <SearchField
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search or create a tag"
+            onSubmitEditing={create}
+          />
+        }
+      >
+        <View className="gap-4 px-5">
+          {canCreate ? (
+            <Pressable
+              onPress={create}
+              accessibilityRole="button"
+              className="flex-row items-center gap-3 rounded-xl bg-accent-soft px-3.5 py-3 active:opacity-70"
+            >
+              <Feather name="plus" size={18} color={c.accent} />
+              <T variant="bodyStrong" className="flex-1 text-accent">
+                Create “{typed}”
+              </T>
+            </Pressable>
+          ) : null}
+          {visible.length > 0 ? (
+            <View className="flex-row flex-wrap gap-2">
+              {visible.map((t) => (
+                <Chip
+                  key={t}
+                  label={t}
+                  selected={tags.includes(t)}
+                  onPress={() => toggle(t)}
+                />
+              ))}
+            </View>
+          ) : tagsQuery.isLoading ? (
+            <T variant="small" className="text-ink-3">
+              Loading tags…
+            </T>
+          ) : canCreate ? null : (
+            <T variant="small" className="text-ink-3">
+              No tags yet. Type one above to create it.
+            </T>
+          )}
+          <Button label="Done" onPress={close} />
+        </View>
+      </Sheet>
     </View>
   );
 };

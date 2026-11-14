@@ -366,11 +366,13 @@ export const SearchField = ({
   onChangeText,
   placeholder,
   autoFocus,
+  onSubmitEditing,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  onSubmitEditing?: () => void;
 }) => {
   const c = useColors();
   return (
@@ -385,6 +387,7 @@ export const SearchField = ({
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
+        onSubmitEditing={onSubmitEditing}
         // Naskh's tall line metrics push Latin text (and the English
         // placeholder) off the icon's centre line; only use it for Arabic.
         className={`h-full flex-1 text-ink ${ARABIC.test(value) ? "font-ar text-[16px]" : "font-body text-[15px]"}`}
@@ -806,9 +809,17 @@ export const Sheet = ({
   const shown = useRef({ title, children, stickyContent });
   if (visible) shown.current = { title, children, stickyContent };
 
+  // Only dismiss a sheet that was presented: dismissing a never-presented
+  // BottomSheetModal leaves it stuck "dismissing", and it then never renders.
+  const presented = useRef(false);
   useEffect(() => {
-    if (visible) ref.current?.present();
-    else ref.current?.dismiss();
+    if (visible) {
+      presented.current = true;
+      ref.current?.present();
+    } else if (presented.current) {
+      presented.current = false;
+      ref.current?.dismiss();
+    }
   }, [visible]);
 
   useEffect(() => {
@@ -858,6 +869,9 @@ export const Sheet = ({
       enableDynamicSizing={!tall}
       snapPoints={tall ? ["92%"] : undefined}
       onDismiss={() => {
+        // Dismissed by drag, backdrop or back: it's already closed, so the
+        // effect must not dismiss it again when `visible` turns false.
+        presented.current = false;
         if (visible) onClose();
       }}
       backdropComponent={renderBackdrop}
@@ -870,7 +884,6 @@ export const Sheet = ({
       topInset={insets.top + 24}
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
     >
       <InSheetContext.Provider value={true}>
         {scrollable ? (

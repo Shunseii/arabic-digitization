@@ -7,25 +7,22 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActionBar,
   Button,
-  Chip,
   Dialog,
   Divider,
   EmptyState,
-  FieldLabel,
   Header,
   Loading,
   T,
   TextField,
 } from "@/components/ui";
+import { TagEditor } from "@/components/work-fields";
 import { ApiError, api } from "@/lib/api";
-import { useColors } from "@/theme";
 
 type DeleteMode = "unlink" | "delete";
 
@@ -35,7 +32,6 @@ const errorMessage = (err: unknown): string =>
 export default function EditWorkScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const c = useColors();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const workId = id ?? "";
@@ -49,8 +45,6 @@ export default function EditWorkScreen() {
   const [name, setName] = useState("");
   const [author, setAuthor] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
-  const [addingTag, setAddingTag] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
@@ -94,12 +88,6 @@ export default function EditWorkScreen() {
   const deleteWith = (mode: DeleteMode) => {
     setConfirmingDelete(false);
     remove.mutate(mode);
-  };
-
-  const addTag = (raw: string) => {
-    const t = raw.trim();
-    if (t) setTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
-    setTagInput("");
   };
 
   const header = (
@@ -170,40 +158,7 @@ export default function EditWorkScreen() {
             placeholder="ابن قدامة"
             rtl
           />
-          <View className="gap-2">
-            <FieldLabel>Tags</FieldLabel>
-            <View className="flex-row flex-wrap items-center gap-2">
-              {tags.map((t) => (
-                <Chip
-                  key={t}
-                  label={t}
-                  removable
-                  onPress={() => setTags((prev) => prev.filter((x) => x !== t))}
-                />
-              ))}
-              {addingTag ? (
-                <View className="h-[34px] min-w-[120px] justify-center rounded-full border border-accent bg-surface px-3.5">
-                  <TextInput
-                    value={tagInput}
-                    onChangeText={setTagInput}
-                    onSubmitEditing={() => addTag(tagInput)}
-                    onBlur={() => {
-                      if (tagInput.trim()) addTag(tagInput);
-                      setAddingTag(false);
-                    }}
-                    placeholder="New tag"
-                    placeholderTextColor={c.ink3}
-                    returnKeyType="done"
-                    autoFocus
-                    autoCapitalize="none"
-                    className="font-body-medium text-[13px] text-ink"
-                  />
-                </View>
-              ) : (
-                <Chip label="+ Add tag" onPress={() => setAddingTag(true)} />
-              )}
-            </View>
-          </View>
+          <TagEditor tags={tags} onChange={setTags} label="Tags" />
         </View>
 
         <View className="mt-7">

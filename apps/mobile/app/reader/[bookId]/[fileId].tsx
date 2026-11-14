@@ -95,17 +95,20 @@ export default function ReaderScreen() {
       : null;
   // Swap the page in place: no slide animation, and back still returns to
   // whichever screen opened the reader.
-  const goToFile = (target: string) => router.setParams({ fileId: target });
+  const goToFile = (target: string) => {
+    setScanZoomed(false);
+    router.setParams({ fileId: target });
+  };
 
   const scrollRef = useRef<ScrollView>(null);
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
     setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
 
   // Jump to a pane programmatically. Works even while the scan is zoomed
-  // (which disables swipe gestures), so you can flip to the text and back
-  // without pinching out first.
+  // (which disables swipe gestures); leaving the scan resets its zoom.
   const showPane = (pane: Pane) => {
     const target = PANES.indexOf(pane);
+    if (pane !== "scan") setScanZoomed(false);
     scrollRef.current?.scrollTo({ x: width * target, animated: true });
     setIndex(target);
   };
@@ -174,6 +177,7 @@ export default function ReaderScreen() {
           className="items-center justify-center px-4 pt-2"
         >
           <ZoomableImage
+            key={fileId}
             source={api.imageSource({ bookId, fileId })}
             resizeMode="contain"
             style={{ width: width - 32, flex: 1 }}
