@@ -1,4 +1,3 @@
-import type { WorkWithCounts } from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
@@ -6,50 +5,33 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActionBar, Button, Header, T, TextField } from "@/components/ui";
 import {
-  ActionBar,
-  Button,
-  Chip,
-  FieldLabel,
-  Header,
-  T,
-  TextField,
-} from "@/components/ui";
+  TagEditor,
+  type WorkChoice,
+  WorkPicker,
+} from "@/components/work-fields";
 import { ApiError, api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
-import { useColors } from "@/theme";
-
-const describeWork = (work: WorkWithCounts): string => {
-  const copies = `${work.copies_total} ${work.copies_total === 1 ? "copy" : "copies"}`;
-  return work.tags.length > 0 ? `${copies} · ${work.tags.join(", ")}` : copies;
-};
 
 export default function NewBookScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const c = useColors();
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ workId?: string }>();
 
   const { configured } = useConfigState();
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
-  // null = auto-create a new work from the title; otherwise attach to this work.
-  const [workId, setWorkId] = useState<string | null>(params.workId ?? null);
-  // Tags for the auto-created work; only meaningful when workId is null.
+  const [work, setWork] = useState<WorkChoice>(
+    params.workId ? { kind: "existing", id: params.workId } : { kind: "new" },
+  );
+  // Tags for the auto-created work; only sent when a new work is created.
   const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
-  const addTag = (raw: string) => {
-    const t = raw.trim();
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
-    setTagInput("");
-  };
 
   const worksQuery = useQuery({
     queryKey: ["works"],
@@ -63,8 +45,8 @@ export default function NewBookScreen() {
       api.createBook({
         title: title.trim(),
         ocr_instructions: instructions.trim() || undefined,
-        work_id: workId ?? undefined,
-        tags: workId === null && tags.length > 0 ? tags : undefined,
+        work_id: work.kind === "existing" ? work.id : undefined,
+        tags: work.kind === "new" && tags.length > 0 ? tags : undefined,
       }),
     onSuccess: async (book) => {
       await queryClient.invalidateQueries({ queryKey: ["books"] });
@@ -100,54 +82,13 @@ export default function NewBookScreen() {
           className="mt-2"
         />
 
-        <View className="mt-6 gap-1">
-          <FieldLabel>Work</FieldLabel>
-          <T variant="caption" className="font-body text-ink-3">
-            Copies of the same text share a work, so they group together.
-          </T>
-          <View className="mt-1">
-            <WorkOption
-              selected={workId === null}
-              title="New work"
-              subtitle="Created from the title"
-              onPress={() => setWorkId(null)}
-            />
-            {works.map((w) => (
-              <WorkOption
-                key={w.id}
-                selected={workId === w.id}
-                title={w.name}
-                subtitle={describeWork(w)}
-                arabic
-                onPress={() => setWorkId(w.id)}
-              />
-            ))}
-          </View>
+        <View className="mt-6">
+          <WorkPicker works={works} value={work} onChange={setWork} />
         </View>
 
-        {workId === null ? (
-          <View className="mt-5 gap-2.5">
-            <FieldLabel>Tags · optional</FieldLabel>
-            <View className="flex-row flex-wrap gap-2">
-              {tags.map((t) => (
-                <Chip
-                  key={t}
-                  label={t}
-                  removable
-                  onPress={() => setTags((prev) => prev.filter((x) => x !== t))}
-                />
-              ))}
-              <TextInput
-                value={tagInput}
-                onChangeText={setTagInput}
-                onSubmitEditing={() => addTag(tagInput)}
-                onBlur={() => tagInput.trim() && addTag(tagInput)}
-                placeholder="+ Add tag"
-                placeholderTextColor={c.ink}
-                returnKeyType="done"
-                className="h-[34px] min-w-24 rounded-full border border-line bg-surface px-3.5 font-body-medium text-[13px] text-ink"
-              />
-            </View>
+        {work.kind === "new" ? (
+          <View className="mt-5">
+            <TagEditor tags={tags} onChange={setTags} />
           </View>
         ) : null}
 
@@ -175,45 +116,3 @@ export default function NewBookScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const WorkOption = ({
-  selected,
-  title,
-  subtitle,
-  arabic = false,
-  onPress,
-}: {
-  selected: boolean;
-  title: string;
-  subtitle: string;
-  arabic?: boolean;
-  onPress: () => void;
-}) => (
-  <Pressable
-    onPress={onPress}
-    accessibilityRole="radio"
-    accessibilityState={{ selected }}
-    className="flex-row items-center gap-3 py-2.5 active:opacity-70"
-  >
-    <View
-      className={`h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? "border-accent" : "border-ink-3"}`}
-    >
-      {selected ? (
-        <View className="h-2.5 w-2.5 rounded-full bg-accent" />
-      ) : null}
-    </View>
-    <View className="flex-1">
-      <T
-        variant={arabic ? "arSmall" : "bodyStrong"}
-        className={arabic ? "text-left" : ""}
-        style={arabic ? { writingDirection: "auto" } : undefined}
-        numberOfLines={1}
-      >
-        {title}
-      </T>
-      <T variant="caption" className="font-body text-ink-3" numberOfLines={1}>
-        {subtitle}
-      </T>
-    </View>
-  </Pressable>
-);

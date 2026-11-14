@@ -7,6 +7,7 @@ import { Newsreader_600SemiBold } from "@expo-google-fonts/newsreader/600SemiBol
 import { NotoNaskhArabic_400Regular } from "@expo-google-fonts/noto-naskh-arabic/400Regular";
 import { NotoNaskhArabic_500Medium } from "@expo-google-fonts/noto-naskh-arabic/500Medium";
 import { NotoNaskhArabic_700Bold } from "@expo-google-fonts/noto-naskh-arabic/700Bold";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -48,33 +49,35 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={[{ flex: 1 }, isDark ? themeVars.dark : themeVars.light]}>
         <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
-            <ConfigProvider>
-              <StatusBar style={isDark ? "light" : "dark"} />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: c.bg },
-                  animation: "slide_from_right",
-                }}
-              >
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="onboarding" />
-                <Stack.Screen
-                  name="new-book"
-                  options={{ presentation: "modal" }}
-                />
-                <Stack.Screen name="scan" />
-                <Stack.Screen name="book/[id]" />
-                <Stack.Screen name="work/[id]" />
-                <Stack.Screen
-                  name="work/edit/[id]"
-                  options={{ presentation: "modal" }}
-                />
-                <Stack.Screen name="reader/[bookId]/[fileId]" />
-              </Stack>
-            </ConfigProvider>
-          </QueryClientProvider>
+          <BottomSheetModalProvider>
+            <QueryClientProvider client={queryClient}>
+              <ConfigProvider>
+                <StatusBar style={isDark ? "light" : "dark"} />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: c.bg },
+                    animation: "ios_from_right",
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="onboarding" />
+                  <Stack.Screen
+                    name="new-book"
+                    options={{ presentation: "modal" }}
+                  />
+                  <Stack.Screen name="scan" />
+                  <Stack.Screen name="book/[id]" />
+                  <Stack.Screen name="work/[id]" />
+                  <Stack.Screen
+                    name="work/edit/[id]"
+                    options={{ presentation: "modal" }}
+                  />
+                  <Stack.Screen name="reader/[bookId]/[fileId]" />
+                </Stack>
+              </ConfigProvider>
+            </QueryClientProvider>
+          </BottomSheetModalProvider>
         </SafeAreaProvider>
       </View>
     </GestureHandlerRootView>

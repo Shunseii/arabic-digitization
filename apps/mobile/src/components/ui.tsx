@@ -1,11 +1,28 @@
 import { Feather } from "@expo/vector-icons";
+import {
+  BottomSheetBackdrop,
+  type BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
 import type { FileState } from "@qiraa/shared";
-import type { ComponentProps, ReactNode } from "react";
+import {
+  type ComponentProps,
+  createContext,
+  forwardRef,
+  type ReactNode,
+  type Ref,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+} from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
+  BackHandler,
   Modal,
-  Platform,
   Pressable,
   Text,
   TextInput,
@@ -315,7 +332,7 @@ export const TextField = ({
       <View
         className={`flex-row items-center gap-2 rounded-xl border bg-surface px-3.5 ${error ? "border-danger" : "border-line"} ${multiline ? "min-h-[92px] py-3" : "h-[50px]"}`}
       >
-        <TextInput
+        <Input
           placeholderTextColor={c.ink3}
           multiline={multiline}
           className={`flex-1 text-ink ${rtl ? "font-ar text-[17px]" : "font-body text-[15px]"}`}
@@ -357,7 +374,7 @@ export const SearchField = ({
   return (
     <View className="h-[46px] flex-row items-center gap-2.5 rounded-xl bg-surface-2 px-3.5">
       <Feather name="search" size={18} color={c.ink3} />
-      <TextInput
+      <Input
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -378,19 +395,31 @@ export const SearchField = ({
   );
 };
 
+export const FLOAT_SHADOW: ViewStyle = {
+  shadowColor: "#000",
+  shadowOpacity: 0.12,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 6,
+};
+
 export const Segmented = <V extends string>({
   options,
   value,
   onChange,
   pill = false,
+  floating = false,
 }: {
   options: { value: V; label: string }[];
   value: V;
   onChange: (value: V) => void;
   pill?: boolean;
+  /** Raised control over content (e.g. a bottom toolbar) instead of inset. */
+  floating?: boolean;
 }) => (
   <View
-    className={`flex-row gap-0.5 bg-surface-2 p-[3px] ${pill ? "rounded-full" : "rounded-xl"}`}
+    className={`flex-row gap-0.5 ${floating ? "border border-line bg-surface p-1" : "bg-surface-2 p-[3px]"} ${pill ? "rounded-full" : "rounded-xl"}`}
+    style={floating ? FLOAT_SHADOW : undefined}
   >
     {options.map((o) => {
       const on = o.value === value;
@@ -398,9 +427,9 @@ export const Segmented = <V extends string>({
         <Pressable
           key={o.value}
           onPress={() => onChange(o.value)}
-          className={`h-8 flex-1 items-center justify-center ${pill ? "rounded-full" : "rounded-lg"} ${on ? "bg-surface" : ""}`}
+          className={`flex-1 items-center justify-center ${floating ? "h-10" : "h-8"} ${pill ? "rounded-full" : "rounded-lg"} ${on ? (floating ? "bg-surface-2" : "bg-surface") : ""}`}
           style={
-            on
+            on && !floating
               ? {
                   shadowColor: "#000",
                   shadowOpacity: 0.06,
@@ -715,61 +744,147 @@ export const PagePlaceholder = ({
 /* Overlays                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Bottom sheet: grab handle, title, optional close. Tap-out and back close it. */
+const InSheetContext = createContext(false);
+
+/**
+ * Text input that cooperates with the bottom sheet's keyboard handling when
+ * rendered inside a Sheet, and is a plain TextInput elsewhere.
+ */
+export const Input = forwardRef<TextInput, TextInputProps>((props, ref) => {
+  const inSheet = useContext(InSheetContext);
+  if (inSheet)
+    return (
+      <BottomSheetTextInput
+        ref={ref as Ref<never>}
+        {...(props as ComponentProps<typeof BottomSheetTextInput>)}
+      />
+    );
+  return <TextInput ref={ref} {...props} />;
+});
+
+/**
+ * Bottom sheet (drawer) used by every screen: grab handle, title, optional
+ * close. Drag down, tap the backdrop or press back to close. Set `scrollable`
+ * when the content can be taller than the screen.
+ */
 export const Sheet = ({
   visible,
   onClose,
   title,
   children,
   showClose = true,
+  scrollable = false,
+  tall = false,
+  stickyContent,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   showClose?: boolean;
+  scrollable?: boolean;
+  /** Fixed near-full height, for lists whose length changes (e.g. filtered). */
+  tall?: boolean;
+  /** Pinned under the title while the content scrolls (e.g. a search bar). */
+  stickyContent?: ReactNode;
 }) => {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <Pressable
-          className="flex-1 justify-end"
-          style={{ backgroundColor: c.scrim }}
-          onPress={onClose}
-        >
-          <Pressable
-            onPress={() => {}}
-            className="rounded-t-3xl bg-surface"
-            style={{ paddingBottom: insets.bottom + 12 }}
-          >
-            <View className="items-center pt-2.5">
-              <View className="h-[5px] w-9 rounded-full bg-line" />
-            </View>
-            <View className="flex-row items-center px-5 pb-2 pt-3.5">
-              <T variant="heading" className="flex-1" numberOfLines={1}>
-                {title}
-              </T>
-              {showClose ? (
-                <Pressable onPress={onClose} hitSlop={10}>
-                  <Feather name="x" size={20} color={c.ink2} />
-                </Pressable>
-              ) : null}
-            </View>
-            {children}
-          </Pressable>
+  const ref = useRef<BottomSheetModal>(null);
+
+  // Keep showing the last content while the sheet animates closed, since
+  // callers usually clear the state that produced it.
+  const shown = useRef({ title, children, stickyContent });
+  if (visible) shown.current = { title, children, stickyContent };
+
+  useEffect(() => {
+    if (visible) ref.current?.present();
+    else ref.current?.dismiss();
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, onClose]);
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        pressBehavior="close"
+        opacity={1}
+        style={[props.style, { backgroundColor: c.scrim }]}
+      />
+    ),
+    [c.scrim],
+  );
+
+  const header = (
+    <View className="flex-row items-center px-5 pb-2 pt-1">
+      <T variant="heading" className="flex-1" numberOfLines={1}>
+        {shown.current.title}
+      </T>
+      {showClose ? (
+        <Pressable onPress={onClose} hitSlop={10}>
+          <Feather name="x" size={20} color={c.ink2} />
         </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+      ) : null}
+    </View>
+  );
+  const sticky = shown.current.stickyContent ? (
+    <View className="px-5 pb-3">{shown.current.stickyContent}</View>
+  ) : null;
+  const bottomPad = { paddingBottom: insets.bottom + 12 };
+
+  return (
+    <BottomSheetModal
+      ref={ref}
+      stackBehavior="push"
+      enableDynamicSizing={!tall}
+      snapPoints={tall ? ["92%"] : undefined}
+      onDismiss={() => {
+        if (visible) onClose();
+      }}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{
+        backgroundColor: c.surface,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      }}
+      handleIndicatorStyle={{ backgroundColor: c.line, width: 36, height: 5 }}
+      topInset={insets.top + 24}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
+    >
+      <InSheetContext.Provider value={true}>
+        {scrollable ? (
+          <BottomSheetScrollView
+            stickyHeaderIndices={[0]}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={bottomPad}
+          >
+            <View className="bg-surface">
+              {header}
+              {sticky}
+            </View>
+            {shown.current.children}
+          </BottomSheetScrollView>
+        ) : (
+          <BottomSheetView style={bottomPad}>
+            {header}
+            {sticky}
+            {shown.current.children}
+          </BottomSheetView>
+        )}
+      </InSheetContext.Provider>
+    </BottomSheetModal>
   );
 };
 

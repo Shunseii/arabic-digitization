@@ -16,7 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Button,
   EmptyState,
+  FLOAT_SHADOW,
   IconButton,
+  type IconName,
   Loading,
   Segmented,
   T,
@@ -24,6 +26,7 @@ import {
 import { ZoomableImage } from "@/components/zoomable-image";
 import { api } from "@/lib/api";
 import { Markdown } from "@/lib/markdown";
+import { useGoBack } from "@/lib/navigation";
 import { useColors } from "@/theme";
 
 type Pane = "text" | "scan";
@@ -45,6 +48,7 @@ export default function ReaderScreen() {
     bookId: string;
     fileId: string;
   }>();
+  const goBack = useGoBack(`/book/${bookId}`);
   const [index, setIndex] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [scanZoomed, setScanZoomed] = useState(false);
@@ -89,8 +93,9 @@ export default function ReaderScreen() {
     currentIndex >= 0 && currentIndex < files.length - 1
       ? files[currentIndex + 1]
       : null;
-  const goToFile = (target: string) =>
-    router.replace(`/reader/${bookId}/${target}`);
+  // Swap the page in place: no slide animation, and back still returns to
+  // whichever screen opened the reader.
+  const goToFile = (target: string) => router.setParams({ fileId: target });
 
   const scrollRef = useRef<ScrollView>(null);
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
@@ -113,10 +118,7 @@ export default function ReaderScreen() {
   return (
     <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center gap-3 px-5 pb-2.5 pt-1.5">
-        <IconButton
-          icon="chevron-left"
-          onPress={() => router.replace(`/book/${bookId}`)}
-        />
+        <IconButton icon="chevron-left" onPress={goBack} />
         <View className="flex-1 items-center">
           {bookQuery.data?.title ? (
             <T variant="arSmall" className="font-ar-bold" numberOfLines={1}>
@@ -182,34 +184,25 @@ export default function ReaderScreen() {
       </ScrollView>
 
       <View
-        className="absolute left-5 right-5 flex-row items-center gap-1 rounded-full border border-line bg-surface px-1.5"
-        style={{
-          bottom: insets.bottom + TOOLBAR_GAP,
-          height: TOOLBAR_HEIGHT,
-          shadowColor: "#000",
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 6,
-        }}
+        className="absolute left-5 right-5 flex-row items-center gap-3"
+        style={{ bottom: insets.bottom + TOOLBAR_GAP, height: TOOLBAR_HEIGHT }}
       >
-        <IconButton
+        <PageStepButton
           icon="chevron-left"
-          variant="plain"
           disabled={!prevFile}
           onPress={() => prevFile && goToFile(prevFile.file_id)}
         />
         <View className="flex-1">
           <Segmented
             pill
+            floating
             options={PANE_OPTIONS}
             value={PANES[index] ?? "text"}
             onChange={showPane}
           />
         </View>
-        <IconButton
+        <PageStepButton
           icon="chevron-right"
-          variant="plain"
           disabled={!nextFile}
           onPress={() => nextFile && goToFile(nextFile.file_id)}
         />
@@ -249,3 +242,30 @@ export default function ReaderScreen() {
     </View>
   );
 }
+
+const PageStepButton = ({
+  icon,
+  disabled,
+  onPress,
+}: {
+  icon: IconName;
+  disabled: boolean;
+  onPress: () => void;
+}) => {
+  const c = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={
+        icon === "chevron-left" ? "Previous page" : "Next page"
+      }
+      className="size-12 items-center justify-center rounded-full border border-line bg-surface active:opacity-70"
+      style={[FLOAT_SHADOW, { opacity: disabled ? 0.4 : 1 }]}
+    >
+      <Feather name={icon} size={22} color={c.ink} />
+    </Pressable>
+  );
+};

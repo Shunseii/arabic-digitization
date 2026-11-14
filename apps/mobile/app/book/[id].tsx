@@ -27,7 +27,13 @@ import {
   T,
   TextField,
 } from "@/components/ui";
+import {
+  TagEditor,
+  type WorkChoice,
+  WorkPicker,
+} from "@/components/work-fields";
 import { api } from "@/lib/api";
+import { useGoBack } from "@/lib/navigation";
 import { type Palette, useColors } from "@/theme";
 
 const READABLE: FileState[] = ["done", "approved", "needs_review"];
@@ -73,6 +79,7 @@ export default function BookScreen() {
   const c = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const goBack = useGoBack("/");
 
   const [menuPage, setMenuPage] = useState<PageSelection | null>(null);
   const [errorPage, setErrorPage] = useState<PageSelection | null>(null);
@@ -81,6 +88,8 @@ export default function BookScreen() {
   const [editBook, setEditBook] = useState(false);
   const [bookTitle, setBookTitle] = useState("");
   const [bookInstructions, setBookInstructions] = useState("");
+  const [bookWork, setBookWork] = useState<WorkChoice>({ kind: "none" });
+  const [bookTags, setBookTags] = useState<string[]>([]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["status", id] });
@@ -112,18 +121,44 @@ export default function BookScreen() {
       api.updatePageNumber({ bookId: id, fileId, page }),
     onSettled: invalidate,
   });
+  const worksQuery = useQuery({ queryKey: ["works"], queryFn: api.listWorks });
+  const works = worksQuery.data ?? [];
+  const tagsOf = (choice: WorkChoice): string[] =>
+    choice.kind === "existing"
+      ? (works.find((w) => w.id === choice.id)?.tags ?? [])
+      : [];
+  const chooseWork = (choice: WorkChoice) => {
+    setBookWork(choice);
+    setBookTags(tagsOf(choice));
+  };
+
+  const resolveWorkId = async (): Promise<string | null> => {
+    const title = bookTitle.trim();
+    if (bookWork.kind === "none") return null;
+    if (bookWork.kind === "new")
+      return (await api.createWork({ name: title, tags: bookTags })).id;
+    const before = tagsOf(bookWork);
+    const tagsChanged =
+      before.length !== bookTags.length ||
+      before.some((t) => !bookTags.includes(t));
+    if (tagsChanged)
+      await api.updateWork({ id: bookWork.id, body: { tags: bookTags } });
+    return bookWork.id;
+  };
+
   const saveBook = useMutation({
-    mutationFn: () =>
+    mutationFn: async () =>
       api.updateBook({
         id,
         body: {
           title: bookTitle.trim(),
           ocr_instructions: bookInstructions.trim() || null,
+          work_id: await resolveWorkId(),
         },
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["book", id] });
-      queryClient.invalidateQueries({ queryKey: ["books"] });
+      for (const key of ["book", "books", "works", "work"])
+        queryClient.invalidateQueries({ queryKey: [key] });
       setEditBook(false);
     },
     onError: (err) => Alert.alert("Could not save book", String(err)),
@@ -163,6 +198,9 @@ export default function BookScreen() {
   const openBookEdit = () => {
     setBookTitle(book?.title ?? "");
     setBookInstructions(book?.ocr_instructions ?? "");
+    chooseWork(
+      book?.work_id ? { kind: "existing", id: book.work_id } : { kind: "none" },
+    );
     setEditBook(true);
   };
   const startEdit = (f: FileStatus) => {
@@ -203,7 +241,7 @@ export default function BookScreen() {
   return (
     <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
       <Header
-        onLeft={() => router.replace("/")}
+        onLeft={goBack}
         right={<IconButton icon="edit-2" onPress={openBookEdit} />}
       />
 
@@ -302,8 +340,14 @@ export default function BookScreen() {
                           }}
                           className="flex-1 flex-row items-center gap-3 active:opacity-70"
                         >
-                          <View className="w-11 items-center">
-                            <T variant="title" numberOfLines={1}>
+                          <View className="w-12 items-center">
+                            <T
+                              variant="title"
+                              style={{ fontSize: 18, lineHeight: 24 }}
+                              numberOfLines={1}
+                              adjustsFontSizeToFit
+                              minimumFontScale={0.6}
+                            >
                               {label}
                             </T>
                             <T
@@ -450,8 +494,9 @@ export default function BookScreen() {
         visible={editBook}
         onClose={() => setEditBook(false)}
         title="Edit book"
+        scrollable
       >
-        <View className="gap-4 px-5 pt-1">
+        <View className="gap-5 px-5 pt-1">
           <TextField
             label="Title"
             value={bookTitle}
@@ -467,6 +512,22 @@ export default function BookScreen() {
             placeholder="Preserve tashkeel. Keep footnotes at the bottom of the page."
             multiline
           />
+          <WorkPicker
+            works={works}
+            value={bookWork}
+            onChange={chooseWork}
+            allowNone
+          />
+          {bookWork.kind !== "none" ? (
+            <TagEditor
+              tags={bookTags}
+              onChange={setBookTags}
+              label="Tags"
+              helper="Tags belong to the work, so every copy shares them."
+            />
+          ) : null}
+        </View>
+        <View className="px-5 pt-5">
           <Button
             label={saveBook.isPending ? "Saving…" : "Save"}
             loading={saveBook.isPending}

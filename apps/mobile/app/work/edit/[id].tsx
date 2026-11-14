@@ -86,7 +86,7 @@ export default function EditWorkScreen() {
     mutationFn: (mode: DeleteMode) => api.deleteWork({ id: workId, mode }),
     onSuccess: async () => {
       await invalidate();
-      router.replace("/");
+      router.dismissTo("/");
     },
     onError: (err) => Alert.alert("Could not delete", errorMessage(err)),
   });

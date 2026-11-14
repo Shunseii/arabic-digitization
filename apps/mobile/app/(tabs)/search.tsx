@@ -163,11 +163,8 @@ const FilterSheet = ({
   visible: boolean;
   onClose: () => void;
 }) => (
-  <Sheet visible={visible} onClose={onClose} title="Filter results">
-    <ScrollView
-      className="max-h-[420px]"
-      contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
-    >
+  <Sheet visible={visible} onClose={onClose} title="Filter results" scrollable>
+    <View className="gap-4 px-5">
       {facets
         .filter((f) => f.list.items.length > f.minItems)
         .map((f) => (
@@ -188,7 +185,7 @@ const FilterSheet = ({
             </View>
           </View>
         ))}
-    </ScrollView>
+    </View>
     <View className="px-5 pt-5">
       <Button label="Done" onPress={onClose} />
     </View>

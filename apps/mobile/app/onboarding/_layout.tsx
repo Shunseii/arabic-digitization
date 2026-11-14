@@ -8,7 +8,7 @@ export default function OnboardingLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: c.bg },
-        animation: "slide_from_right",
+        animation: "ios_from_right",
       }}
     />
   );

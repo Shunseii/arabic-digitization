@@ -17,11 +17,13 @@ import {
   ListCard,
   Loading,
   PagePlaceholder,
+  SearchField,
   Segmented,
   T,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
+import { matchesSearch } from "@/lib/text";
 import { useColors } from "@/theme";
 
 type LibraryView = "flat" | "grouped";
@@ -175,6 +177,7 @@ export default function LibraryScreen() {
   });
 
   const [view, setView] = useState<LibraryView>("flat");
+  const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const toggleTag = (name: string) =>
     setSelectedTags((prev) => {
@@ -197,23 +200,26 @@ export default function LibraryScreen() {
 
   const books = useMemo(() => booksQuery.data ?? [], [booksQuery.data]);
 
-  // Tags are OR-ed. Standalone books drop out under a tag filter.
-  const filtered = useMemo(
-    () =>
-      books.filter((b) => {
-        if (selectedTags.size === 0) return true;
-        const work = b.work_id ? worksById.get(b.work_id) : undefined;
-        return !!work && work.tags.some((t) => selectedTags.has(t));
-      }),
-    [books, selectedTags, worksById],
-  );
+  // Text matches title, work name, author or tag. Tags are OR-ed; standalone
+  // books drop out under a tag filter.
+  const filtered = useMemo(() => {
+    return books.filter((b) => {
+      const work = b.work_id ? worksById.get(b.work_id) : undefined;
+      if (selectedTags.size > 0 && !work?.tags.some((t) => selectedTags.has(t)))
+        return false;
+      return matchesSearch({
+        query,
+        fields: [b.title, work?.name, work?.author, ...(work?.tags ?? [])],
+      });
+    });
+  }, [books, selectedTags, worksById, query]);
 
   if (!ready) return <Loading />;
   if (!configured) return <Redirect href="/onboarding" />;
 
   const goToNewBook = () => router.push("/new-book");
   const grouped = view === "grouped";
-  const filtering = selectedTags.size > 0;
+  const filtering = selectedTags.size > 0 || query.trim().length > 0;
   const totalPages = filtered.reduce((n, b) => n + b.files_total, 0);
 
   // Works newest-first (query order), standalone trailing.
@@ -292,6 +298,13 @@ export default function LibraryScreen() {
           ) : (
             <>
               <View className="mt-5">
+                <SearchField
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search books, works, authors"
+                />
+              </View>
+              <View className="mt-3">
                 <Segmented
                   options={VIEW_OPTIONS}
                   value={view}
@@ -322,7 +335,7 @@ export default function LibraryScreen() {
               <View className="mt-4 gap-4">
                 {filtered.length === 0 ? (
                   <T variant="small" className="mt-4 text-center text-ink-3">
-                    No books match the selected tags.
+                    No books match.
                   </T>
                 ) : grouped ? (
                   <>
@@ -338,7 +351,7 @@ export default function LibraryScreen() {
                     <BookRows books={filtered} />
                   </ListCard>
                 )}
-                {filtering && filtered.length > 0 ? (
+                {selectedTags.size > 0 && filtered.length > 0 ? (
                   <T
                     variant="caption"
                     className="font-body text-center text-ink-3"

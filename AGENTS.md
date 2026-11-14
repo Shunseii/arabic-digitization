@@ -49,5 +49,6 @@ UI designs live in `*.lamsa.json` files (see `lamsa.config.json`). They are spec
 - Change: `lamsa add --tree`, `lamsa move`, `lamsa delete`, or edit the JSON directly.
 - Check: `lamsa validate`, then `lamsa render <id|file>` and look at the PNG.
 - The user's selection in the editor: `lamsa selection --json`.
+- Keep designs in sync: any change to the mobile UI (screens, components, navigation, drawers) updates `designs/qiraa.lamsa.json` in the same change, then validate and render it. Don't wait to be asked or to batch it at the end.
 - Every command takes `--json`. Full guide: `lamsa skill`.
 <!-- lamsa:end -->
