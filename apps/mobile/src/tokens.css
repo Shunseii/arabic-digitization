@@ -1,0 +1,97 @@
+/*
+ * Qiraa design tokens: the source of truth for designs/*.lamsa.json.
+ * Not imported by the app yet; the redesign implementation wires these
+ * into NativeWind (global.css + tailwind.config.js) and src/theme.ts.
+ */
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-scrim: var(--scrim);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-mark: var(--mark);
+  --color-paper: var(--paper);
+  --color-paper-ink: var(--paper-ink);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-display: "Newsreader", serif;
+  --font-body: "Inter", sans-serif;
+  --font-ar: "Noto Naskh Arabic", serif;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+
+  --shadow-sm: 0 1px 2px rgb(27 23 18 / 6%), 0 1px 1px rgb(27 23 18 / 4%);
+  --shadow-md: 0 8px 24px -8px rgb(27 23 18 / 18%), 0 2px 6px rgb(27 23 18 / 6%);
+  --shadow-lg: 0 24px 48px -16px rgb(27 23 18 / 28%);
+}
+
+:root {
+  --bg: #f5f0e6;
+  --surface: #fffcf6;
+  --surface-2: #ede5d6;
+  --scrim: rgb(27 23 18 / 45%);
+  --ink: #1b1712;
+  --ink-2: #554d42;
+  --ink-3: #8a8173;
+  --line: #e0d6c4;
+  --accent: #26479a;
+  --accent-soft: #e2e7f4;
+  --on-accent: #ffffff;
+  --mark: #b0802b;
+  /* Scanned paper is a photo: same in both modes. */
+  --paper: #fbf6ea;
+  --paper-ink: #9d9384;
+  --ok: #2c7a52;
+  --ok-soft: #dcefe3;
+  --warn: #a8701c;
+  --warn-soft: #f6e8cf;
+  --danger: #b03c2c;
+  --danger-soft: #f6dcd6;
+}
+
+.dark {
+  --bg: #0f0e0c;
+  --surface: #191714;
+  --surface-2: #24211c;
+  --scrim: rgb(0 0 0 / 60%);
+  --ink: #f2ece1;
+  --ink-2: #b4ab9b;
+  --ink-3: #7b7366;
+  --line: #2f2b25;
+  --accent: #91a8e8;
+  --accent-soft: #1d2438;
+  --on-accent: #0e1324;
+  --mark: #d9ad5c;
+  --ok: #5cc28d;
+  --ok-soft: #15291e;
+  --warn: #e3b25a;
+  --warn-soft: #2d2412;
+  --danger: #ee7c67;
+  --danger-soft: #331a15;
+}
