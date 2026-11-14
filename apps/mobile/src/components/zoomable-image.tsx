@@ -13,18 +13,24 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import {
+  clampOffset,
+  doubleTapTarget,
+  MIN_SCALE,
+  type PinchAnchor,
+  pinchStep,
+  settle,
+  type Transform,
+} from "@/lib/zoom-math";
 
-const MIN_SCALE = 1;
-const MAX_SCALE = 5;
 const DOUBLE_TAP_SCALE = 2.5;
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 /**
- * Pinch-to-zoom image. Zoom is anchored at the fingers (the point under them
- * stays put), two fingers also pan, one finger pans while zoomed, and
- * double-tap zooms in at the tapped point or back out. Set `zoomed` to false
- * from outside to reset.
+ * Pinch-to-zoom image. Zoom is anchored at the fingers, two fingers also pan,
+ * one finger pans while zoomed, and double-tap zooms in at the tapped point
+ * or back out. Set `zoomed` to false from outside to reset.
  */
 export function ZoomableImage({
   source,
@@ -44,13 +50,15 @@ export function ZoomableImage({
   const scale = useSharedValue(1);
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
-  // Gesture start state: scale/translation and the content point under the
-  // focal point, so it can be kept under the fingers as they move.
-  const startScale = useSharedValue(1);
-  const startTx = useSharedValue(0);
-  const startTy = useSharedValue(0);
-  const anchorX = useSharedValue(0);
-  const anchorY = useSharedValue(0);
+  const anchor = useSharedValue<PinchAnchor | null>(null);
+  const pinchActive = useSharedValue(false);
+  // True only while two fingers are down; a pan defers to the pinch then.
+  const pinching = useSharedValue(false);
+  // Pan position = offset + finger translation. Rebased while a pinch moves
+  // the image, so a pan that outlives the pinch continues from where the
+  // pinch left it instead of snapping back.
+  const panOffsetX = useSharedValue(0);
+  const panOffsetY = useSharedValue(0);
 
   const notifyZoom = useCallback(
     (next: boolean) => onZoomChange?.(next),
@@ -62,24 +70,17 @@ export function ZoomableImage({
     height.value = e.nativeEvent.layout.height;
   };
 
-  // Keeps the scaled image covering the frame: no panning past its edges.
-  const clamp = (value: number, s: number, size: number) => {
+  const current = (): Transform => {
     "worklet";
-    const max = ((s - 1) * size) / 2;
-    return Math.min(Math.max(value, -max), max);
+    return { s: scale.value, tx: tx.value, ty: ty.value };
   };
 
-  const animateTo = (s: number, x: number, y: number) => {
+  const animateTo = (t: Transform) => {
     "worklet";
-    scale.value = withTiming(s);
-    tx.value = withTiming(clamp(x, s, width.value));
-    ty.value = withTiming(clamp(y, s, height.value));
-    runOnJS(notifyZoom)(s > MIN_SCALE);
-  };
-
-  const reset = () => {
-    "worklet";
-    animateTo(1, 0, 0);
+    scale.value = withTiming(t.s);
+    tx.value = withTiming(t.tx);
+    ty.value = withTiming(t.ty);
+    runOnJS(notifyZoom)(t.s > MIN_SCALE);
   };
 
   useEffect(() => {
@@ -90,68 +91,79 @@ export function ZoomableImage({
     }
   }, [zoomed, scale, tx, ty]);
 
-  // Focal coordinates are relative to the untransformed frame; convert to
-  // offsets from its centre, which is the transform origin.
+  // Focal points are relative to the untransformed frame; convert them to
+  // offsets from its centre.
   const pinch = Gesture.Pinch()
-    .onStart((e) => {
-      startScale.value = scale.value;
-      startTx.value = tx.value;
-      startTy.value = ty.value;
-      const fx = e.focalX - width.value / 2;
-      const fy = e.focalY - height.value / 2;
-      anchorX.value = (fx - tx.value) / scale.value;
-      anchorY.value = (fy - ty.value) / scale.value;
+    .onStart(() => {
+      pinchActive.value = true;
+      anchor.value = null;
     })
     .onUpdate((e) => {
-      const s = Math.min(
-        Math.max(startScale.value * e.scale, MIN_SCALE * 0.8),
-        MAX_SCALE,
-      );
-      const fx = e.focalX - width.value / 2;
-      const fy = e.focalY - height.value / 2;
-      scale.value = s;
-      tx.value = fx - s * anchorX.value;
-      ty.value = fy - s * anchorY.value;
+      pinching.value = e.numberOfPointers >= 2;
+      const step = pinchStep({
+        current: current(),
+        anchor: anchor.value,
+        gestureScale: e.scale,
+        fx: e.focalX - width.value / 2,
+        fy: e.focalY - height.value / 2,
+        pointers: e.numberOfPointers,
+      });
+      anchor.value = step.anchor;
+      scale.value = step.transform.s;
+      tx.value = step.transform.tx;
+      ty.value = step.transform.ty;
     })
-    .onEnd(() => {
-      if (scale.value <= MIN_SCALE) reset();
-      else animateTo(scale.value, tx.value, ty.value);
+    .onFinalize(() => {
+      pinching.value = false;
+      if (!pinchActive.value) return;
+      pinchActive.value = false;
+      anchor.value = null;
+      animateTo(
+        settle({
+          current: current(),
+          width: width.value,
+          height: height.value,
+        }),
+      );
     });
 
   const pan = Gesture.Pan()
-    .maxPointers(1)
     .enabled(zoomed)
-    .onStart(() => {
-      startTx.value = tx.value;
-      startTy.value = ty.value;
+    .averageTouches(true)
+    .onStart((e) => {
+      panOffsetX.value = tx.value - e.translationX;
+      panOffsetY.value = ty.value - e.translationY;
     })
     .onUpdate((e) => {
-      tx.value = clamp(
-        startTx.value + e.translationX,
-        scale.value,
-        width.value,
-      );
-      ty.value = clamp(
-        startTy.value + e.translationY,
-        scale.value,
-        height.value,
-      );
+      if (pinching.value) {
+        panOffsetX.value = tx.value - e.translationX;
+        panOffsetY.value = ty.value - e.translationY;
+        return;
+      }
+      tx.value = clampOffset({
+        value: panOffsetX.value + e.translationX,
+        scale: scale.value,
+        size: width.value,
+      });
+      ty.value = clampOffset({
+        value: panOffsetY.value + e.translationY,
+        scale: scale.value,
+        size: height.value,
+      });
     });
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd((e) => {
-      if (scale.value > MIN_SCALE) {
-        reset();
-        return;
-      }
-      // Zoom so the tapped point stays where it was tapped.
-      const fx = e.x - width.value / 2;
-      const fy = e.y - height.value / 2;
       animateTo(
-        DOUBLE_TAP_SCALE,
-        fx - DOUBLE_TAP_SCALE * fx,
-        fy - DOUBLE_TAP_SCALE * fy,
+        doubleTapTarget({
+          current: current(),
+          fx: e.x - width.value / 2,
+          fy: e.y - height.value / 2,
+          zoomScale: DOUBLE_TAP_SCALE,
+          width: width.value,
+          height: height.value,
+        }),
       );
     });
 
