@@ -18,6 +18,7 @@ import {
   useContext,
   useEffect,
   useRef,
+  useState,
 } from "react";
 import {
   ActivityIndicator,
@@ -31,8 +32,16 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import Animated, {
+  type SharedValue,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
+import { DURATION, EASE_OUT } from "@/lib/motion";
 import {
   statusLabel,
   statusTone,
@@ -415,12 +424,15 @@ export const FLOAT_SHADOW: ViewStyle = {
   elevation: 6,
 };
 
+const SEGMENT_GAP = 2;
+
 export const Segmented = <V extends string>({
   options,
   value,
   onChange,
   pill = false,
   floating = false,
+  progress,
 }: {
   options: { value: V; label: string }[];
   value: V;
@@ -428,44 +440,105 @@ export const Segmented = <V extends string>({
   pill?: boolean;
   /** Raised control over content (e.g. a bottom toolbar) instead of inset. */
   floating?: boolean;
-}) => (
-  <View
-    className={`flex-row gap-0.5 ${floating ? "border border-line bg-surface p-1" : "bg-surface-2 p-[3px]"} ${pill ? "rounded-full" : "rounded-xl"}`}
-    style={floating ? FLOAT_SHADOW : undefined}
-  >
-    {options.map((o) => {
-      const on = o.value === value;
-      return (
-        <Pressable
-          key={o.value}
-          onPress={() => onChange(o.value)}
-          className={`flex-1 items-center justify-center ${floating ? "h-10" : "h-8"} ${pill ? "rounded-full" : "rounded-lg"} ${on ? (floating ? "bg-surface-2" : "bg-surface") : ""}`}
-          style={
-            on && !floating
-              ? {
-                  shadowColor: "#000",
-                  shadowOpacity: 0.06,
-                  shadowRadius: 2,
-                  shadowOffset: { width: 0, height: 1 },
-                  elevation: 1,
-                }
-              : null
-          }
+  /**
+   * Drives the selection pill from outside, 0 at the first option and 1 at
+   * the last, so it can follow a swipe instead of jumping when it ends.
+   */
+  progress?: SharedValue<number>;
+}) => {
+  const [width, setWidth] = useState(0);
+  const border = floating ? 1 : 0;
+  const pad = floating ? 4 : 3;
+  const segment =
+    (width - border * 2 - pad * 2 - SEGMENT_GAP * (options.length - 1)) /
+    options.length;
+  const radius = pill ? "rounded-full" : "rounded-lg";
+  const selectedBg = floating ? "bg-surface-2" : "bg-surface";
+  const selectedShadow: ViewStyle | null = floating
+    ? null
+    : {
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: 1,
+      };
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX:
+          (progress?.value ?? 0) *
+          (options.length - 1) *
+          (segment + SEGMENT_GAP),
+      },
+    ],
+  }));
+
+  return (
+    <View
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      className={`flex-row gap-0.5 ${floating ? "border border-line bg-surface p-1" : "bg-surface-2 p-[3px]"} ${pill ? "rounded-full" : "rounded-xl"}`}
+      style={floating ? FLOAT_SHADOW : undefined}
+    >
+      {progress && width > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: "absolute",
+              left: pad,
+              top: pad,
+              bottom: pad,
+              width: segment,
+            },
+            indicatorStyle,
+          ]}
         >
-          <Text
-            className={`font-body-medium text-[13px] ${on ? "text-ink" : "text-ink-2"}`}
+          <View
+            className={`flex-1 ${radius} ${selectedBg}`}
+            style={selectedShadow}
+          />
+        </Animated.View>
+      ) : null}
+      {options.map((o) => {
+        const on = o.value === value;
+        const fillHere = on && !progress;
+        return (
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            className={`flex-1 items-center justify-center ${floating ? "h-10" : "h-8"} ${radius} ${fillHere ? selectedBg : ""}`}
+            style={fillHere ? selectedShadow : null}
           >
-            {o.label}
-          </Text>
-        </Pressable>
-      );
-    })}
-  </View>
-);
+            <Text
+              className={`font-body-medium text-[13px] ${on ? "text-ink" : "text-ink-2"}`}
+            >
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /* Progress                                                            */
 /* ------------------------------------------------------------------ */
+
+/** Eases from the last value to the new one; starts at the current value. */
+const useTweenedProgress = (value: number) => {
+  const clamped = Math.max(0, Math.min(1, value));
+  const shown = useSharedValue(clamped);
+  useEffect(() => {
+    shown.value = withTiming(clamped, {
+      duration: DURATION.progress,
+      easing: EASE_OUT,
+    });
+  }, [clamped, shown]);
+  return { clamped, shown };
+};
 
 export const ProgressBar = ({
   value,
@@ -477,21 +550,35 @@ export const ProgressBar = ({
   height?: number;
 }) => {
   const c = useColors();
+  const [width, setWidth] = useState(0);
+  const { shown } = useTweenedProgress(value);
+  // A full-width fill slid left, so the change animates as a transform and
+  // the rounded leading edge keeps its shape.
+  const fillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -(1 - shown.value) * width }],
+  }));
   return (
     <View
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       className="w-full overflow-hidden rounded-full bg-surface-2"
       style={{ height }}
     >
-      <View
-        className="h-full rounded-full"
-        style={{
-          width: `${Math.max(0, Math.min(1, value)) * 100}%`,
-          backgroundColor: c[tone],
-        }}
-      />
+      <Animated.View
+        style={[
+          { width: "100%", height: "100%", opacity: width > 0 ? 1 : 0 },
+          fillStyle,
+        ]}
+      >
+        <View
+          className="flex-1 rounded-full"
+          style={{ backgroundColor: c[tone] }}
+        />
+      </Animated.View>
     </View>
   );
 };
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export const ProgressRing = ({
   value,
@@ -506,8 +593,11 @@ export const ProgressRing = ({
   const stroke = 4;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(1, value));
+  const { clamped, shown } = useTweenedProgress(value);
   const done = clamped >= 1;
+  const arcProps = useAnimatedProps(() => ({
+    strokeDashoffset: circumference * (1 - shown.value),
+  }));
   return (
     <View
       style={{ width: size, height: size }}
@@ -526,7 +616,7 @@ export const ProgressRing = ({
           strokeWidth={stroke}
           fill="none"
         />
-        <Circle
+        <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={r}
@@ -535,7 +625,7 @@ export const ProgressRing = ({
           fill="none"
           strokeLinecap="round"
           strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={circumference * (1 - clamped)}
+          animatedProps={arcProps}
         />
       </Svg>
       {done ? (

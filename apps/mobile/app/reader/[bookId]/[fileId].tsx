@@ -2,16 +2,20 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Modal,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   useWindowDimensions,
   View,
 } from "react-native";
+import Animated, {
+  runOnJS,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useSharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Button,
@@ -100,9 +104,17 @@ export default function ReaderScreen() {
     router.setParams({ fileId: target });
   };
 
-  const scrollRef = useRef<ScrollView>(null);
-  const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
-    setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  // 0 on Text, 1 on Scan, fractional mid-swipe; the pane switch follows it.
+  const paneProgress = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      paneProgress.value = width > 0 ? e.contentOffset.x / width : 0;
+    },
+    onMomentumEnd: (e) => {
+      runOnJS(setIndex)(Math.round(e.contentOffset.x / width));
+    },
+  });
 
   // Jump to a pane programmatically. Works even while the scan is zoomed
   // (which disables swipe gestures); leaving the scan resets its zoom.
@@ -137,13 +149,14 @@ export default function ReaderScreen() {
         <View className="w-10" />
       </View>
 
-      <ScrollView
+      <Animated.ScrollView
         ref={scrollRef}
         horizontal
         pagingEnabled
         scrollEnabled={!scanZoomed}
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={onScrollEnd}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         <View style={{ width }}>
           {textQuery.isLoading ? (
@@ -185,7 +198,7 @@ export default function ReaderScreen() {
             onZoomChange={setScanZoomed}
           />
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <View
         className="absolute left-5 right-5 flex-row items-center gap-3"
@@ -200,6 +213,7 @@ export default function ReaderScreen() {
           <Segmented
             pill
             floating
+            progress={paneProgress}
             options={PANE_OPTIONS}
             value={PANES[index] ?? "text"}
             onChange={showPane}

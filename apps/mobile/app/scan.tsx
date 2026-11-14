@@ -16,6 +16,7 @@ import DocumentScanner, {
   ResponseType,
   ScanDocumentResponseStatus,
 } from "react-native-document-scanner-plugin";
+import Animated, { Keyframe, LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActionBar,
@@ -27,7 +28,20 @@ import {
   T,
 } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
+import { DURATION, EASE_OUT } from "@/lib/motion";
 import { useColors } from "@/theme";
+
+// Removing a page reflows the ones after it (and renumbers them), so let the
+// tiles slide to their new spots instead of snapping.
+const TILE_LAYOUT = LinearTransition.duration(DURATION.layout).easing(EASE_OUT);
+const TILE_ENTER = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.95 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: EASE_OUT },
+}).duration(DURATION.layout);
+const TILE_EXIT = new Keyframe({
+  0: { opacity: 1, transform: [{ scale: 1 }] },
+  100: { opacity: 0, transform: [{ scale: 0.95 }], easing: EASE_OUT },
+}).duration(DURATION.fast);
 
 interface Captured {
   uri: string;
@@ -262,10 +276,12 @@ export default function ScanScreen() {
               style={{ columnGap: GRID_GAP, rowGap: GRID_GAP }}
             >
               {pages.map((p, i) => (
-                <View
+                <Animated.View
                   key={p.uri}
-                  className="gap-2"
-                  style={{ width: tileWidth }}
+                  layout={TILE_LAYOUT}
+                  entering={TILE_ENTER}
+                  exiting={TILE_EXIT}
+                  style={{ width: tileWidth, gap: 8 }}
                 >
                   <View>
                     <Image
@@ -292,7 +308,7 @@ export default function ScanScreen() {
                       className="h-10 flex-1 rounded-lg border border-line bg-surface px-3 font-body-semibold text-base text-ink"
                     />
                   </View>
-                </View>
+                </Animated.View>
               ))}
             </View>
           </View>
