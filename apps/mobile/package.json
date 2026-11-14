@@ -11,6 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/newsreader": "^0.4.1",
+    "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
     "@expo/vector-icons": "^15.1.1",
     "@meilisearch/instant-meilisearch": "^0.31.2",
     "@qiraa/shared": "workspace:*",
@@ -24,6 +27,7 @@
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
+    "expo-updates": "~29.0.20",
     "nativewind": "^4.1.23",
     "react": "19.1.0",
     "react-instantsearch-core": "^7.36.0",
@@ -33,6 +37,7 @@
     "react-native-reanimated": "~4.1.7",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
     "react-native-worklets": "0.5.1",
     "tailwindcss": "^3.4.17"
   },

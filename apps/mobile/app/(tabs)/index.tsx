@@ -1,158 +1,164 @@
 import { Feather } from "@expo/vector-icons";
 import type { BookWithStatus, WorkWithCounts } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Centered, Loading } from "@/components/ui";
+import { BookRows, inFlightCount } from "@/components/book-row";
+import {
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Divider,
+  Dot,
+  IconButton,
+  ListCard,
+  Loading,
+  PagePlaceholder,
+  Segmented,
+  T,
+} from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
-import { colors } from "@/theme";
+import { useColors } from "@/theme";
 
-const inFlight = (b: BookWithStatus): number =>
-  (b.counts.queued ?? 0) + (b.counts.processing ?? 0);
-const progress = (b: BookWithStatus): number => {
-  const done = (b.counts.done ?? 0) + (b.counts.approved ?? 0);
-  return b.files_total > 0 ? done / b.files_total : 0;
-};
+type LibraryView = "flat" | "grouped";
 
-const BookCard = ({ book }: { book: BookWithStatus }) => {
-  const pct = Math.round(progress(book) * 100);
-  const failed = book.counts.failed ?? 0;
-  const meta =
-    failed > 0
-      ? `${failed} failed`
-      : inFlight(book) > 0
-        ? `${inFlight(book)} in queue`
-        : `${pct}%`;
-  const metaColor = failed > 0 ? "#EE6A4D" : colors.accent;
-  return (
-    <Link href={`/book/${book.id}`} asChild>
-      <Pressable className="flex-1 rounded-2xl border border-border bg-surface p-2.5">
-        <View className="h-36 overflow-hidden rounded-xl bg-accent-soft">
-          <View className="absolute left-0 top-0 h-full w-1 bg-accent" />
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-4xl text-accent">
-              {book.title.trim().charAt(0)}
-            </Text>
-          </View>
-        </View>
-        <Text className="mt-2.5 text-base text-ink" numberOfLines={1}>
-          {book.title}
-        </Text>
-        <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-xs font-medium text-text-muted">
-            {book.files_total} pp
-          </Text>
-          <Text className="text-xs font-semibold" style={{ color: metaColor }}>
-            {meta}
-          </Text>
-        </View>
-        <View className="mt-2 h-1 overflow-hidden rounded-full bg-surface-alt">
-          <View
-            className="h-full rounded-full bg-accent"
-            style={{ width: `${pct}%` }}
-          />
-        </View>
-      </Pressable>
-    </Link>
-  );
-};
+const VIEW_OPTIONS: { value: LibraryView; label: string }[] = [
+  { value: "flat", label: "All books" },
+  { value: "grouped", label: "By work" },
+];
 
-// A grid of book cards, 2-up with wrapping — shared by flat and grouped views.
-const BookGrid = ({
-  books,
-  footer,
+const plural = ({
+  count,
+  one,
+  many,
 }: {
-  books: BookWithStatus[];
-  footer?: React.ReactNode;
-}) => (
-  <View className="flex-row flex-wrap gap-3.5">
-    {books.map((book) => (
-      <View key={book.id} className="w-[47%] grow">
-        <BookCard book={book} />
-      </View>
-    ))}
-    {footer}
-  </View>
-);
+  count: number;
+  one: string;
+  many: string;
+}): string => `${count.toLocaleString()} ${count === 1 ? one : many}`;
 
-const WorkGroup = ({
+const WorkCard = ({
   work,
   books,
 }: {
-  work: WorkWithCounts | null;
+  work: WorkWithCounts;
   books: BookWithStatus[];
-}) => (
-  <View className="mt-6">
-    <View className="flex-row flex-wrap items-baseline gap-x-2.5 gap-y-1">
-      <Text className="text-lg font-semibold text-ink">
-        {work ? work.name : "Ungrouped"}
-      </Text>
-      {work?.author ? (
-        <Text className="text-sm text-text-muted">{work.author}</Text>
-      ) : null}
-      <Text className="text-xs text-text-muted">
-        {books.length} {books.length === 1 ? "copy" : "copies"}
-      </Text>
-      {work ? (
-        <Link href={`/work/${work.id}`} asChild>
-          <Pressable className="flex-row items-center gap-1" hitSlop={8}>
-            <Feather name="edit-2" size={11} color={colors.textMuted} />
-            <Text className="text-xs font-medium text-text-muted">Edit</Text>
-          </Pressable>
-        </Link>
-      ) : null}
-    </View>
-    {work && work.tags.length > 0 ? (
-      <View className="mt-1.5 flex-row flex-wrap gap-1.5">
-        {work.tags.map((t) => (
-          <View key={t} className="rounded-full bg-accent-soft px-2 py-0.5">
-            <Text className="text-xs text-accent">{t}</Text>
+}) => {
+  const c = useColors();
+  const router = useRouter();
+  return (
+    <Card className="px-4">
+      <Pressable
+        onPress={() => router.push(`/work/${work.id}`)}
+        className="flex-row items-center gap-3 py-4 active:opacity-70"
+      >
+        <View className="flex-1 gap-1">
+          <T
+            variant="arTitle"
+            className="text-xl"
+            style={{ textAlign: "left" }}
+            numberOfLines={1}
+          >
+            {work.name}
+          </T>
+          <View className="flex-row flex-wrap items-center gap-1.5">
+            {work.author ? (
+              <>
+                <T variant="arSmall" className="font-ar text-sm text-ink-3">
+                  {work.author}
+                </T>
+                <T variant="small" className="text-ink-3">
+                  ·
+                </T>
+              </>
+            ) : null}
+            <T variant="small" className="text-ink-3">
+              {plural({ count: books.length, one: "copy", many: "copies" })}
+            </T>
           </View>
-        ))}
-      </View>
-    ) : null}
-    <View className="mt-3">
-      <BookGrid books={books} />
+          {work.tags.length > 0 ? (
+            <View className="mt-1.5 flex-row flex-wrap gap-1.5">
+              {work.tags.map((tag) => (
+                <Badge key={tag} label={tag} tone="accent" dot={false} />
+              ))}
+            </View>
+          ) : null}
+        </View>
+        <Feather name="chevron-right" size={18} color={c.ink3} />
+      </Pressable>
+      <Divider />
+      <BookRows books={books} compact />
+    </Card>
+  );
+};
+
+const UngroupedCard = ({ books }: { books: BookWithStatus[] }) => (
+  <Card className="px-4">
+    <View className="gap-1 py-4">
+      <T variant="heading">Ungrouped</T>
+      <T variant="small" className="text-ink-3">
+        {plural({ count: books.length, one: "book", many: "books" })}
+      </T>
     </View>
+    <Divider />
+    <BookRows books={books} compact />
+  </Card>
+);
+
+const LoadingSkeleton = () => (
+  <View className="mt-5 gap-5">
+    <View className="h-10 rounded-xl bg-surface-2" />
+    <ListCard>
+      {[0, 1, 2, 3, 4].map((row) => (
+        <View key={row} className="flex-row items-center gap-3.5 py-3.5">
+          <View className="size-12 rounded-full bg-surface-2" />
+          <View className="flex-1 gap-2">
+            <View className="h-4 w-3/5 rounded-md bg-surface-2" />
+            <View className="h-2.5 w-2/5 rounded-md bg-surface-2" />
+          </View>
+        </View>
+      ))}
+    </ListCard>
   </View>
 );
 
-// Toggleable pill — used for the flat/group toggle and the tag chips.
-const Chip = ({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) => (
-  <Pressable
-    onPress={onPress}
-    className={`rounded-full border px-3 py-1.5 ${
-      active ? "border-accent bg-accent-soft" : "border-border bg-surface"
-    }`}
-  >
-    <Text
-      className={`text-sm font-medium ${active ? "text-accent" : "text-text-muted"}`}
-    >
-      {label}
-    </Text>
-  </Pressable>
+const EmptyShelf = ({ onAdd }: { onAdd: () => void }) => (
+  <View className="mt-24 items-center gap-2.5 px-2">
+    <View className="mb-5 h-32 w-44">
+      <View
+        className="absolute left-0 top-2"
+        style={{ transform: [{ rotate: "-6deg" }] }}
+      >
+        <PagePlaceholder width={92} height={120} lines={7} />
+      </View>
+      <View
+        className="absolute right-0 top-0"
+        style={{ transform: [{ rotate: "5deg" }] }}
+      >
+        <PagePlaceholder width={92} height={120} lines={7} />
+      </View>
+    </View>
+    <T variant="title" className="text-center">
+      Your shelf is empty
+    </T>
+    <T className="text-center text-ink-2">
+      Add a book, then scan its pages. Each page is transcribed as soon as it
+      uploads.
+    </T>
+    <View className="mt-3">
+      <Button label="Add a book" icon="plus" onPress={onAdd} />
+    </View>
+  </View>
 );
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const c = useColors();
   const { configured, ready } = useConfigState();
 
   const booksQuery = useQuery({
@@ -160,11 +166,7 @@ export default function LibraryScreen() {
     queryFn: api.listBooks,
     enabled: configured,
     refetchInterval: (q) =>
-      q.state.data?.some(
-        (b) => (b.counts.queued ?? 0) + (b.counts.processing ?? 0) > 0,
-      )
-        ? 5000
-        : false,
+      q.state.data?.some((b) => inFlightCount(b) > 0) ? 5000 : false,
   });
   const worksQuery = useQuery({
     queryKey: ["works"],
@@ -172,7 +174,7 @@ export default function LibraryScreen() {
     enabled: configured,
   });
 
-  const [grouped, setGrouped] = useState(false);
+  const [view, setView] = useState<LibraryView>("flat");
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const toggleTag = (name: string) =>
     setSelectedTags((prev) => {
@@ -195,7 +197,7 @@ export default function LibraryScreen() {
 
   const books = useMemo(() => booksQuery.data ?? [], [booksQuery.data]);
 
-  // Work + tag filtering (tags OR). Standalone books drop out under a tag filter.
+  // Tags are OR-ed. Standalone books drop out under a tag filter.
   const filtered = useMemo(
     () =>
       books.filter((b) => {
@@ -207,26 +209,14 @@ export default function LibraryScreen() {
   );
 
   if (!ready) return <Loading />;
+  if (!configured) return <Redirect href="/onboarding" />;
 
-  if (!configured) {
-    return (
-      <Centered>
-        <Text className="text-center text-lg font-semibold text-ink">
-          Connect to your API
-        </Text>
-        <Text className="text-center text-sm text-text-secondary">
-          Add your worker endpoint and key in Settings to start scanning.
-        </Text>
-        <Link href="/settings" className="mt-2 font-semibold text-accent">
-          Open Settings →
-        </Link>
-      </Centered>
-    );
-  }
-
+  const goToNewBook = () => router.push("/new-book");
+  const grouped = view === "grouped";
+  const filtering = selectedTags.size > 0;
   const totalPages = filtered.reduce((n, b) => n + b.files_total, 0);
 
-  // Grouped buckets: works newest-first (query order), standalone trailing.
+  // Works newest-first (query order), standalone trailing.
   const byWork = new Map<string, BookWithStatus[]>();
   const ungrouped: BookWithStatus[] = [];
   for (const b of filtered) {
@@ -242,105 +232,123 @@ export default function LibraryScreen() {
     .filter((w) => byWork.has(w.id))
     .map((w) => ({ work: w, books: byWork.get(w.id) ?? [] }));
 
-  const newBookButton = (
-    <Pressable
-      onPress={() => router.push("/new-book")}
-      className="w-[47%] grow items-center justify-center gap-2.5 rounded-2xl border border-border py-8"
-    >
-      <View className="h-11 w-11 items-center justify-center rounded-full bg-accent-soft">
-        <Text className="text-2xl text-accent">+</Text>
-      </View>
-      <Text className="text-sm font-semibold text-text-secondary">
-        New book
-      </Text>
-    </Pressable>
-  );
+  const bookCount = plural({
+    count: filtered.length,
+    one: "book",
+    many: "books",
+  });
+  const countsLine = filtering
+    ? `${filtered.length.toLocaleString()} of ${plural({ count: books.length, one: "book", many: "books" })}`
+    : grouped
+      ? `${plural({ count: orderedGroups.length, one: "work", many: "works" })} · ${bookCount}`
+      : `${bookCount} · ${plural({ count: totalPages, one: "page", many: "pages" })}`;
+
+  const isEmpty = !booksQuery.isLoading && books.length === 0;
 
   return (
     <ScrollView
       className="flex-1 bg-bg"
       contentContainerStyle={{
-        paddingTop: insets.top + 8,
-        paddingHorizontal: 20,
+        paddingTop: insets.top + 12,
+        paddingHorizontal: 24,
         paddingBottom: insets.bottom + 90,
       }}
       refreshControl={
         <RefreshControl
           refreshing={booksQuery.isRefetching}
           onRefresh={() => booksQuery.refetch()}
-          tintColor={colors.accent}
+          tintColor={c.accent}
         />
       }
     >
-      <View className="flex-row items-center justify-between">
-        <View className="gap-1">
-          <Text className="text-base font-bold text-accent">رقمنة</Text>
-          <Text className="text-[34px] font-semibold text-ink">Library</Text>
+      <View className="flex-row items-end justify-between">
+        <View className="gap-0.5">
+          <T variant="arSmall" className="font-ar-bold text-accent">
+            رقمنة
+          </T>
+          <T variant="display">Library</T>
         </View>
-        <View className="flex-row items-center gap-1.5 rounded-full bg-[#16271E] px-3 py-1.5">
-          <View className="h-1.5 w-1.5 rounded-full bg-st-done" />
-          <Text className="text-xs font-semibold text-st-done">Online</Text>
-        </View>
+        <IconButton icon="plus" variant="filled" onPress={goToNewBook} />
       </View>
 
       {booksQuery.isLoading ? (
-        <View className="mt-16">
-          <Loading />
-        </View>
+        <LoadingSkeleton />
       ) : (
         <>
-          <Text className="mt-1 text-sm text-text-muted">
-            {filtered.length} {filtered.length === 1 ? "book" : "books"} ·{" "}
-            {totalPages} pages
-          </Text>
-
-          <View className="mt-4 flex-row gap-2">
-            <Chip
-              label="Flat"
-              active={!grouped}
-              onPress={() => setGrouped(false)}
-            />
-            <Chip
-              label="Group by work"
-              active={grouped}
-              onPress={() => setGrouped(true)}
-            />
+          <View className="mt-2 flex-row items-center justify-between">
+            <T variant="small" className="text-ink-3">
+              {countsLine}
+            </T>
+            <View className="flex-row items-center gap-1.5">
+              <Dot color={c.ok} size={6} />
+              <T variant="caption" className="font-body-semibold text-ok">
+                Online
+              </T>
+            </View>
           </View>
 
-          {tagOptions.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mt-3"
-              contentContainerStyle={{ gap: 8 }}
-            >
-              {tagOptions.map((t) => (
-                <Chip
-                  key={t}
-                  label={t}
-                  active={selectedTags.has(t)}
-                  onPress={() => toggleTag(t)}
-                />
-              ))}
-            </ScrollView>
-          ) : null}
-
-          {grouped ? (
+          {isEmpty ? (
+            <EmptyShelf onAdd={goToNewBook} />
+          ) : (
             <>
-              {orderedGroups.map(({ work, books: groupBooks }) => (
-                <WorkGroup key={work.id} work={work} books={groupBooks} />
-              ))}
-              {ungrouped.length > 0 ? (
-                <WorkGroup work={null} books={ungrouped} />
+              <View className="mt-5">
+                <Segmented
+                  options={VIEW_OPTIONS}
+                  value={view}
+                  onChange={setView}
+                />
+              </View>
+
+              {tagOptions.length > 0 ? (
+                <View className="-mr-6 mt-4 flex-row items-center gap-2">
+                  <Feather name="tag" size={16} color={c.ink3} />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 8, paddingRight: 24 }}
+                  >
+                    {tagOptions.map((t) => (
+                      <Chip
+                        key={t}
+                        label={t}
+                        selected={selectedTags.has(t)}
+                        onPress={() => toggleTag(t)}
+                      />
+                    ))}
+                  </ScrollView>
+                </View>
               ) : null}
-              <View className="mt-6">
-                <BookGrid books={[]} footer={newBookButton} />
+
+              <View className="mt-4 gap-4">
+                {filtered.length === 0 ? (
+                  <T variant="small" className="mt-4 text-center text-ink-3">
+                    No books match the selected tags.
+                  </T>
+                ) : grouped ? (
+                  <>
+                    {orderedGroups.map(({ work, books: groupBooks }) => (
+                      <WorkCard key={work.id} work={work} books={groupBooks} />
+                    ))}
+                    {ungrouped.length > 0 ? (
+                      <UngroupedCard books={ungrouped} />
+                    ) : null}
+                  </>
+                ) : (
+                  <ListCard>
+                    <BookRows books={filtered} />
+                  </ListCard>
+                )}
+                {filtering && filtered.length > 0 ? (
+                  <T
+                    variant="caption"
+                    className="font-body text-center text-ink-3"
+                  >
+                    Showing books whose work is tagged{" "}
+                    {[...selectedTags].join(" or ")}.
+                  </T>
+                ) : null}
               </View>
             </>
-          ) : (
-            <View className="mt-5">
-              <BookGrid books={filtered} footer={newBookButton} />
-            </View>
           )}
         </>
       )}

@@ -9,20 +9,37 @@ import {
   type NativeSyntheticEvent,
   Pressable,
   ScrollView,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Centered, Loading } from "@/components/ui";
+import {
+  Button,
+  EmptyState,
+  IconButton,
+  Loading,
+  Segmented,
+  T,
+} from "@/components/ui";
 import { ZoomableImage } from "@/components/zoomable-image";
 import { api } from "@/lib/api";
 import { Markdown } from "@/lib/markdown";
-import { colors } from "@/theme";
+import { useColors } from "@/theme";
+
+type Pane = "text" | "scan";
+
+const PANES: Pane[] = ["text", "scan"];
+const PANE_OPTIONS: { value: Pane; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "scan", label: "Scan" },
+];
+const TOOLBAR_HEIGHT = 56;
+const TOOLBAR_GAP = 12;
 
 export default function ReaderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const c = useColors();
   const { width } = useWindowDimensions();
   const { bookId, fileId } = useLocalSearchParams<{
     bookId: string;
@@ -52,6 +69,12 @@ export default function ReaderScreen() {
     queryFn: () => api.status(bookId),
   });
 
+  // Same key as the book screen, so this is usually served from cache.
+  const bookQuery = useQuery({
+    queryKey: ["book", bookId],
+    queryFn: () => api.getBook(bookId),
+  });
+
   const files = (statusQuery.data ?? [])
     .slice()
     .sort(
@@ -60,6 +83,7 @@ export default function ReaderScreen() {
         (b.page_number ?? Number.MAX_SAFE_INTEGER),
     );
   const currentIndex = files.findIndex((f) => f.file_id === fileId);
+  const currentFile = currentIndex >= 0 ? files[currentIndex] : null;
   const prevFile = currentIndex > 0 ? files[currentIndex - 1] : null;
   const nextFile =
     currentIndex >= 0 && currentIndex < files.length - 1
@@ -72,75 +96,40 @@ export default function ReaderScreen() {
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
     setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
 
-  // Jump to the other pane programmatically. Works even while the scan is
-  // zoomed (which disables swipe gestures), so you can flip to the text and
-  // back without pinching out first.
-  const switchPane = () => {
-    const target = index === 0 ? 1 : 0;
+  // Jump to a pane programmatically. Works even while the scan is zoomed
+  // (which disables swipe gestures), so you can flip to the text and back
+  // without pinching out first.
+  const showPane = (pane: Pane) => {
+    const target = PANES.indexOf(pane);
     scrollRef.current?.scrollTo({ x: width * target, animated: true });
     setIndex(target);
   };
 
+  const pageLabel =
+    currentFile?.page_number != null ? `Page ${currentFile.page_number}` : null;
+  const bottomClearance =
+    insets.bottom + TOOLBAR_GAP + TOOLBAR_HEIGHT + TOOLBAR_GAP;
+
   return (
     <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center justify-between px-4 py-3">
-        <Pressable
+      <View className="flex-row items-center gap-3 px-5 pb-2.5 pt-1.5">
+        <IconButton
+          icon="chevron-left"
           onPress={() => router.replace(`/book/${bookId}`)}
-          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <Feather name="chevron-left" size={18} color={colors.textSecondary} />
-        </Pressable>
-        <View className="flex-row items-center gap-2">
-          <Text className="text-sm font-semibold text-text-secondary">
-            {index === 0 ? "Transcription" : "Scan"}
-          </Text>
-          <View className="flex-row items-center gap-1.5">
-            <View
-              className="h-1.5 w-1.5 rounded-full"
-              style={{
-                backgroundColor: index === 0 ? colors.accent : colors.border,
-              }}
-            />
-            <View
-              className="h-1.5 w-1.5 rounded-full"
-              style={{
-                backgroundColor: index === 1 ? colors.accent : colors.border,
-              }}
-            />
-          </View>
+        />
+        <View className="flex-1 items-center">
+          {bookQuery.data?.title ? (
+            <T variant="arSmall" className="font-ar-bold" numberOfLines={1}>
+              {bookQuery.data.title}
+            </T>
+          ) : null}
+          {pageLabel ? (
+            <T variant="caption" className="font-body text-ink-3">
+              {pageLabel}
+            </T>
+          ) : null}
         </View>
-        <View className="flex-row items-center gap-2">
-          <Pressable
-            onPress={() => prevFile && goToFile(prevFile.file_id)}
-            disabled={!prevFile}
-            style={{ opacity: prevFile ? 1 : 0.4 }}
-            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-          >
-            <Feather
-              name="chevron-left"
-              size={18}
-              color={colors.textSecondary}
-            />
-          </Pressable>
-          <Pressable
-            onPress={() => nextFile && goToFile(nextFile.file_id)}
-            disabled={!nextFile}
-            style={{ opacity: nextFile ? 1 : 0.4 }}
-            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-          >
-            <Feather
-              name="chevron-right"
-              size={18}
-              color={colors.textSecondary}
-            />
-          </Pressable>
-          <Pressable
-            onPress={switchPane}
-            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-          >
-            <Feather name="repeat" size={16} color={colors.accent} />
-          </Pressable>
-        </View>
+        <View className="w-10" />
       </View>
 
       <ScrollView
@@ -151,22 +140,26 @@ export default function ReaderScreen() {
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onScrollEnd}
       >
-        {/* Pane 1: transcription */}
         <View style={{ width }}>
           {textQuery.isLoading ? (
             <Loading />
           ) : textQuery.isError ? (
-            <Centered>
-              <Text className="text-center text-sm text-text-secondary">
-                No transcription yet for this page. Swipe → to see the scan.
-              </Text>
-            </Centered>
+            <View
+              className="flex-1 justify-center"
+              style={{ paddingBottom: bottomClearance }}
+            >
+              <EmptyState
+                icon="file-text"
+                title="Not transcribed yet"
+                body="This page has no transcription yet. Switch to Scan to see the page meanwhile."
+              />
+            </View>
           ) : (
             <ScrollView
               contentContainerStyle={{
-                paddingHorizontal: 26,
-                paddingBottom: insets.bottom + 32,
-                paddingTop: 4,
+                paddingHorizontal: 28,
+                paddingTop: 8,
+                paddingBottom: bottomClearance + 16,
               }}
             >
               <Markdown source={textQuery.data ?? ""} />
@@ -174,17 +167,53 @@ export default function ReaderScreen() {
           )}
         </View>
 
-        {/* Pane 2: original scan */}
-        <View style={{ width }} className="items-center justify-center px-4">
+        <View
+          style={{ width, paddingBottom: bottomClearance }}
+          className="items-center justify-center px-4 pt-2"
+        >
           <ZoomableImage
             source={api.imageSource({ bookId, fileId })}
             resizeMode="contain"
-            style={{ width: width - 32, height: "85%" }}
+            style={{ width: width - 32, flex: 1 }}
             zoomed={scanZoomed}
             onZoomChange={setScanZoomed}
           />
         </View>
       </ScrollView>
+
+      <View
+        className="absolute left-5 right-5 flex-row items-center gap-1 rounded-full border border-line bg-surface px-1.5"
+        style={{
+          bottom: insets.bottom + TOOLBAR_GAP,
+          height: TOOLBAR_HEIGHT,
+          shadowColor: "#000",
+          shadowOpacity: 0.12,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 6,
+        }}
+      >
+        <IconButton
+          icon="chevron-left"
+          variant="plain"
+          disabled={!prevFile}
+          onPress={() => prevFile && goToFile(prevFile.file_id)}
+        />
+        <View className="flex-1">
+          <Segmented
+            pill
+            options={PANE_OPTIONS}
+            value={PANES[index] ?? "text"}
+            onChange={showPane}
+          />
+        </View>
+        <IconButton
+          icon="chevron-right"
+          variant="plain"
+          disabled={!nextFile}
+          onPress={() => nextFile && goToFile(nextFile.file_id)}
+        />
+      </View>
 
       <Modal
         visible={showHint}
@@ -195,22 +224,25 @@ export default function ReaderScreen() {
         <Pressable
           onPress={dismissHint}
           className="flex-1 items-center justify-center px-10"
-          style={{ backgroundColor: "#000000B3" }}
+          style={{ backgroundColor: c.scrim }}
         >
-          <View className="w-full items-center gap-3 rounded-2xl border border-border bg-surface p-6">
-            <Feather name="chevrons-left" size={28} color={colors.accent} />
-            <Text className="text-center text-base font-semibold text-ink">
+          <View className="w-full items-center gap-3 rounded-3xl bg-surface p-6">
+            <View className="flex-row">
+              <Feather name="arrow-left" size={22} color={c.accent} />
+              <Feather name="arrow-right" size={22} color={c.accent} />
+            </View>
+            <T variant="heading" className="text-center">
               Swipe to switch views
-            </Text>
-            <Text className="text-center text-sm text-text-secondary">
+            </T>
+            <T variant="small" className="text-center text-ink-2">
               Swipe left for the scanned page, right for the transcription.
-            </Text>
-            <Pressable
+            </T>
+            <Button
+              label="Got it"
+              size="sm"
               onPress={dismissHint}
-              className="mt-1 rounded-lg bg-accent px-5 py-2"
-            >
-              <Text className="text-sm font-bold text-accent-ink">Got it</Text>
-            </Pressable>
+              className="mt-1"
+            />
           </View>
         </Pressable>
       </Modal>

@@ -1,24 +1,36 @@
-import { Feather } from "@expo/vector-icons";
-import type { FileStatus } from "@qiraa/shared";
+import type { FileState, FileStatus } from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Loading, StatusBadge } from "@/components/ui";
+import {
+  Button,
+  Card,
+  Dialog,
+  Dot,
+  FieldLabel,
+  Header,
+  IconButton,
+  ListCard,
+  ListRow,
+  Loading,
+  Sheet,
+  StatusLine,
+  T,
+  TextField,
+} from "@/components/ui";
 import { api } from "@/lib/api";
-import { colors } from "@/theme";
+import { type Palette, useColors } from "@/theme";
 
-const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
+const READABLE: FileState[] = ["done", "approved", "needs_review"];
 const isPending = (f: FileStatus): boolean =>
   f.state === "queued" ||
   f.state === "processing" ||
@@ -26,14 +38,44 @@ const isPending = (f: FileStatus): boolean =>
 const pageLabel = (f: FileStatus, index: number): string =>
   f.page_number != null ? String(f.page_number) : `#${index + 1}`;
 
+const PENDING_SENTENCE: Partial<Record<FileState, string>> = {
+  processing: "Transcribing now…",
+  rate_limited: "Rate limited, retrying shortly",
+  queued: "Waiting in queue",
+  captured: "Waiting in queue",
+};
+
+type ProgressGroup = "done" | "review" | "failed" | "queue";
+
+const GROUP_OF: Record<FileState, ProgressGroup> = {
+  done: "done",
+  approved: "done",
+  needs_review: "review",
+  failed: "failed",
+  queued: "queue",
+  processing: "queue",
+  rate_limited: "queue",
+  captured: "queue",
+};
+
+const GROUPS: { key: ProgressGroup; label: string; color: keyof Palette }[] = [
+  { key: "done", label: "done", color: "ok" },
+  { key: "review", label: "review", color: "warn" },
+  { key: "failed", label: "failed", color: "danger" },
+  { key: "queue", label: "in queue", color: "accent" },
+];
+
+type PageSelection = { file: FileStatus; label: string };
+
 export default function BookScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const c = useColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
 
-  const [menuFile, setMenuFile] = useState<FileStatus | null>(null);
-  const [errorFile, setErrorFile] = useState<FileStatus | null>(null);
+  const [menuPage, setMenuPage] = useState<PageSelection | null>(null);
+  const [errorPage, setErrorPage] = useState<PageSelection | null>(null);
   const [editing, setEditing] = useState<FileStatus | null>(null);
   const [pageInput, setPageInput] = useState("");
   const [editBook, setEditBook] = useState(false);
@@ -96,20 +138,35 @@ export default function BookScreen() {
     );
   const maxPage = files.reduce((m, f) => Math.max(m, f.page_number ?? 0), 0);
   const nextPage = maxPage > 0 ? maxPage + 1 : 1;
+  const pendingCount = files.filter(isPending).length;
+  const groupCounts = files.reduce<Record<ProgressGroup, number>>(
+    (counts, f) => {
+      counts[GROUP_OF[f.state]] += 1;
+      return counts;
+    },
+    { done: 0, review: 0, failed: 0, queue: 0 },
+  );
+  const visibleGroups = GROUPS.filter((g) => groupCounts[g.key] > 0);
+
+  const book = bookQuery.data;
+  const costUsd = book?.usage?.cost_usd;
+  const summary =
+    files.length === 0
+      ? "No pages yet"
+      : `${files.length} pages${costUsd != null ? ` · $${costUsd.toFixed(2)} OCR` : ""}`;
 
   const openScan = () =>
     router.push(
-      `/scan?bookId=${id}&title=${encodeURIComponent(bookQuery.data?.title ?? "")}&startPage=${nextPage}`,
+      `/scan?bookId=${id}&title=${encodeURIComponent(book?.title ?? "")}&startPage=${nextPage}`,
     );
 
   const openBookEdit = () => {
-    const b = bookQuery.data;
-    setBookTitle(b?.title ?? "");
-    setBookInstructions(b?.ocr_instructions ?? "");
+    setBookTitle(book?.title ?? "");
+    setBookInstructions(book?.ocr_instructions ?? "");
     setEditBook(true);
   };
   const startEdit = (f: FileStatus) => {
-    setMenuFile(null);
+    setMenuPage(null);
     setPageInput(f.page_number != null ? String(f.page_number) : "");
     setEditing(f);
   };
@@ -122,8 +179,13 @@ export default function BookScreen() {
     });
     setEditing(null);
   };
+  const rerun = (f: FileStatus) => {
+    setMenuPage(null);
+    setErrorPage(null);
+    retry.mutate(f.file_id);
+  };
   const confirmDelete = (f: FileStatus) => {
-    setMenuFile(null);
+    setMenuPage(null);
     Alert.alert(
       "Delete page?",
       "Removes the scan and its transcription. Cannot be undone.",
@@ -140,375 +202,320 @@ export default function BookScreen() {
 
   return (
     <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center gap-3 px-5 py-3">
-        <Pressable
-          onPress={() => router.replace("/")}
-          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <Feather name="chevron-left" size={18} color={colors.textSecondary} />
-        </Pressable>
-        <View className="flex-1">
-          <Text
-            className="text-xl text-ink"
-            numberOfLines={1}
-            style={{ writingDirection: "rtl" }}
-          >
-            {bookQuery.data?.title ?? "…"}
-          </Text>
-          <Text className="text-xs text-text-muted">
-            {files.length} pages
-            {bookQuery.data?.usage?.cost_usd != null
-              ? ` · $${bookQuery.data.usage.cost_usd.toFixed(2)} OCR`
-              : ""}
-          </Text>
-        </View>
-        <Pressable
-          onPress={openBookEdit}
-          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <Feather name="edit-2" size={16} color={colors.textSecondary} />
-        </Pressable>
-      </View>
+      <Header
+        onLeft={() => router.replace("/")}
+        right={<IconButton icon="edit-2" onPress={openBookEdit} />}
+      />
 
       {statusQuery.isLoading ? (
         <Loading />
       ) : (
         <ScrollView
           contentContainerStyle={{
-            paddingHorizontal: 20,
+            paddingHorizontal: 24,
             paddingBottom: insets.bottom + 96,
           }}
           refreshControl={
             <RefreshControl
               refreshing={statusQuery.isRefetching}
               onRefresh={() => statusQuery.refetch()}
-              tintColor={colors.accent}
+              tintColor={c.accent}
             />
           }
         >
+          <View className="gap-1 pt-2">
+            <T
+              variant="arTitle"
+              style={{ fontSize: 32, lineHeight: 52 }}
+              numberOfLines={2}
+            >
+              {book?.title ?? "…"}
+            </T>
+            <T variant="small" className="text-ink-3">
+              {summary}
+            </T>
+          </View>
+
           {files.length === 0 ? (
-            <Text className="mt-12 text-center text-sm text-text-secondary">
-              No pages yet. Tap “Scan pages” to add some.
-            </Text>
+            <EmptyPages />
           ) : (
-            files.map((f, i) => {
-              const readable = READABLE.includes(f.state);
-              const removing = del.isPending && del.variables === f.file_id;
-              return (
-                <View
-                  key={f.file_id}
-                  className="flex-row items-center gap-2 py-3"
-                  style={[
-                    i > 0
-                      ? { borderTopWidth: 1, borderTopColor: colors.hairline }
-                      : null,
-                    removing ? { opacity: 0.4 } : null,
-                  ]}
-                >
-                  <Pressable
-                    disabled={!readable && !(f.state === "failed" && !!f.error)}
-                    onPress={() => {
-                      if (readable) router.push(`/reader/${id}/${f.file_id}`);
-                      else if (f.error) setErrorFile(f);
-                    }}
-                    className="flex-1 flex-row items-center gap-3"
-                  >
-                    <View className="h-9 w-9 items-center justify-center rounded-full bg-surface-alt">
-                      <Text className="text-sm font-semibold text-ink">
-                        {pageLabel(f, i)}
-                      </Text>
-                    </View>
-                    <View className="flex-1 gap-0.5">
-                      {f.preview ? (
-                        <Text
-                          className="text-sm text-ink"
-                          numberOfLines={1}
-                          style={{ writingDirection: "rtl" }}
-                        >
-                          {f.preview}
-                        </Text>
-                      ) : (
-                        <Text className="text-sm text-text-muted">
-                          Page {pageLabel(f, i)}
-                        </Text>
-                      )}
-                      {f.error ? (
-                        <Text
-                          className="text-xs text-st-fail"
-                          numberOfLines={1}
-                        >
-                          {f.error}
-                        </Text>
-                      ) : null}
-                      {f.cost_usd != null ? (
-                        <Text className="text-xs text-text-muted">
-                          ${f.cost_usd.toFixed(4)}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                  <StatusBadge state={f.state} />
-                  <Pressable
-                    onPress={() => setMenuFile(f)}
-                    hitSlop={8}
-                    className="h-8 w-8 items-center justify-center rounded-full"
-                  >
-                    <Feather
-                      name="more-vertical"
-                      size={18}
-                      color={colors.textMuted}
+            <>
+              <View className="mt-6 gap-2.5">
+                <View className="h-2 flex-row gap-0.5 overflow-hidden rounded-full">
+                  {visibleGroups.map((g) => (
+                    <View
+                      key={g.key}
+                      style={{
+                        flex: groupCounts[g.key],
+                        backgroundColor: c[g.color],
+                      }}
                     />
-                  </Pressable>
+                  ))}
                 </View>
-              );
-            })
+                <View className="flex-row flex-wrap gap-x-3.5 gap-y-1">
+                  {visibleGroups.map((g) => (
+                    <View key={g.key} className="flex-row items-center gap-1.5">
+                      <Dot color={c[g.color]} size={7} />
+                      <T variant="small" className="text-ink-2">
+                        {groupCounts[g.key]} {g.label}
+                      </T>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {pendingCount > 0 ? (
+                <View className="mt-5 flex-row items-center gap-3 rounded-xl bg-accent-soft px-4 py-3.5">
+                  <ActivityIndicator size="small" color={c.accent} />
+                  <T variant="bodyStrong" className="flex-1">
+                    Transcribing {pendingCount}{" "}
+                    {pendingCount === 1 ? "page" : "pages"}
+                  </T>
+                  <T variant="small" className="text-ink-3">
+                    auto-refreshing
+                  </T>
+                </View>
+              ) : null}
+
+              <View className="mt-6 gap-2.5">
+                <FieldLabel>Pages</FieldLabel>
+                <ListCard>
+                  {files.map((f, i) => {
+                    const label = pageLabel(f, i);
+                    const readable = READABLE.includes(f.state);
+                    const removing =
+                      del.isPending && del.variables === f.file_id;
+                    return (
+                      <View
+                        key={f.file_id}
+                        className={`flex-row items-center gap-2 py-3 ${i > 0 ? "border-t border-line" : ""}`}
+                        style={removing ? { opacity: 0.4 } : null}
+                      >
+                        <Pressable
+                          disabled={
+                            !readable && !(f.state === "failed" && !!f.error)
+                          }
+                          onPress={() => {
+                            if (readable)
+                              router.push(`/reader/${id}/${f.file_id}`);
+                            else if (f.error) setErrorPage({ file: f, label });
+                          }}
+                          className="flex-1 flex-row items-center gap-3 active:opacity-70"
+                        >
+                          <View className="w-11 items-center">
+                            <T variant="title" numberOfLines={1}>
+                              {label}
+                            </T>
+                            <T
+                              variant="caption"
+                              className="font-body text-ink-3"
+                            >
+                              {f.page_number != null ? "page" : "unset"}
+                            </T>
+                          </View>
+                          <View className="flex-1 gap-1">
+                            <PagePreview file={f} label={label} />
+                            <StatusLine
+                              state={f.state}
+                              trailing={
+                                f.cost_usd != null
+                                  ? `$${f.cost_usd.toFixed(4)}`
+                                  : undefined
+                              }
+                            />
+                          </View>
+                        </Pressable>
+                        <IconButton
+                          icon="more-vertical"
+                          variant="plain"
+                          color={c.ink3}
+                          onPress={() => setMenuPage({ file: f, label })}
+                        />
+                      </View>
+                    );
+                  })}
+                </ListCard>
+              </View>
+            </>
           )}
         </ScrollView>
       )}
 
       <View
-        className="absolute bottom-0 left-0 right-0 border-t border-hairline bg-surface px-5 pt-3"
+        className="absolute inset-x-0 bottom-0 px-6"
         style={{ paddingBottom: insets.bottom + 12 }}
+        pointerEvents="box-none"
       >
-        <Pressable
-          onPress={openScan}
-          className="flex-row items-center justify-center gap-2 rounded-xl bg-accent py-4"
+        <View
+          style={{
+            shadowColor: c.accent,
+            shadowOpacity: 0.25,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 6,
+            borderRadius: 999,
+          }}
         >
-          <Feather name="camera" size={18} color={colors.accentInk} />
-          <Text className="text-base font-bold text-accent-ink">
-            Scan pages
-          </Text>
-        </Pressable>
+          <Button label="Scan pages" icon="camera" pill onPress={openScan} />
+        </View>
       </View>
 
-      {/* Row action sheet — closes on Android back (onRequestClose) and tap-out. */}
-      <Modal
-        visible={menuFile != null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setMenuFile(null)}
+      <Sheet
+        visible={menuPage != null}
+        onClose={() => setMenuPage(null)}
+        title={menuPage ? `Page ${menuPage.label}` : ""}
       >
-        <Pressable
-          onPress={() => setMenuFile(null)}
-          className="flex-1 justify-end"
-          style={{ backgroundColor: "#00000099" }}
-        >
-          <Pressable
-            onPress={() => {}}
-            className="rounded-t-3xl border-t border-border bg-surface px-5 pt-3"
-            style={{ paddingBottom: insets.bottom + 12 }}
-          >
-            <View className="mb-2 items-center">
-              <View className="h-1 w-10 rounded-full bg-border" />
-            </View>
-            <Text className="mb-1 px-1 py-2 text-xs font-bold tracking-wide text-text-muted">
-              {menuFile ? `PAGE ${menuFile.page_number ?? "—"}` : ""}
-            </Text>
-            {menuFile && (
-              <>
-                <SheetItem
-                  icon="hash"
-                  label="Change page number"
-                  onPress={() => startEdit(menuFile)}
-                />
-                <SheetItem
-                  icon="rotate-cw"
-                  label="Re-run OCR"
-                  onPress={() => {
-                    const f = menuFile;
-                    setMenuFile(null);
-                    retry.mutate(f.file_id);
-                  }}
-                />
-                <SheetItem
-                  icon="trash-2"
-                  label="Delete page"
-                  destructive
-                  onPress={() => confirmDelete(menuFile)}
-                />
-              </>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        {menuPage ? (
+          <View className="pb-2">
+            <ListRow
+              icon="hash"
+              title="Change page number"
+              value={menuPage.file.page_number?.toString() ?? "unset"}
+              onPress={() => startEdit(menuPage.file)}
+            />
+            <ListRow
+              icon="rotate-cw"
+              title="Re-run OCR"
+              subtitle="Uses this book's OCR instructions"
+              onPress={() => rerun(menuPage.file)}
+            />
+            <ListRow
+              icon="trash-2"
+              title="Delete page"
+              subtitle="Removes the scan and its transcription"
+              danger
+              onPress={() => confirmDelete(menuPage.file)}
+            />
+          </View>
+        ) : null}
+      </Sheet>
 
-      {/* Full OCR error — opened by tapping a failed page. */}
-      <Modal
-        visible={errorFile != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setErrorFile(null)}
+      <Sheet
+        visible={errorPage != null}
+        onClose={() => setErrorPage(null)}
+        title={errorPage ? `Page ${errorPage.label} failed` : "OCR error"}
       >
-        <Pressable
-          onPress={() => setErrorFile(null)}
-          className="flex-1 items-center justify-center px-6"
-          style={{ backgroundColor: "#00000099" }}
-        >
-          <Pressable
-            onPress={() => {}}
-            className="max-h-[70%] w-full rounded-2xl border border-border bg-surface p-5"
-          >
-            <Text className="mb-3 text-xs font-bold tracking-wide text-st-fail">
-              {errorFile
-                ? `OCR ERROR · PAGE ${errorFile.page_number ?? "—"}`
-                : "OCR ERROR"}
-            </Text>
-            <ScrollView className="max-h-80">
-              <Text
+        {errorPage ? (
+          <View className="gap-3 px-5 pt-1">
+            <ScrollView className="max-h-80 rounded-xl bg-danger-soft">
+              <T
+                variant="small"
                 selectable
-                className="text-sm leading-6 text-ink"
+                className="px-3.5 py-3 text-center text-danger"
                 style={{ writingDirection: "ltr" }}
               >
-                {errorFile?.error}
-              </Text>
+                {errorPage.file.error}
+              </T>
             </ScrollView>
-            <Pressable
-              onPress={() => setErrorFile(null)}
-              className="mt-4 items-center rounded-xl bg-surface-alt py-3"
-            >
-              <Text className="text-sm font-semibold text-text-secondary">
-                Close
-              </Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* Page-number editor. */}
-      <Modal
-        visible={editing != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditing(null)}
-      >
-        <Pressable
-          onPress={() => setEditing(null)}
-          className="flex-1 items-center justify-center px-8"
-          style={{ backgroundColor: "#00000099" }}
-        >
-          <Pressable
-            onPress={() => {}}
-            className="w-full gap-4 rounded-2xl border border-border bg-surface p-5"
-          >
-            <Text className="text-lg font-semibold text-ink">Page number</Text>
-            <TextInput
-              value={pageInput}
-              onChangeText={(v) => setPageInput(v.replace(/[^0-9]/g, ""))}
-              keyboardType="number-pad"
-              autoFocus
-              placeholder="—"
-              placeholderTextColor={colors.textMuted}
-              className="rounded-lg border border-border bg-bg px-3 py-2.5 text-base text-ink"
+            <Button
+              label="Re-run OCR"
+              icon="rotate-cw"
+              onPress={() => rerun(errorPage.file)}
             />
-            <View className="flex-row items-center justify-end gap-4">
-              <Pressable onPress={() => setEditing(null)}>
-                <Text className="text-sm font-semibold text-text-secondary">
-                  Cancel
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={saveEdit}
-                className="rounded-lg bg-accent px-4 py-2"
-              >
-                <Text className="text-sm font-bold text-accent-ink">Save</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+            <Button
+              label="Close"
+              variant="ghost"
+              onPress={() => setErrorPage(null)}
+            />
+          </View>
+        ) : null}
+      </Sheet>
 
-      {/* Book editor — title + OCR instructions. */}
-      <Modal
-        visible={editBook}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditBook(false)}
+      <Dialog
+        visible={editing != null}
+        onClose={() => setEditing(null)}
+        title="Change page number"
+        message="Leave it blank to unset. Pages re-sort by number."
       >
-        <Pressable
-          onPress={() => setEditBook(false)}
-          className="flex-1 items-center justify-center px-8"
-          style={{ backgroundColor: "#00000099" }}
-        >
-          <Pressable
-            onPress={() => {}}
-            className="w-full gap-4 rounded-2xl border border-border bg-surface p-5"
-          >
-            <Text className="text-lg font-semibold text-ink">Edit book</Text>
-            <View>
-              <Text className="mb-2 text-xs font-bold tracking-wide text-text-muted">
-                TITLE
-              </Text>
-              <TextInput
-                value={bookTitle}
-                onChangeText={setBookTitle}
-                placeholder="نور الإيضاح"
-                placeholderTextColor={colors.textMuted}
-                className="rounded-xl border border-accent bg-bg px-4 py-3 text-lg text-ink"
-                style={{ writingDirection: "rtl" }}
-              />
-            </View>
-            <View>
-              <Text className="mb-2 text-xs font-bold tracking-wide text-text-muted">
-                OCR INSTRUCTIONS · OPTIONAL
-              </Text>
-              <TextInput
-                value={bookInstructions}
-                onChangeText={setBookInstructions}
-                placeholder="Preserve tashkeel. Keep footnotes at the bottom of the page."
-                placeholderTextColor={colors.textMuted}
-                multiline
-                className="min-h-[100px] rounded-xl border border-border bg-bg px-4 py-3 text-base text-text-secondary"
-                textAlignVertical="top"
-              />
-            </View>
-            <View className="flex-row items-center justify-end gap-4">
-              <Pressable onPress={() => setEditBook(false)}>
-                <Text className="text-sm font-semibold text-text-secondary">
-                  Cancel
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => saveBook.mutate()}
-                disabled={!bookTitle.trim() || saveBook.isPending}
-                className="rounded-lg bg-accent px-4 py-2"
-                style={{
-                  opacity: !bookTitle.trim() || saveBook.isPending ? 0.5 : 1,
-                }}
-              >
-                <Text className="text-sm font-bold text-accent-ink">
-                  {saveBook.isPending ? "Saving…" : "Save"}
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        <TextField
+          value={pageInput}
+          onChangeText={(v) => setPageInput(v.replace(/[^0-9]/g, ""))}
+          keyboardType="number-pad"
+          autoFocus
+          placeholder="—"
+          onSubmitEditing={saveEdit}
+        />
+        <View className="flex-row gap-2.5">
+          <Button
+            label="Cancel"
+            variant="secondary"
+            className="flex-1"
+            onPress={() => setEditing(null)}
+          />
+          <Button label="Save" className="flex-1" onPress={saveEdit} />
+        </View>
+      </Dialog>
+
+      <Sheet
+        visible={editBook}
+        onClose={() => setEditBook(false)}
+        title="Edit book"
+      >
+        <View className="gap-4 px-5 pt-1">
+          <TextField
+            label="Title"
+            value={bookTitle}
+            onChangeText={setBookTitle}
+            placeholder="نور الإيضاح"
+            rtl
+          />
+          <TextField
+            label="OCR instructions · optional"
+            helper="Sent with every page of this book."
+            value={bookInstructions}
+            onChangeText={setBookInstructions}
+            placeholder="Preserve tashkeel. Keep footnotes at the bottom of the page."
+            multiline
+          />
+          <Button
+            label={saveBook.isPending ? "Saving…" : "Save"}
+            loading={saveBook.isPending}
+            disabled={!bookTitle.trim()}
+            onPress={() => saveBook.mutate()}
+          />
+        </View>
+      </Sheet>
     </View>
   );
 }
 
-const SheetItem = ({
-  icon,
-  label,
-  destructive,
-  onPress,
-}: {
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  destructive?: boolean;
-  onPress: () => void;
-}) => (
-  <Pressable onPress={onPress} className="flex-row items-center gap-3 py-3.5">
-    <Feather
-      name={icon}
-      size={18}
-      color={destructive ? "#EE6A4D" : colors.textSecondary}
-    />
-    <Text
-      className="text-base"
-      style={{ color: destructive ? "#EE6A4D" : colors.ink }}
-    >
-      {label}
-    </Text>
-  </Pressable>
+const PagePreview = ({ file, label }: { file: FileStatus; label: string }) => {
+  if (file.error)
+    return (
+      <T variant="small" className="text-danger" numberOfLines={1}>
+        {file.error}
+      </T>
+    );
+  if (file.preview)
+    return (
+      <T variant="arSmall" numberOfLines={1}>
+        {file.preview}
+      </T>
+    );
+  return (
+    <T variant="small" className="text-ink-3" numberOfLines={1}>
+      {PENDING_SENTENCE[file.state] ?? `Page ${label}`}
+    </T>
+  );
+};
+
+const EmptyPages = () => (
+  <Card className="mt-6 items-center gap-2 px-6 py-6">
+    <View className="mb-3 flex-row gap-2.5">
+      {[1, 0.6, 0.35].map((opacity) => (
+        <View
+          key={opacity}
+          className="h-[86px] w-16 rounded-md border border-dashed border-ink-3"
+          style={{ opacity }}
+        />
+      ))}
+    </View>
+    <T variant="heading" className="text-center">
+      Scan your first pages
+    </T>
+    <T variant="small" className="text-center text-ink-2">
+      Capture one or many pages, set their numbers, then upload. Transcription
+      starts automatically.
+    </T>
+  </Card>
 );

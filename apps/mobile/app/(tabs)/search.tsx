@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import type { HighlightResponse } from "@qiraa/shared";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import {
   type ComponentProps,
   useCallback,
@@ -22,12 +22,19 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Centered } from "@/components/ui";
+import {
+  ActionBar,
+  Button,
+  Chip,
+  EmptyState,
+  IconButton,
+  SearchField,
+  Sheet,
+  T,
+} from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
 import { Markdown } from "@/lib/markdown";
@@ -40,7 +47,7 @@ import {
   type SearchHit,
   setLastQuery,
 } from "@/lib/search";
-import { colors } from "@/theme";
+import { useColors } from "@/theme";
 
 // Debounce queries so we don't hit Meili on every keystroke.
 const useDebouncedSearchBox = () => {
@@ -59,122 +66,177 @@ const useDebouncedSearchBox = () => {
 
 const SearchBar = () => {
   const { query, refine } = useDebouncedSearchBox();
-  const { status } = useInstantSearch();
-  const busy = status === "loading" || status === "stalled";
   const [value, setValue] = useState(query);
   return (
-    <View className="flex-row items-center gap-2 rounded-2xl border border-border bg-surface px-3.5 py-2.5">
-      <Feather name="search" size={18} color={colors.textMuted} />
-      <TextInput
-        value={value}
-        onChangeText={(t) => {
-          setValue(t);
-          refine(t);
-        }}
-        placeholder="Search the library…"
-        placeholderTextColor={colors.textMuted}
-        autoFocus
-        autoCorrect={false}
-        className="flex-1 text-base text-ink"
-        style={{ writingDirection: "rtl" }}
-      />
-      {busy ? (
-        <ActivityIndicator size="small" color={colors.textMuted} />
-      ) : value.length > 0 ? (
-        <Pressable
-          onPress={() => {
-            setValue("");
-            refine("");
-          }}
-        >
-          <Feather name="x" size={18} color={colors.textMuted} />
-        </Pressable>
-      ) : null}
-    </View>
+    <SearchField
+      value={value}
+      onChangeText={(text) => {
+        setValue(text);
+        refine(text);
+      }}
+      placeholder="Search inside every page…"
+      autoFocus
+    />
   );
 };
 
-// A multi-select facet as a labeled horizontal chip row. Tapping chips scopes
-// results to any of them (OR within the attribute; Meili ANDs across attributes),
-// tapping again clears each. Hidden until it has more than `minItems` values in
-// the current result set, so empty/trivial filters don't take up space.
-//
-// The three rows together give the search filter set: Works (facet `work_name`)
-// for filtering by book, Titles (`book_title`) to drill into a specific copy, and
-// Tags (`tags`). This is the flat mobile analog of the desktop nested filter.
-const FacetChips = ({
-  attribute,
-  label,
-  minItems = 1,
+// The three facets together give the search filter set: Works (`work_name`) for
+// filtering by book, Titles (`book_title`) to drill into a specific copy, and
+// Tags (`tags`). Multi-select: OR within an attribute, Meili ANDs across them.
+// A facet is hidden until it has more than `minItems` values in the current
+// result set, so trivial filters don't take up space.
+const FACETS = [
+  { attribute: "work_name", label: "Works", minItems: 1, rtl: true },
+  { attribute: "book_title", label: "Titles", minItems: 1, rtl: true },
+  { attribute: "tags", label: "Tags", minItems: 0, rtl: false },
+] as const;
+
+type Facet = (typeof FACETS)[number] & {
+  list: ReturnType<typeof useRefinementList>;
+};
+
+// Refinement-list widgets must stay mounted for their refinements to apply, so
+// they live here rather than inside the (unmounting) filter sheet.
+const useFacets = (): Facet[] => {
+  const works = useRefinementList({ attribute: "work_name", limit: 200 });
+  const titles = useRefinementList({ attribute: "book_title", limit: 200 });
+  const tags = useRefinementList({ attribute: "tags", limit: 200 });
+  const lists = [works, titles, tags];
+  return FACETS.map((facet, i) => ({ ...facet, list: lists[i] }));
+};
+
+const FilterBar = ({
+  facets,
+  onOpenFilters,
 }: {
-  attribute: string;
-  label: string;
-  minItems?: number;
+  facets: Facet[];
+  onOpenFilters: () => void;
 }) => {
-  const { items, refine } = useRefinementList({ attribute, limit: 200 });
-  if (items.length <= minItems) return null;
+  const c = useColors();
+  const { status } = useInstantSearch();
+  const busy = status === "loading" || status === "stalled";
+  const active = facets.flatMap((f) =>
+    f.list.items
+      .filter((item) => item.isRefined)
+      .map((item) => ({ facet: f, item })),
+  );
+  const hasFacets = facets.some((f) => f.list.items.length > f.minItems);
+  if (!hasFacets && active.length === 0 && !busy) return null;
   return (
-    <View className="mb-2 flex-row items-center gap-2">
-      <Text className="w-12 text-xs font-semibold text-text-muted">
-        {label}
-      </Text>
+    <View className="flex-row items-center gap-2">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+        contentContainerStyle={{ gap: 8, alignItems: "center" }}
+        className="flex-1"
       >
-        {items.map((i) => (
-          <Pressable
-            key={i.value}
-            onPress={() => refine(i.value)}
-            className={`rounded-full border px-3 py-1.5 ${
-              i.isRefined
-                ? "border-accent bg-accent-soft"
-                : "border-border bg-surface"
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                i.isRefined ? "text-accent" : "text-text-secondary"
-              }`}
-              numberOfLines={1}
-            >
-              {i.label} ({i.count})
-            </Text>
-          </Pressable>
+        {hasFacets || active.length > 0 ? (
+          <Button
+            label={active.length > 0 ? `Filters · ${active.length}` : "Filters"}
+            icon="sliders"
+            variant="secondary"
+            size="sm"
+            onPress={onOpenFilters}
+          />
+        ) : null}
+        {active.map(({ facet, item }) => (
+          <Chip
+            key={`${facet.attribute}:${item.value}`}
+            label={item.label}
+            rtl={facet.rtl}
+            removable
+            onPress={() => facet.list.refine(item.value)}
+          />
         ))}
       </ScrollView>
+      {busy ? <ActivityIndicator size="small" color={c.ink3} /> : null}
     </View>
   );
 };
 
-const Hit = ({
+const FilterSheet = ({
+  facets,
+  visible,
+  onClose,
+}: {
+  facets: Facet[];
+  visible: boolean;
+  onClose: () => void;
+}) => (
+  <Sheet visible={visible} onClose={onClose} title="Filter results">
+    <ScrollView
+      className="max-h-[420px]"
+      contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
+    >
+      {facets
+        .filter((f) => f.list.items.length > f.minItems)
+        .map((f) => (
+          <View key={f.attribute} className="gap-2">
+            <T variant="overline" className="text-ink-3">
+              {f.label}
+            </T>
+            <View className="flex-row flex-wrap gap-2">
+              {f.list.items.map((item) => (
+                <Chip
+                  key={item.value}
+                  label={`${item.label} · ${item.count}`}
+                  rtl={f.rtl}
+                  selected={item.isRefined}
+                  onPress={() => f.list.refine(item.value)}
+                />
+              ))}
+            </View>
+          </View>
+        ))}
+    </ScrollView>
+    <View className="px-5 pt-5">
+      <Button label="Done" onPress={onClose} />
+    </View>
+  </Sheet>
+);
+
+const HitRow = ({
   hit,
+  first,
+  last,
   onSelect,
 }: {
   hit: SearchHit;
+  first: boolean;
+  last: boolean;
   onSelect: (hit: SearchHit) => void;
 }) => (
-  <Pressable
-    onPress={() => onSelect(hit)}
-    className="rounded-2xl border border-border bg-surface p-3.5"
+  <View
+    className={`border-x border-line bg-surface px-4 ${first ? "rounded-t-2xl border-t" : ""} ${last ? "rounded-b-2xl border-b" : ""}`}
   >
-    <View className="flex-row items-center justify-between">
-      <Text className="text-sm font-semibold text-accent" numberOfLines={1}>
-        {hit.book_title}
-      </Text>
-      {hit.page_number != null && (
-        <Text className="text-xs text-text-muted">ص {hit.page_number}</Text>
-      )}
-    </View>
-    <Text
-      className="mt-1.5 text-sm leading-6 text-text-secondary"
-      numberOfLines={3}
-      style={{ writingDirection: "rtl", textAlign: "right" }}
+    <Pressable
+      onPress={() => onSelect(hit)}
+      className={`gap-1.5 py-3.5 active:opacity-70 ${first ? "" : "border-t border-line"}`}
     >
-      {cleanSnippet(hit._formatted?.text ?? hit.text ?? "")}
-    </Text>
-  </Pressable>
+      <View className="flex-row items-center gap-1.5">
+        <T
+          variant="caption"
+          className="shrink font-ar-bold text-accent"
+          numberOfLines={1}
+        >
+          {hit.book_title}
+        </T>
+        {hit.page_number != null ? (
+          <T variant="caption" className="font-body text-ink-3">
+            · page {hit.page_number}
+          </T>
+        ) : null}
+      </View>
+      <T
+        variant="arSmall"
+        className="font-ar leading-7"
+        numberOfLines={3}
+        style={{ textAlign: "right" }}
+      >
+        {cleanSnippet(hit._formatted?.text ?? hit.text ?? "")}
+      </T>
+    </Pressable>
+  </View>
 );
 
 const Results = ({ onSelect }: { onSelect: (hit: SearchHit) => void }) => {
@@ -185,26 +247,108 @@ const Results = ({ onSelect }: { onSelect: (hit: SearchHit) => void }) => {
     <FlatList
       data={items}
       keyExtractor={(h) => h.id}
-      renderItem={({ item }) => <Hit hit={item} onSelect={onSelect} />}
-      ItemSeparatorComponent={() => <View className="h-2.5" />}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 90 }}
+      renderItem={({ item, index }) => (
+        <HitRow
+          hit={item}
+          first={index === 0}
+          last={index === items.length - 1}
+          onSelect={onSelect}
+        />
+      )}
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingHorizontal: 24,
+        paddingBottom: insets.bottom + 90,
+      }}
       keyboardShouldPersistTaps="handled"
       onEndReached={() => {
         if (!isLastPage) showMore();
       }}
       onEndReachedThreshold={0.5}
       ListEmptyComponent={
-        <Text className="mt-10 text-center text-sm text-text-muted">
-          {query.trim() ? "No results." : "Type to search the library."}
-        </Text>
+        <View className="flex-1 justify-center pb-24">
+          {query.trim() ? (
+            <EmptyState
+              icon="search"
+              title="No results"
+              body="Try fewer words, or search without tashkeel."
+            />
+          ) : (
+            <EmptyState
+              icon="file-text"
+              title="Search your library"
+              body="Type a word or phrase in Arabic. Results come from every transcribed page."
+            />
+          )}
+        </View>
       }
     />
+  );
+};
+
+const SearchContent = ({
+  onSelect,
+}: {
+  onSelect: (hit: SearchHit) => void;
+}) => {
+  const facets = useFacets();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  return (
+    <>
+      <View className="gap-3 px-6 pb-4">
+        <SearchBar />
+        <FilterBar facets={facets} onOpenFilters={() => setFiltersOpen(true)} />
+      </View>
+      <Results onSelect={onSelect} />
+      <FilterSheet
+        facets={facets}
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+      />
+    </>
   );
 };
 
 // (query, fileId) → highlight response, so reopening a result or retyping the
 // same query doesn't re-hit the API. Session-lived; clears on reload.
 const highlightCache = new Map<string, HighlightResponse>();
+
+const HighlightAction = ({
+  loading,
+  hasResult,
+  hasMatches,
+  onHighlight,
+  onClear,
+}: {
+  loading: boolean;
+  hasResult: boolean;
+  hasMatches: boolean;
+  onHighlight: () => void;
+  onClear: () => void;
+}) => {
+  if (loading)
+    return <Button label="Finding…" icon="edit-3" loading onPress={() => {}} />;
+  if (hasResult && hasMatches)
+    return (
+      <Button
+        label="Clear highlight"
+        icon="x"
+        variant="secondary"
+        onPress={onClear}
+      />
+    );
+  if (hasResult)
+    return (
+      <View className="h-12 items-center justify-center">
+        <T variant="small" className="text-ink-3">
+          No matching passage
+        </T>
+      </View>
+    );
+  return (
+    <Button label="Highlight matches" icon="edit-3" onPress={onHighlight} />
+  );
+};
 
 // Full-page rendered preview, opened by tapping a result. Renders the page with
 // the same Markdown component as the reader; tapping "Highlight matches" fetches
@@ -220,6 +364,7 @@ const PreviewModal = ({
 }) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const c = useColors();
   const q = query.trim();
   const [hl, setHl] = useState<HighlightResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,9 +373,8 @@ const PreviewModal = ({
   // The page id (not the chunk id) — highlight and reader both address pages.
   const hitId = hit?.file_id;
   const bookId = hit?.book_id;
-  // Highlighting is an explicit action now, so drop any existing highlight when
-  // the opened result or query changes — the button re-fetches on demand.
-  // hitId/q are triggers here, not values the effect reads.
+  // Highlighting is an explicit action, so drop any existing highlight when the
+  // opened result or query changes — the button re-fetches on demand.
   // biome-ignore lint/correctness/useExhaustiveDependencies: deps are reset triggers
   useEffect(() => {
     setHl(null);
@@ -254,7 +398,6 @@ const PreviewModal = ({
         highlightCache.set(key, res);
         setHl(res);
       })
-      // Surface the failure instead of silently doing nothing.
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, [hitId, bookId, q]);
@@ -277,91 +420,89 @@ const PreviewModal = ({
       transparent={false}
     >
       <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
-        <View className="flex-row items-center justify-between border-b border-hairline px-5 py-3">
-          <Pressable onPress={onClose} hitSlop={8}>
-            <Feather name="x" size={22} color={colors.ink} />
-          </Pressable>
-          <View className="flex-1 px-3">
-            <Text
-              className="text-sm font-semibold text-accent"
+        <View className="flex-row items-center gap-3 px-5 pb-2.5 pt-1.5">
+          <IconButton icon="x" onPress={onClose} />
+          <View className="flex-1 items-center">
+            <T
+              variant="caption"
+              className="font-ar-bold text-ink"
               numberOfLines={1}
             >
               {hit?.book_title}
-            </Text>
-            {hit?.page_number != null && (
-              <Text className="text-xs text-text-muted">
-                صفحة {hit.page_number}
-              </Text>
-            )}
+            </T>
+            {hit?.page_number != null ? (
+              <T variant="caption" className="font-body text-ink-3">
+                Page {hit.page_number}
+              </T>
+            ) : null}
           </View>
-          {hit && (
-            <Pressable
-              onPress={() => {
-                onClose();
-                router.push(`/reader/${hit.book_id}/${hit.file_id}`);
-              }}
-              hitSlop={8}
-            >
-              <Feather name="book-open" size={20} color={colors.accent} />
-            </Pressable>
-          )}
+          <IconButton
+            icon="book-open"
+            disabled={!hit}
+            onPress={() => {
+              if (!hit) return;
+              onClose();
+              router.push(`/reader/${hit.book_id}/${hit.file_id}`);
+            }}
+          />
         </View>
         <ScrollView
-          className="flex-1 px-5"
+          className="flex-1"
           contentContainerStyle={{
-            paddingVertical: 20,
-            paddingBottom: insets.bottom + 24,
+            paddingHorizontal: 24,
+            paddingTop: 8,
+            paddingBottom: canHighlight ? 24 : insets.bottom + 24,
           }}
         >
-          {canHighlight && (
-            <View className="mb-3">
-              {loading ? (
-                <View className="flex-row items-center gap-2">
-                  <ActivityIndicator size="small" color={colors.textMuted} />
-                  <Text className="text-sm text-text-muted">Finding…</Text>
-                </View>
-              ) : failed ? (
-                <Pressable onPress={runHighlight} hitSlop={8}>
-                  <Text className="text-sm font-semibold text-st-fail">
-                    Couldn't highlight — retry
-                  </Text>
-                </Pressable>
-              ) : hl ? (
-                highlight && highlight.length > 0 ? (
-                  <Pressable onPress={() => setHl(null)} hitSlop={8}>
-                    <Text className="text-sm font-semibold text-text-muted">
-                      Clear highlight
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Text className="text-sm text-text-muted">
-                    No matching passage
-                  </Text>
-                )
-              ) : (
-                <Pressable
-                  onPress={runHighlight}
-                  className="self-start rounded-lg border border-accent px-3 py-1.5"
-                >
-                  <Text className="text-sm font-semibold text-accent">
-                    Highlight matches
-                  </Text>
-                </Pressable>
-              )}
+          {canHighlight && failed ? (
+            <View className="mb-4 flex-row items-center gap-2.5 rounded-xl bg-danger-soft px-3.5 py-3">
+              <Feather name="alert-circle" size={16} color={c.danger} />
+              <T variant="small" className="flex-1 text-danger">
+                Couldn't highlight this page.
+              </T>
+              <Pressable onPress={runHighlight} hitSlop={8}>
+                <T variant="small" className="font-body-bold text-danger">
+                  Retry
+                </T>
+              </Pressable>
             </View>
-          )}
+          ) : null}
           <Markdown
             source={hit?.page_text ?? hit?.text ?? ""}
             highlight={highlight}
           />
         </ScrollView>
+        {canHighlight ? (
+          <ActionBar>
+            <HighlightAction
+              loading={loading}
+              hasResult={hl != null}
+              hasMatches={(highlight?.length ?? 0) > 0}
+              onHighlight={runHighlight}
+              onClear={() => setHl(null)}
+            />
+          </ActionBar>
+        ) : null}
       </View>
     </Modal>
   );
 };
 
-export default function SearchScreen() {
+const ScreenTitle = () => {
   const insets = useSafeAreaInsets();
+  return (
+    <T
+      variant="display"
+      className="px-6 pb-4"
+      style={{ paddingTop: insets.top + 16 }}
+    >
+      Search
+    </T>
+  );
+};
+
+export default function SearchScreen() {
+  const router = useRouter();
   const { config, ready } = useConfigState();
   const [selected, setSelected] = useState<SearchHit | null>(null);
   // Mirrored from InstantSearch so PreviewModal (rendered outside the provider)
@@ -398,23 +539,29 @@ export default function SearchScreen() {
 
   if (!searchClient) {
     return (
-      <Centered>
-        <Text className="text-center text-lg font-semibold text-ink">
-          Search isn't set up
-        </Text>
-        <Text className="text-center text-sm text-text-secondary">
-          Add your Meilisearch URL and read-only key in Settings.
-        </Text>
-        <Link href="/settings" className="mt-2 font-semibold text-accent">
-          Open Settings →
-        </Link>
-      </Centered>
+      <View className="flex-1 bg-bg">
+        <ScreenTitle />
+        <View className="flex-1 justify-center pb-24">
+          <EmptyState
+            icon="search"
+            title="Search isn't set up"
+            body="Add your Meilisearch URL and read-only key in Settings to search inside every page."
+            action={
+              <Button
+                label="Open Settings"
+                variant="secondary"
+                onPress={() => router.navigate("/settings")}
+              />
+            }
+          />
+        </View>
+      </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-bg px-5" style={{ paddingTop: insets.top + 8 }}>
-      <Text className="mb-3 text-[34px] font-semibold text-ink">Search</Text>
+    <View className="flex-1 bg-bg">
+      <ScreenTitle />
       <InstantSearch
         searchClient={searchClient}
         indexName={SEARCH_INDEX}
@@ -422,15 +569,7 @@ export default function SearchScreen() {
         initialUiState={initialUiState}
         onStateChange={onStateChange}
       >
-        <View className="mb-3">
-          <SearchBar />
-        </View>
-        <View className="mb-1">
-          <FacetChips attribute="work_name" label="Works" />
-          <FacetChips attribute="book_title" label="Titles" />
-          <FacetChips attribute="tags" label="Tags" minItems={0} />
-        </View>
-        <Results onSelect={setSelected} />
+        <SearchContent onSelect={setSelected} />
       </InstantSearch>
       <PreviewModal
         hit={selected}

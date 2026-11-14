@@ -1,25 +1,26 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors } from "@/theme";
+import { useColors } from "@/theme";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const c = useColors();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: colors.bg },
+        sceneStyle: { backgroundColor: c.bg },
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.hairline,
+          backgroundColor: c.surface,
+          borderTopColor: c.line,
           height: 64 + insets.bottom,
           paddingTop: 8,
           paddingBottom: insets.bottom,
         },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "600" },
+        tabBarActiveTintColor: c.ink,
+        tabBarInactiveTintColor: c.ink3,
+        tabBarLabelStyle: { fontSize: 11, fontFamily: "Inter_500Medium" },
       }}
     >
       <Tabs.Screen

@@ -2,18 +2,21 @@ import { Feather } from "@expo/vector-icons";
 import type { BookWithStatus, FileStatus } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import type { ReactNode } from "react";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Centered, Loading, StatusBadge } from "@/components/ui";
+import {
+  Button,
+  EmptyState,
+  IconButton,
+  ListCard,
+  Loading,
+  StatusLine,
+  T,
+} from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
-import { colors } from "@/theme";
+import { useColors } from "@/theme";
 
 const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
 const isPending = (f: FileStatus): boolean =>
@@ -35,26 +38,62 @@ const relativeTime = (raw: number): string => {
   return `${Math.floor(s / 86400)}d`;
 };
 
-const Stat = ({
+const timeAgo = (raw: number): string => {
+  const rel = relativeTime(raw);
+  return rel === "now" ? "just now" : `${rel} ago`;
+};
+
+const STAT_TONES = {
+  ok: { bg: "bg-ok-soft", fg: "text-ok" },
+  accent: { bg: "bg-accent-soft", fg: "text-accent" },
+  danger: { bg: "bg-danger-soft", fg: "text-danger" },
+} as const;
+
+const StatTile = ({
   value,
   label,
-  color,
+  tone,
 }: {
   value: number;
   label: string;
-  color: string;
-}) => (
-  <View className="items-center gap-1">
-    <Text className="text-[22px] font-semibold" style={{ color }}>
-      {value}
-    </Text>
-    <Text className="text-xs text-text-muted">{label}</Text>
-  </View>
-);
+  tone: keyof typeof STAT_TONES;
+}) => {
+  const { bg, fg } = STAT_TONES[tone];
+  return (
+    <View className={`flex-1 gap-0.5 rounded-2xl px-3.5 py-3 ${bg}`}>
+      <T variant="title" className={fg}>
+        {value}
+      </T>
+      <T variant="caption" className={`font-body ${fg}`}>
+        {label}
+      </T>
+    </View>
+  );
+};
+
+const Screen = ({
+  children,
+  right,
+}: {
+  children: ReactNode;
+  right?: ReactNode;
+}) => {
+  const insets = useSafeAreaInsets();
+  return (
+    <View className="flex-1 bg-bg" style={{ paddingTop: insets.top + 16 }}>
+      <View className="flex-row items-center justify-between px-6 pb-4">
+        <T variant="display">Activity</T>
+        {right}
+      </View>
+      {children}
+    </View>
+  );
+};
 
 export default function ActivityScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const c = useColors();
   const { configured, ready } = useConfigState();
 
   const booksQuery = useQuery({
@@ -79,11 +118,22 @@ export default function ActivityScreen() {
   if (!ready) return <Loading />;
   if (!configured) {
     return (
-      <Centered>
-        <Text className="text-center text-sm text-text-secondary">
-          Configure the API in Settings to see activity.
-        </Text>
-      </Centered>
+      <Screen>
+        <View className="flex-1 justify-center pb-24">
+          <EmptyState
+            icon="power"
+            title="Not connected"
+            body="Connect your API in Settings to see recent scans."
+            action={
+              <Button
+                label="Open Settings"
+                variant="secondary"
+                onPress={() => router.navigate("/settings")}
+              />
+            }
+          />
+        </View>
+      </Screen>
     );
   }
 
@@ -102,101 +152,90 @@ export default function ActivityScreen() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-bg"
-      contentContainerStyle={{
-        paddingTop: insets.top + 8,
-        paddingHorizontal: 20,
-        paddingBottom: insets.bottom + 90,
-      }}
-      refreshControl={
-        <RefreshControl
-          refreshing={booksQuery.isRefetching || recentQuery.isRefetching}
-          onRefresh={refetchAll}
-          tintColor={colors.accent}
-        />
-      }
-    >
-      <View className="flex-row items-center justify-between">
-        <Text className="text-[30px] font-semibold text-ink">Activity</Text>
-        <Pressable
-          onPress={refetchAll}
-          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <Feather name="refresh-cw" size={17} color={colors.textSecondary} />
-        </Pressable>
-      </View>
-
-      <View className="mt-4 flex-row items-center justify-around rounded-2xl border border-border bg-surface px-2 py-3.5">
-        <Stat value={done} label="done" color="#46B97D" />
-        <View className="h-8 w-px bg-hairline" />
-        <Stat value={queued} label="queued" color="#5C8DF0" />
-        <View className="h-8 w-px bg-hairline" />
-        <Stat value={failed} label="failed" color="#EE6A4D" />
-      </View>
-
-      <Text className="mt-5 text-xs font-bold tracking-wide text-text-muted">
-        RECENTLY SCANNED
-      </Text>
-
-      {recentQuery.isLoading ? (
-        <View className="mt-10">
-          <Loading />
+    <Screen right={<IconButton icon="refresh-cw" onPress={refetchAll} />}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: 24,
+          paddingBottom: insets.bottom + 90,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={booksQuery.isRefetching || recentQuery.isRefetching}
+            onRefresh={refetchAll}
+            tintColor={c.accent}
+          />
+        }
+      >
+        <View className="flex-row gap-2.5">
+          <StatTile value={done} label="done" tone="ok" />
+          <StatTile value={queued} label="in queue" tone="accent" />
+          <StatTile value={failed} label="failed" tone="danger" />
         </View>
-      ) : recent.length === 0 ? (
-        <Text className="mt-3 text-sm text-text-secondary">
-          No pages yet. Open a book and tap “Scan pages”.
-        </Text>
-      ) : (
-        <View className="mt-2">
-          {recent.map((r, i) => {
-            const readable = READABLE.includes(r.file.state);
-            const label =
-              r.file.page_number != null ? String(r.file.page_number) : "—";
-            return (
-              <Pressable
-                key={r.file.file_id}
-                disabled={!readable}
-                onPress={() =>
-                  router.push(`/reader/${r.book_id}/${r.file.file_id}`)
-                }
-                className="flex-row items-center gap-3 py-3"
-                style={
-                  i > 0
-                    ? { borderTopWidth: 1, borderTopColor: colors.hairline }
-                    : undefined
-                }
-              >
-                <View className="h-9 w-9 items-center justify-center rounded-full bg-surface-alt">
-                  <Text className="text-sm font-semibold text-ink">
-                    {label}
-                  </Text>
-                </View>
-                <View className="flex-1 gap-0.5">
-                  <Text
-                    className="text-base text-ink"
-                    numberOfLines={1}
-                    style={{ writingDirection: "rtl" }}
+
+        {recentQuery.isLoading ? (
+          <View className="mt-10">
+            <Loading />
+          </View>
+        ) : recent.length === 0 ? (
+          <View className="flex-1 justify-center pb-16">
+            <EmptyState
+              icon="maximize"
+              title="Nothing scanned yet"
+              body="Open a book and tap Scan pages. Each page appears here as it transcribes."
+            />
+          </View>
+        ) : (
+          <View className="mt-6 gap-2.5">
+            <T variant="overline" className="text-ink-3">
+              Recently scanned
+            </T>
+            <ListCard>
+              {recent.map((r, i) => {
+                const readable = READABLE.includes(r.file.state);
+                return (
+                  <Pressable
+                    key={r.file.file_id}
+                    disabled={!readable}
+                    onPress={() =>
+                      router.push(`/reader/${r.book_id}/${r.file.file_id}`)
+                    }
+                    className={`flex-row items-center gap-3.5 py-3.5 active:opacity-70 ${i > 0 ? "border-t border-line" : ""}`}
                   >
-                    {r.title}
-                  </Text>
-                  <Text className="text-xs text-text-muted">
-                    {relativeTime(r.file.updated_at)} ago
-                  </Text>
-                </View>
-                <StatusBadge state={r.file.state} />
-                {readable && (
-                  <Feather
-                    name="chevron-right"
-                    size={16}
-                    color={colors.textMuted}
-                  />
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-    </ScrollView>
+                    <View className="w-10 items-center">
+                      <T variant="title" className="leading-7">
+                        {r.file.page_number ?? "—"}
+                      </T>
+                      <T variant="caption" className="font-body text-ink-3">
+                        page
+                      </T>
+                    </View>
+                    <View className="flex-1 items-start gap-0.5">
+                      <T
+                        variant="arSmall"
+                        numberOfLines={1}
+                        className="font-ar-bold"
+                      >
+                        {r.title}
+                      </T>
+                      <StatusLine
+                        state={r.file.state}
+                        trailing={`· ${timeAgo(r.file.updated_at)}`}
+                      />
+                    </View>
+                    <Feather
+                      name="chevron-right"
+                      size={18}
+                      color={readable ? c.ink3 : c.line}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ListCard>
+          </View>
+        )}
+      </ScrollView>
+    </Screen>
   );
 }

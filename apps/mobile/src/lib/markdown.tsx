@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
-import { colors } from "@/theme";
+import { type Palette, useColors } from "@/theme";
 
 const RTL = { writingDirection: "rtl", textAlign: "right" } as const;
 const RUBY = /<ruby>(.*?)<rt>(.*?)<\/rt><\/ruby>/g;
@@ -76,6 +76,7 @@ const normalize = (s: string): { norm: string; idx: number[] } => {
 // <Text>. Overlapping matches are merged (first/longest wins) so nothing is
 // wrapped twice. Returns the text unchanged when there are no terms or matches.
 const markMatches = (
+  c: Palette,
   text: string,
   terms: string[] | undefined,
   keyBase: string,
@@ -105,7 +106,7 @@ const markMatches = (
     nodes.push(
       <Text
         key={`${keyBase}-m${i}`}
-        style={{ backgroundColor: colors.accentSoft, color: colors.accent }}
+        style={{ backgroundColor: `${c.mark}4D`, color: c.ink }}
       >
         {text.slice(start, end)}
       </Text>,
@@ -118,6 +119,7 @@ const markMatches = (
 };
 
 const inline = (
+  c: Palette,
   text: string,
   keyBase: string,
   highlight?: string[],
@@ -132,6 +134,7 @@ const inline = (
     if (match.index > last)
       nodes.push(
         ...markMatches(
+          c,
           text.slice(last, match.index),
           highlight,
           `${keyBase}-t${i}`,
@@ -140,17 +143,16 @@ const inline = (
     nodes.push(
       <Text key={`${keyBase}-r${i}`}>
         {match[1]}
-        <Text style={{ fontSize: 13, color: colors.accent }}>
-          {" "}
-          ({match[2]})
-        </Text>
+        <Text style={{ fontSize: 13, color: c.accent }}> ({match[2]})</Text>
       </Text>,
     );
     last = match.index + match[0].length;
     i += 1;
   }
   if (last < text.length)
-    nodes.push(...markMatches(text.slice(last), highlight, `${keyBase}-t${i}`));
+    nodes.push(
+      ...markMatches(c, text.slice(last), highlight, `${keyBase}-t${i}`),
+    );
   return nodes.length > 0 ? nodes : [text];
 };
 
@@ -161,6 +163,7 @@ export const Markdown = ({
   source: string;
   highlight?: string[];
 }) => {
+  const c = useColors();
   const lines = source.split(/\r?\n/);
   const firstContent = lines.findIndex((l) => l.trim().length > 0);
   const blocks: ReactNode[] = [];
@@ -177,7 +180,7 @@ export const Markdown = ({
           key={key}
           style={{
             height: 1,
-            backgroundColor: colors.hairline,
+            backgroundColor: c.line,
             alignSelf: "stretch",
           }}
         />,
@@ -197,13 +200,13 @@ export const Markdown = ({
             selectable
             style={{
               ...RTL,
-              color: colors.textMuted,
+              color: c.ink3,
               fontSize: 13,
-              fontWeight: "700",
+              fontFamily: "NotoNaskhArabic_700Bold",
               marginTop: 8,
             }}
           >
-            {inline(content, key, highlight)}
+            {inline(c, content, key, highlight)}
           </Text>,
         );
         return;
@@ -216,12 +219,13 @@ export const Markdown = ({
           style={{
             ...RTL,
             marginTop: major ? 8 : 4,
-            fontSize: major ? 22 : 17,
-            fontWeight: major ? "700" : "600",
-            color: major ? colors.accent : colors.ink,
+            fontSize: major ? 24 : 18,
+            lineHeight: major ? 38 : 30,
+            fontFamily: "NotoNaskhArabic_700Bold",
+            color: major ? c.accent : c.ink,
           }}
         >
-          {inline(content, key, highlight)}
+          {inline(c, content, key, highlight)}
         </Text>,
       );
       return;
@@ -235,11 +239,12 @@ export const Markdown = ({
           style={{
             writingDirection: "rtl",
             textAlign: "center",
-            color: colors.textMuted,
+            color: c.ink3,
             fontSize: 13,
+            fontFamily: "NotoNaskhArabic_400Regular",
           }}
         >
-          {inline(line, key, highlight)}
+          {inline(c, line, key, highlight)}
         </Text>,
       );
       return;
@@ -251,12 +256,13 @@ export const Markdown = ({
         selectable
         style={{
           ...RTL,
-          color: inFootnotes ? colors.textSecondary : colors.ink,
-          fontSize: inFootnotes ? 15 : 19,
-          lineHeight: inFootnotes ? 26 : 34,
+          color: inFootnotes ? c.ink2 : c.ink,
+          fontFamily: "NotoNaskhArabic_400Regular",
+          fontSize: inFootnotes ? 15 : 20,
+          lineHeight: inFootnotes ? 28 : 38,
         }}
       >
-        {inline(line, key, highlight)}
+        {inline(c, line, key, highlight)}
       </Text>,
     );
   });
