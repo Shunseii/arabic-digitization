@@ -18,6 +18,7 @@ import DocumentScanner, {
 } from "react-native-document-scanner-plugin";
 import Animated, { Keyframe, LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PageViewer } from "@/components/page-viewer";
 import {
   ActionBar,
   Button,
@@ -98,6 +99,7 @@ export default function ScanScreen() {
   const [busy, setBusy] = useState(false);
   const [uploadIndex, setUploadIndex] = useState<number | null>(null);
   const [failedIndexes, setFailedIndexes] = useState<number[]>([]);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   const runScan = async () => {
     try {
@@ -158,6 +160,7 @@ export default function ScanScreen() {
   };
 
   const checking = pages.some((p) => p.checking);
+  const viewing = pages.find((p) => p.id === viewingId);
 
   const setPageAt = ({ index, value }: { index: number; value: string }) =>
     setPages((prev) =>
@@ -329,12 +332,19 @@ export default function ScanScreen() {
                   style={{ width: tileWidth, gap: 8 }}
                 >
                   <View>
-                    <Image
-                      source={{ uri: p.uri }}
-                      className="rounded-xl bg-surface-2"
-                      style={{ width: tileWidth, aspectRatio: 3 / 4 }}
-                      resizeMode="cover"
-                    />
+                    <Pressable
+                      onPress={() => setViewingId(p.id)}
+                      accessibilityRole="imagebutton"
+                      accessibilityLabel="View page full screen"
+                      className="active:opacity-80"
+                    >
+                      <Image
+                        source={{ uri: p.uri }}
+                        className="rounded-xl bg-surface-2"
+                        style={{ width: tileWidth, aspectRatio: 3 / 4 }}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
                     <View className="absolute right-2 top-2">
                       {tileBadge(i)}
                     </View>
@@ -388,7 +398,8 @@ export default function ScanScreen() {
                       keyboardType="number-pad"
                       placeholder="—"
                       placeholderTextColor={c.ink3}
-                      className="h-10 flex-1 rounded-lg border border-line bg-surface px-3 font-body-semibold text-base text-ink"
+                      style={{ textAlignVertical: "center" }}
+                      className="h-10 flex-1 rounded-lg border border-line bg-surface px-3 py-0 font-body-semibold text-base text-ink"
                     />
                   </View>
                 </Animated.View>
@@ -422,6 +433,12 @@ export default function ScanScreen() {
           </View>
         )}
       </ActionBar>
+
+      <PageViewer
+        uri={viewing?.uri ?? null}
+        title={viewing?.page ? `Page ${viewing.page}` : undefined}
+        onClose={() => setViewingId(null)}
+      />
     </View>
   );
 }

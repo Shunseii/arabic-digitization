@@ -4,6 +4,8 @@ import { type Palette, useColors } from "@/theme";
 
 const RTL = { writingDirection: "rtl", textAlign: "right" } as const;
 const RUBY = /<ruby>(.*?)<rt>(.*?)<\/rt><\/ruby>/g;
+const BR = /<br\s*\/?>/gi;
+const withBreaks = (s: string): string => s.replace(BR, "\n");
 
 /**
  * Renders the Markdown the OCR pipeline produces (see apps/api/src/ocr.ts):
@@ -135,7 +137,7 @@ const inline = (
       nodes.push(
         ...markMatches(
           c,
-          text.slice(last, match.index),
+          withBreaks(text.slice(last, match.index)),
           highlight,
           `${keyBase}-t${i}`,
         ),
@@ -143,7 +145,10 @@ const inline = (
     nodes.push(
       <Text key={`${keyBase}-r${i}`}>
         {match[1]}
-        <Text style={{ fontSize: 13, color: c.accent }}> ({match[2]})</Text>
+        <Text style={{ fontSize: 13, color: c.accent }}>
+          {" "}
+          ({withBreaks(match[2] ?? "")})
+        </Text>
       </Text>,
     );
     last = match.index + match[0].length;
@@ -151,7 +156,12 @@ const inline = (
   }
   if (last < text.length)
     nodes.push(
-      ...markMatches(c, text.slice(last), highlight, `${keyBase}-t${i}`),
+      ...markMatches(
+        c,
+        withBreaks(text.slice(last)),
+        highlight,
+        `${keyBase}-t${i}`,
+      ),
     );
   return nodes.length > 0 ? nodes : [text];
 };

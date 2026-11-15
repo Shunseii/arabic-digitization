@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { colors } from "@/theme";
 
 const RUBY = /<ruby>(.*?)<rt>(.*?)<\/rt><\/ruby>/g;
+const BR = /<br\s*\/?>/gi;
+const withBreaks = (s: string): string => s.replace(BR, "\n");
 
 /**
  * Renders the Markdown the OCR pipeline produces (see apps/api/src/ocr.ts):
@@ -131,7 +133,7 @@ const inline = (
     if (match.index > last)
       nodes.push(
         ...markMatches(
-          text.slice(last, match.index),
+          withBreaks(text.slice(last, match.index)),
           highlight,
           `${keyBase}-t${i}`,
         ),
@@ -139,9 +141,11 @@ const inline = (
     nodes.push(
       <span key={`${keyBase}-r${i}`}>
         {match[1]}
-        <span style={{ fontSize: 13, color: colors.accent }}>
+        <span
+          style={{ fontSize: 13, color: colors.accent, whiteSpace: "pre-line" }}
+        >
           {" "}
-          ({match[2]})
+          ({withBreaks(match[2] ?? "")})
         </span>
       </span>,
     );
@@ -149,7 +153,13 @@ const inline = (
     i += 1;
   }
   if (last < text.length)
-    nodes.push(...markMatches(text.slice(last), highlight, `${keyBase}-t${i}`));
+    nodes.push(
+      ...markMatches(
+        withBreaks(text.slice(last)),
+        highlight,
+        `${keyBase}-t${i}`,
+      ),
+    );
   return nodes.length > 0 ? nodes : [text];
 };
 
