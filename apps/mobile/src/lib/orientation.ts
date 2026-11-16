@@ -1,7 +1,7 @@
-import { Asset } from "expo-asset";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
-import { decode as decodeJpeg } from "jpeg-js";
-import { InferenceSession, Tensor } from "onnxruntime-react-native";
+import { Tensor } from "onnxruntime-react-native";
+import { modelLoader } from "@/lib/onnx";
+import { type GrayImage, grayscaleImage } from "@/lib/pixels";
 
 /**
  * On-device page orientation. ML Kit's scanner picks "up" per shot and often
@@ -23,70 +23,19 @@ const CROP_CENTRES: [number, number][] = [
 const MIN_CONFIDENCE = 0.6;
 const JPEG_QUALITY = 0.95;
 
-let session: Promise<InferenceSession> | null = null;
+const loadModel = modelLoader(require("../../assets/models/orientation.onnx"));
 
-const loadSession = () => {
-  session ??= (async () => {
-    const [asset] = await Asset.loadAsync(
-      require("../../assets/models/orientation.onnx"),
-    );
-    const uri = asset?.localUri;
-    if (!uri) throw new Error("Orientation model missing");
-    return InferenceSession.create(uri.replace(/^file:\/\//, ""));
-  })().catch((err) => {
-    session = null;
-    throw err;
-  });
-  return session;
-};
-
-const base64ToBytes = (b64: string): Uint8Array => {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-};
-
-/** Page shrunk to the model's scale, as grayscale pixels (ITU-R 601 luma, as PIL). */
-const grayscalePage = async (
-  uri: string,
-): Promise<{ gray: Uint8Array; width: number; height: number }> => {
+/** Page shrunk to the model's scale (short side SHORT_SIDE), in grayscale. */
+const grayscalePage = async (uri: string): Promise<GrayImage> => {
   const original = await ImageManipulator.manipulate(uri).renderAsync();
   const portrait = original.width <= original.height;
-  const resized = await ImageManipulator.manipulate(uri)
-    .resize(portrait ? { width: SHORT_SIDE } : { height: SHORT_SIDE })
-    .renderAsync();
-  const saved = await resized.saveAsync({
-    format: SaveFormat.JPEG,
-    compress: 0.9,
-    base64: true,
+  return grayscaleImage({
+    uri,
+    size: portrait ? { width: SHORT_SIDE } : { height: SHORT_SIDE },
   });
-  if (!saved.base64) throw new Error("No pixels for orientation check");
-  const { data, width, height } = decodeJpeg(base64ToBytes(saved.base64), {
-    useTArray: true,
-    formatAsRGBA: true,
-  });
-  const gray = new Uint8Array(width * height);
-  for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
-    gray[i] =
-      ((data[p] as number) * 19595 +
-        (data[p + 1] as number) * 38470 +
-        (data[p + 2] as number) * 7471 +
-        0x8000) >>
-      16;
-  }
-  return { gray, width, height };
 };
 
-const cropsFor = ({
-  gray,
-  width,
-  height,
-}: {
-  gray: Uint8Array;
-  width: number;
-  height: number;
-}): Uint8Array => {
+const cropsFor = ({ gray, width, height }: GrayImage): Uint8Array => {
   const out = new Uint8Array(CROP_CENTRES.length * CROP * CROP);
   CROP_CENTRES.forEach(([fy, fx], c) => {
     const top = Math.min(
@@ -110,7 +59,7 @@ const cropsFor = ({
  * when the model isn't confident.
  */
 export const detectRotation = async (uri: string): Promise<number> => {
-  const [model, page] = await Promise.all([loadSession(), grayscalePage(uri)]);
+  const [model, page] = await Promise.all([loadModel(), grayscalePage(uri)]);
   const input = new Tensor("uint8", cropsFor(page), [
     CROP_CENTRES.length,
     CROP,

@@ -31,6 +31,11 @@ import {
 import { ApiError, api } from "@/lib/api";
 import { DURATION, EASE_OUT } from "@/lib/motion";
 import { rotateImage, uprightPage } from "@/lib/orientation";
+import { readPageNumber } from "@/lib/page-number";
+import {
+  type PageNumberFields,
+  resolvePageNumbers,
+} from "@/lib/page-numbering";
 import { useColors } from "@/theme";
 
 // Removing a page reflows the ones after it (and renumbers them), so let the
@@ -45,11 +50,10 @@ const TILE_EXIT = new Keyframe({
   100: { opacity: 0, transform: [{ scale: 0.95 }], easing: EASE_OUT },
 }).duration(DURATION.fast);
 
-interface Captured {
+interface Captured extends PageNumberFields {
   id: string;
   uri: string;
-  page: string; // editable; blank = upload without a page number
-  /** Orientation check still running; upload waits for it. */
+  /** Orientation and page-number checks still running; upload waits. */
   checking: boolean;
   /** Turned upright automatically (clockwise degrees), for the badge. */
   autoRotated: number;
@@ -63,10 +67,10 @@ const GRID_GAP = 20;
 const TIPS: { icon: IconName; text: string }[] = [
   { icon: "maximize", text: "Edges are detected and each page is flattened." },
   { icon: "layers", text: "Capture one or many pages in a row." },
-  { icon: "hash", text: "Set each page's number before you upload." },
+  { icon: "hash", text: "Page numbers are read from the page where possible." },
 ];
 
-/** Continue from the last typed number, else from the book's next page. */
+/** The number the next captured page would get from the sequence. */
 const nextPageNumber = ({
   pages,
   startPage,
@@ -101,6 +105,9 @@ export default function ScanScreen() {
   const [failedIndexes, setFailedIndexes] = useState<number[]>([]);
   const [viewingId, setViewingId] = useState<string | null>(null);
 
+  const setPagesResolved = (update: (prev: Captured[]) => Captured[]) =>
+    setPages((prev) => resolvePageNumbers({ pages: update(prev), startPage }));
+
   const runScan = async () => {
     try {
       // Native edge detection + perspective flatten (iOS VisionKit / Android ML Kit).
@@ -116,22 +123,21 @@ export default function ScanScreen() {
         id: String(nextCaptureId++),
         uri,
         page: "",
+        typed: false,
+        detected: null,
+        fromPage: false,
         checking: true,
         autoRotated: 0,
       }));
-      setPages((prev) => {
-        const base = nextPageNumber({ pages: prev, startPage });
-        return [
-          ...prev,
-          ...captured.map((p, i) => ({ ...p, page: String(base + i) })),
-        ];
-      });
-      // ML Kit often picks the wrong "up"; turn each page upright in turn.
+      setPagesResolved((prev) => [...prev, ...captured]);
+      // ML Kit often picks the wrong "up"; turn each page upright in turn,
+      // then read its printed number.
       for (const p of captured) {
         const { uri, rotated } = await uprightPage(p.uri);
+        const detected = await readPageNumber(uri);
         updatePage({
           id: p.id,
-          patch: { uri, autoRotated: rotated, checking: false },
+          patch: { uri, autoRotated: rotated, detected, checking: false },
         });
       }
     } catch (err) {
@@ -146,13 +152,19 @@ export default function ScanScreen() {
     id: string;
     patch: Partial<Captured>;
   }) =>
-    setPages((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setPagesResolved((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    );
 
   const rotatePage = async (p: Captured) => {
     updatePage({ id: p.id, patch: { checking: true } });
     try {
       const uri = await rotateImage({ uri: p.uri, degrees: 90 });
-      updatePage({ id: p.id, patch: { uri, checking: false, autoRotated: 0 } });
+      const detected = await readPageNumber(uri);
+      updatePage({
+        id: p.id,
+        patch: { uri, detected, checking: false, autoRotated: 0 },
+      });
     } catch (err) {
       updatePage({ id: p.id, patch: { checking: false } });
       Alert.alert("Could not rotate", String(err));
@@ -163,14 +175,16 @@ export default function ScanScreen() {
   const viewing = pages.find((p) => p.id === viewingId);
 
   const setPageAt = ({ index, value }: { index: number; value: string }) =>
-    setPages((prev) =>
+    setPagesResolved((prev) =>
       prev.map((p, i) =>
-        i === index ? { ...p, page: value.replace(/[^0-9]/g, "") } : p,
+        i === index
+          ? { ...p, page: value.replace(/[^0-9]/g, ""), typed: true }
+          : p,
       ),
     );
 
   const removeAt = (index: number) =>
-    setPages((prev) => prev.filter((_, i) => i !== index));
+    setPagesResolved((prev) => prev.filter((_, i) => i !== index));
 
   const upload = async () => {
     setBusy(true);
@@ -391,16 +405,34 @@ export default function ScanScreen() {
                     <T variant="small" className="text-ink-3">
                       Page
                     </T>
-                    <TextInput
-                      value={p.page}
-                      onChangeText={(value) => setPageAt({ index: i, value })}
-                      editable={!busy}
-                      keyboardType="number-pad"
-                      placeholder="—"
-                      placeholderTextColor={c.ink3}
-                      style={{ textAlignVertical: "center" }}
-                      className="h-10 flex-1 rounded-lg border border-line bg-surface px-3 py-0 font-body-semibold text-base text-ink"
-                    />
+                    <View className="flex-1 justify-center">
+                      <TextInput
+                        value={p.page}
+                        onChangeText={(value) => setPageAt({ index: i, value })}
+                        editable={!busy}
+                        keyboardType="number-pad"
+                        placeholder="—"
+                        placeholderTextColor={c.ink3}
+                        accessibilityHint={
+                          p.fromPage ? "Read from the page" : undefined
+                        }
+                        style={{ textAlignVertical: "center" }}
+                        className={`h-10 rounded-lg border border-line bg-surface py-0 pl-3 font-body-semibold text-base text-ink ${p.fromPage ? "pr-14" : "pr-3"}`}
+                      />
+                      {p.fromPage ? (
+                        <View
+                          pointerEvents="none"
+                          className="absolute right-2 rounded-full bg-accent-soft px-2 py-0.5"
+                        >
+                          <T
+                            variant="caption"
+                            className="font-body text-accent"
+                          >
+                            Read
+                          </T>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                 </Animated.View>
               ))}
