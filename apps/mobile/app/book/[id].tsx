@@ -1,10 +1,11 @@
 import type { FileState, FileStatus } from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,7 +20,6 @@ import {
   FieldLabel,
   Header,
   IconButton,
-  ListCard,
   ListRow,
   Loading,
   Sheet,
@@ -164,13 +164,31 @@ export default function BookScreen() {
     onError: (err) => Alert.alert("Could not save book", String(err)),
   });
 
-  const files = (statusQuery.data ?? [])
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.page_number ?? Number.MAX_SAFE_INTEGER) -
-        (b.page_number ?? Number.MAX_SAFE_INTEGER),
-    );
+  // Sorting keeps each file object as react-query returned it; structural
+  // sharing keeps unchanged pages' objects identical across polls, so their
+  // memoised rows skip re-rendering.
+  const files = useMemo(
+    () =>
+      (statusQuery.data ?? [])
+        .slice()
+        .sort(
+          (a, b) =>
+            (a.page_number ?? Number.MAX_SAFE_INTEGER) -
+            (b.page_number ?? Number.MAX_SAFE_INTEGER),
+        ),
+    [statusQuery.data],
+  );
+  const openPage = useCallback(
+    (f: FileStatus, label: string) => {
+      if (READABLE.includes(f.state)) router.push(`/reader/${id}/${f.file_id}`);
+      else if (f.error) setErrorPage({ file: f, label });
+    },
+    [id, router],
+  );
+  const openMenu = useCallback(
+    (f: FileStatus, label: string) => setMenuPage({ file: f, label }),
+    [],
+  );
   const maxPage = files.reduce((m, f) => Math.max(m, f.page_number ?? 0), 0);
   const nextPage = maxPage > 0 ? maxPage + 1 : 1;
   const pendingCount = files.filter(isPending).length;
@@ -248,11 +266,92 @@ export default function BookScreen() {
       {statusQuery.isLoading ? (
         <Loading />
       ) : (
-        <ScrollView
+        <FlatList
+          data={files}
+          keyExtractor={(f) => f.file_id}
+          renderItem={({ item, index }) => (
+            <PageRow
+              file={item}
+              label={pageLabel(item, index)}
+              first={index === 0}
+              last={index === files.length - 1}
+              removing={del.isPending && del.variables === item.file_id}
+              onOpen={openPage}
+              onMenu={openMenu}
+            />
+          )}
+          ListHeaderComponent={
+            <>
+              <View className="gap-1 pt-2">
+                <T
+                  variant="arTitle"
+                  style={{ fontSize: 32, lineHeight: 52 }}
+                  numberOfLines={2}
+                >
+                  {book?.title ?? "…"}
+                </T>
+                <T variant="small" className="text-ink-3">
+                  {summary}
+                </T>
+              </View>
+
+              {files.length === 0 ? (
+                <EmptyPages />
+              ) : (
+                <>
+                  <View className="mt-6 gap-2.5">
+                    <View className="h-2 flex-row gap-0.5 overflow-hidden rounded-full">
+                      {visibleGroups.map((g) => (
+                        <View
+                          key={g.key}
+                          style={{
+                            flex: groupCounts[g.key],
+                            backgroundColor: c[g.color],
+                          }}
+                        />
+                      ))}
+                    </View>
+                    <View className="flex-row flex-wrap gap-x-3.5 gap-y-1">
+                      {visibleGroups.map((g) => (
+                        <View
+                          key={g.key}
+                          className="flex-row items-center gap-1.5"
+                        >
+                          <Dot color={c[g.color]} size={7} />
+                          <T variant="small" className="text-ink-2">
+                            {groupCounts[g.key]} {g.label}
+                          </T>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {pendingCount > 0 ? (
+                    <View className="mt-5 flex-row items-center gap-3 rounded-xl bg-accent-soft px-4 py-3.5">
+                      <ActivityIndicator size="small" color={c.accent} />
+                      <T variant="bodyStrong" className="flex-1">
+                        Transcribing {pendingCount}{" "}
+                        {pendingCount === 1 ? "page" : "pages"}
+                      </T>
+                      <T variant="small" className="text-ink-3">
+                        auto-refreshing
+                      </T>
+                    </View>
+                  ) : null}
+                  <View className="mt-6 pb-2.5">
+                    <FieldLabel>Pages</FieldLabel>
+                  </View>
+                </>
+              )}
+            </>
+          }
           contentContainerStyle={{
             paddingHorizontal: 24,
             paddingBottom: insets.bottom + 96,
           }}
+          initialNumToRender={12}
+          windowSize={11}
+          removeClippedSubviews
           refreshControl={
             <RefreshControl
               refreshing={statusQuery.isRefetching}
@@ -260,129 +359,7 @@ export default function BookScreen() {
               tintColor={c.accent}
             />
           }
-        >
-          <View className="gap-1 pt-2">
-            <T
-              variant="arTitle"
-              style={{ fontSize: 32, lineHeight: 52 }}
-              numberOfLines={2}
-            >
-              {book?.title ?? "…"}
-            </T>
-            <T variant="small" className="text-ink-3">
-              {summary}
-            </T>
-          </View>
-
-          {files.length === 0 ? (
-            <EmptyPages />
-          ) : (
-            <>
-              <View className="mt-6 gap-2.5">
-                <View className="h-2 flex-row gap-0.5 overflow-hidden rounded-full">
-                  {visibleGroups.map((g) => (
-                    <View
-                      key={g.key}
-                      style={{
-                        flex: groupCounts[g.key],
-                        backgroundColor: c[g.color],
-                      }}
-                    />
-                  ))}
-                </View>
-                <View className="flex-row flex-wrap gap-x-3.5 gap-y-1">
-                  {visibleGroups.map((g) => (
-                    <View key={g.key} className="flex-row items-center gap-1.5">
-                      <Dot color={c[g.color]} size={7} />
-                      <T variant="small" className="text-ink-2">
-                        {groupCounts[g.key]} {g.label}
-                      </T>
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              {pendingCount > 0 ? (
-                <View className="mt-5 flex-row items-center gap-3 rounded-xl bg-accent-soft px-4 py-3.5">
-                  <ActivityIndicator size="small" color={c.accent} />
-                  <T variant="bodyStrong" className="flex-1">
-                    Transcribing {pendingCount}{" "}
-                    {pendingCount === 1 ? "page" : "pages"}
-                  </T>
-                  <T variant="small" className="text-ink-3">
-                    auto-refreshing
-                  </T>
-                </View>
-              ) : null}
-
-              <View className="mt-6 gap-2.5">
-                <FieldLabel>Pages</FieldLabel>
-                <ListCard>
-                  {files.map((f, i) => {
-                    const label = pageLabel(f, i);
-                    const readable = READABLE.includes(f.state);
-                    const removing =
-                      del.isPending && del.variables === f.file_id;
-                    return (
-                      <View
-                        key={f.file_id}
-                        className={`flex-row items-center gap-2 py-3 ${i > 0 ? "border-t border-line" : ""}`}
-                        style={removing ? { opacity: 0.4 } : null}
-                      >
-                        <Pressable
-                          disabled={
-                            !readable && !(f.state === "failed" && !!f.error)
-                          }
-                          onPress={() => {
-                            if (readable)
-                              router.push(`/reader/${id}/${f.file_id}`);
-                            else if (f.error) setErrorPage({ file: f, label });
-                          }}
-                          className="flex-1 flex-row items-center gap-3 active:opacity-70"
-                        >
-                          <View className="w-12 items-center">
-                            <T
-                              variant="title"
-                              style={{ fontSize: 18, lineHeight: 24 }}
-                              numberOfLines={1}
-                              adjustsFontSizeToFit
-                              minimumFontScale={0.6}
-                            >
-                              {label}
-                            </T>
-                            <T
-                              variant="caption"
-                              className="font-body text-ink-3"
-                            >
-                              {f.page_number != null ? "page" : "unset"}
-                            </T>
-                          </View>
-                          <View className="flex-1 gap-1">
-                            <PagePreview file={f} label={label} />
-                            <StatusLine
-                              state={f.state}
-                              trailing={
-                                f.cost_usd != null
-                                  ? `$${f.cost_usd.toFixed(4)}`
-                                  : undefined
-                              }
-                            />
-                          </View>
-                        </Pressable>
-                        <IconButton
-                          icon="more-vertical"
-                          variant="plain"
-                          color={c.ink3}
-                          onPress={() => setMenuPage({ file: f, label })}
-                        />
-                      </View>
-                    );
-                  })}
-                </ListCard>
-              </View>
-            </>
-          )}
-        </ScrollView>
+        />
       )}
 
       <View
@@ -539,6 +516,83 @@ export default function BookScreen() {
     </View>
   );
 }
+
+/**
+ * One page in the list. Rows are slices of a single card (rounded top on the
+ * first, rounded bottom on the last) so the list can be virtualised; memo
+ * means a poll only re-renders the pages whose status changed.
+ */
+const PageRow = memo(
+  ({
+    file,
+    label,
+    first,
+    last,
+    removing,
+    onOpen,
+    onMenu,
+  }: {
+    file: FileStatus;
+    label: string;
+    first: boolean;
+    last: boolean;
+    removing: boolean;
+    onOpen: (f: FileStatus, label: string) => void;
+    onMenu: (f: FileStatus, label: string) => void;
+  }) => {
+    const c = useColors();
+    const readable = READABLE.includes(file.state);
+    return (
+      <View
+        className={`border-x border-line bg-surface px-4 ${first ? "rounded-t-2xl border-t" : ""} ${last ? "rounded-b-2xl border-b" : ""}`}
+        // Rows sit at fractional pixel offsets; overlapping each by 1px hides
+        // the hairline gap that would otherwise show between card slices.
+        style={first ? undefined : { marginTop: -1 }}
+      >
+        <View
+          className={`flex-row items-center gap-2 py-3 ${first ? "" : "border-t border-line"}`}
+          style={removing ? { opacity: 0.4 } : null}
+        >
+          <Pressable
+            disabled={!readable && !(file.state === "failed" && !!file.error)}
+            onPress={() => onOpen(file, label)}
+            className="flex-1 flex-row items-center gap-3 active:opacity-70"
+          >
+            <View className="w-12 items-center">
+              <T
+                variant="title"
+                style={{ fontSize: label.length > 3 ? 15 : 18, lineHeight: 24 }}
+                numberOfLines={1}
+              >
+                {label}
+              </T>
+              <T variant="caption" className="font-body text-ink-3">
+                {file.page_number != null ? "page" : "unset"}
+              </T>
+            </View>
+            <View className="flex-1 gap-1">
+              <PagePreview file={file} label={label} />
+              <StatusLine
+                state={file.state}
+                trailing={
+                  file.cost_usd != null
+                    ? `$${file.cost_usd.toFixed(4)}`
+                    : undefined
+                }
+              />
+            </View>
+          </Pressable>
+          <IconButton
+            icon="more-vertical"
+            variant="plain"
+            color={c.ink3}
+            onPress={() => onMenu(file, label)}
+          />
+        </View>
+      </View>
+    );
+  },
+);
 
 const PagePreview = ({ file, label }: { file: FileStatus; label: string }) => {
   if (file.error)
