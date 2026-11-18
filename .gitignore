@@ -175,3 +175,6 @@ apps/mobile/android/
 # Electron build output (apps/desktop) — installers + unpacked app.
 apps/desktop/release/
 .lamsa/
+
+# Design overview renders: generate locally with `lamsa render`, not committed
+designs/qiraa-screens.png
