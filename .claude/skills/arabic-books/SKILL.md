@@ -1,112 +1,59 @@
 ---
 name: arabic-books
-description: Manage books and read status on the Arabic digitization API (the deployed Cloudflare Worker), and search the digitized corpus via Meilisearch. Create books, list them with per-state counts, inspect a single book, delete a book (and all its files), poll per-file OCR status, re-run OCR on failed files, and run hybrid (lexical + semantic) search across the library. Manually invoked — use for "/arabic-books", "create a book for <title>", "list my books", "delete <book>", "what's the OCR status of <book>", "re-run OCR on the failed pages of <book>", "search the corpus for <query>", "find pages about <topic>". Does NOT upload scans and does NOT pull/reformat transcriptions — uploading is done out of band, and pulling finished text into Obsidian is the separate arabic-ocr skill.
+description: Manage books and read status on the Arabic digitization API (the deployed Cloudflare Worker), and search the digitized corpus via Meilisearch, through the `corpus` CLI. Create books, list them with per-state counts, inspect a single book, delete a book (and all its files), poll per-file OCR status, re-run OCR on failed files, pause/resume OCR for a book, and run hybrid (lexical + semantic) search across the library. Manually invoked — use for "/arabic-books", "create a book for <title>", "list my books", "delete <book>", "what's the OCR status of <book>", "re-run OCR on the failed pages of <book>", "pause/resume <book>", "search the corpus for <query>", "find pages about <topic>". Does NOT upload scans and does NOT pull/reformat transcriptions — uploading is done out of band, and pulling finished text into Obsidian is the separate arabic-ocr skill.
 ---
 
 # Arabic Books — manage + monitor the digitization pipeline
 
-The digitization API (a Cloudflare Worker) OCRs uploaded scans server-side. This skill is the **management + monitoring** side: create and inspect books, watch OCR progress, and re-trigger OCR on files that failed. It does **not** upload scans, and it does **not** pull or reformat finished text — that download/Obsidian-footnote step is the separate **arabic-ocr** skill.
+The digitization API (a Cloudflare Worker) OCRs uploaded scans server-side. This skill is the **management + monitoring** side: create and inspect books, watch OCR progress, pause/resume OCR, re-queue failed pages, and search the corpus. It does **not** upload scans, and it does **not** pull or reformat finished text — that is the **arabic-ocr** skill.
 
-## Config (1Password)
+## The `corpus` CLI
 
-Read these secret references — prefer the **1Password MCP**; fall back to the `op` CLI (`op read "<ref>"`):
+Everything goes through `corpus` (repo: `~/Projects/arabic-digitization/packages/cli`, setup in its README). It reads the API and Meilisearch secrets from 1Password **once** and caches them in RAM for 12 hours, so the user isn't prompted on every call.
 
-- URL: `op://Arabic Digitization/API Connection Vars/ARABIC_OCR_URL`
-- Key: `op://Arabic Digitization/API Connection Vars/ARABIC_OCR_KEY`
+- **Never run `op read` or curl the API/Meilisearch directly.** Secrets never appear in commands or output.
+- If `corpus` is not found, stop and point the user at `packages/cli/README.md` (setup is `pnpm install`, one symlink, `corpus auth login`).
+- If a command fails with an `op read` error, ask the user to unlock 1Password and run `! corpus auth login`, then retry.
+- Add `--json` when you need to process the output; the default is a short human summary.
+- `<book>` is a book id, an exact title, or a unique part of a title. Ambiguous titles exit `2` and list the matching ids — pick one or ask.
+- Exit codes: `0` ok, `1` request/1Password failure, `2` usage error.
 
-For **search** (separate Meilisearch instance on Fly, not the Worker):
+| Command | Purpose |
+| --- | --- |
+| `corpus books` | List books: id, title, `[paused]`, page count, per-state counts |
+| `corpus show <book>` | One book: counts, OCR cost, paused, work, OCR instructions |
+| `corpus create --title <t> [--id <slug>] [--instructions <text>] [--work <id>]` | Create a book |
+| `corpus delete <book> --yes` | Delete a book with all its scans and text. **Irreversible**; refuses without `--yes` |
+| `corpus pause <book>` / `corpus resume <book>` | Stop OCR for one book (other books keep going) / resume and re-queue its waiting pages |
+| `corpus status <book> [--state <s>]` | Per-page states; failed pages listed with a short reason |
+| `corpus text <book> <fileId>` | One page's transcription (Markdown) |
+| `corpus retry <book> [--states failed,rate_limited]` | Re-queue pages for OCR (default: failed + rate_limited; `done` re-applies new instructions) |
+| `corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]` | Hybrid search |
+| `corpus auth status` / `auth login` / `auth logout` | Secret cache: when it expires / refresh it / wipe it |
 
-- Meili URL: `op://Arabic Digitization/Meilisearch/url`
-- Search key: `op://Arabic Digitization/Meilisearch/client read key` (read-only; `search` only)
-
-Both keys are bearer secrets — use them only in the `Authorization` header, never print or echo them. If a needed ref can't be read, stop and tell the user to check 1Password / `op` sign-in.
-
-API requests send `Authorization: Bearer <ARABIC_OCR_KEY>`; Meilisearch requests send `Authorization: Bearer <client read key>`.
-
-## Endpoints this skill uses
-
-Inlined for self-sufficiency. **Full, always-current reference** (use if anything looks off or you need a field not listed here): `GET <URL>/llms.txt` (public, no auth).
-
-| Method | Path                                   | Purpose                                                                                                                                |
-| ------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/api/books`                           | Create a book. Body `{ "title": string, "id"?: slug }` (id auto-generated if omitted). → `201 { success, book }`, `409` if id exists.  |
-| GET    | `/api/books`                           | List books → `{ books: [ { id, title, created_at, files_total, counts: {state: n} } ] }`.                                              |
-| GET    | `/api/books/:bookId`                   | One book + status summary → `{ book: { id, title, created_at, files_total, counts } }`. `404` if missing.                              |
-| DELETE | `/api/books/:bookId`                   | Delete a book + all its files (R2 scans + text, then rows) → `{ deleted: { book_id, files, r2_objects } }`. `404` if missing. **Irreversible.** |
-| GET    | `/api/books/:bookId/status`            | Per-file states (no text) → `{ files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at } ] }`. Poll this. |
-| POST   | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file, synchronous → `{ file_id, model, text, text_key, usage }`. Use for `failed` files.                             |
-
-File state machine: `captured → queued → processing → done` (or `failed` after retries; `needs_review` / `approved` reserved).
-
-## Search the corpus (Meilisearch)
-
-Search runs against the **Meilisearch** instance directly (not the Worker), using the read-only key. Hybrid = lexical (charabia, Arabic-aware) + semantic (bge-m3 embeddings); `semanticRatio` 0 = keyword only, 1 = semantic only.
-
-`POST <MEILI_URL>/indexes/books/search`
-
-```json
-{
-  "q": "<query>",
-  "hybrid": { "embedder": "cfbge", "semanticRatio": 0.5 },
-  "limit": 20,
-  "attributesToRetrieve": ["book_id", "book_title", "page_number", "text"],
-  "attributesToCrop": ["text"],
-  "cropLength": 40
-}
-```
-
-→ `{ hits: [ { id, book_id, book_title, page_number, text, _formatted: { text } } ] }`. `id` is the `file_id`; `_formatted.text` is the cropped snippet (strip `__ais-highlight__` / ruby / markdown markers when displaying).
-
-Notes: concept/phrase queries work well; **abstract category words** ("grammar", "fiqh") drift — vector matches what pages *say*, not their category. Search is read-only and safe to run freely.
-
-## What this skill does NOT do
-
-- **Upload scans** — `POST /api/books/:bookId/files` is out of scope here.
-- **Pull / export / reformat text** — `GET .../export` and `.../text` plus Obsidian-footnote conversion are the **arabic-ocr** skill. If the user wants finished pages in the vault, hand off to that skill.
+File states: `captured → queued → processing → done`, or `rate_limited` (transient, auto-retried) and `failed` (needs a manual retry). A paused book's pages stay `queued`.
 
 ## Workflows
 
-**Create a book**
+**List books** — `corpus books`. Present title · page count · counts (e.g. `done 12 / failed 1`), and flag paused books.
 
-1. Resolve config (above).
-2. `POST <URL>/api/books` with `{ "title": "<arabic title>", "id"?: "<slug>" }`.
-3. On `409`, report the id is taken and show the existing book (`GET /api/books/:id`).
-4. Confirm: print the returned `id` + `title`.
+**Create a book** — confirm the title (and slug, if any) with the user when it wasn't explicit, then `corpus create --title "<arabic title>"`. Report the returned id.
 
-**List books**
+**Watch progress** — `corpus show <book>` gives counts and OCR cost cheaply. Use it for repeated checks while OCR runs; `corpus status` reads every page of the book from D1, and the free plan allows 5M row reads a day (a 1,150-page book is 1,150 reads per call).
 
-1. `GET <URL>/api/books`.
-2. Render a table: `title` · `id` · `files_total` · the `counts` breakdown (e.g. `done 12 / processing 2 / failed 1`).
+**Status of a book** — `corpus status <book>`. Summarize counts per state; call out `failed` pages with their reason, and pages with no page number (`p?`, report the `file_id`).
+- `no text (STOP)` is usually a blank page — nothing to recover.
+- `no text (RECITATION)` is Gemini's copyright filter, often on Qur'an-heavy pages. A retry often passes (Tafsir as-Sa'di: 9 of 13 failed pages recovered on one retry); for pages that keep failing, the book's OCR instructions are the next lever.
 
-**Status of a book**
+**Re-run failed OCR** — check `corpus status <book> --state failed` first. Re-running costs a Gemini call per page (roughly $0.02–0.04 for dense pages), so confirm the count with the user before re-queuing many. Then `corpus retry <book>`. It's asynchronous: wait with `corpus show <book>` until nothing is queued or processing, then `corpus status <book> --state failed` once. One retry pass, then report what is still broken — don't loop.
 
-1. Match the user's named book to a `title`/`id` via `GET /api/books`; if ambiguous, list and ask.
-2. `GET <URL>/api/books/:bookId/status`.
-3. Summarize: counts per state, and call out any `failed` (with `error`) or files with null `page_number` (report `file_id`).
+**Pause / resume** — `corpus pause <book>` stops spending on that book immediately (the page in flight finishes). `corpus resume <book>` re-queues everything waiting; confirm with the user first when many pages are waiting, since it restarts the spend.
 
-**Re-run OCR on failures**
+**Delete a book** — resolve the exact book (`corpus show <book>`), confirm with the user that its scans, text and rows will be wiped permanently, then `corpus delete <id> --yes`. Report the returned counts.
 
-1. Get status (above); collect files where `state == "failed"`.
-2. For each, `POST <URL>/api/books/:bookId/files/:fileId/ocr` (synchronous — returns when done).
-3. Report per file: now `done`, or still failing (with the error). Don't loop endlessly — one retry pass, then summarize what's still broken.
-
-**Delete a book**
-
-1. Match the user's named book to a `title`/`id` via `GET /api/books`; if ambiguous, list and ask.
-2. Confirm with the user — this wipes all the book's R2 scans, transcribed text, and rows. Irreversible.
-3. `DELETE <URL>/api/books/:bookId`.
-4. Report the returned counts: `files` rows and `r2_objects` removed.
-
-**Search the corpus**
-
-1. Resolve the Meili config (URL + read key, above).
-2. `POST <MEILI_URL>/indexes/books/search` with the body shown in "Search the corpus" (default `semanticRatio` 0.5; raise toward 1 for concept queries, lower toward 0 for exact terms/names). To scope to one book, add `"filter": "book_id = '<bookId>'"`.
-3. Render hits: `book_title` · `ص <page_number>` · cleaned snippet (strip `__ais-highlight__`, ruby, and markdown markers). Note the `file_id` (`id`) so the user can open it.
-4. If nothing comes back for an abstract term, suggest a concrete phrase (e.g. "rules of ablution" instead of "fiqh").
+**Search the corpus** — `corpus search "<query>"` (default ratio 0.5). Raise `--ratio` toward 1 for concept queries, lower toward 0 for exact terms or names; scope with `--book <book>`. Render hits as `book_title · ص <page>` plus the snippet, and keep the `file_id` so the user can open the page (`corpus text <book> <fileId>` prints it). Abstract category words ("grammar", "fiqh") drift; suggest a concrete phrase instead ("rules of ablution").
 
 ## Notes
 
-- Read-only ops (list, fetch, status) are safe to run freely. Creating a book mutates state — confirm the title/id with the user first if it wasn't explicit.
-- Deleting a book is **irreversible** and removes its scans + text from R2. Always confirm the exact book id with the user before calling `DELETE`.
-- Re-running OCR costs a Gemini call per file; before re-running a large batch, confirm the count with the user.
-- To get the transcribed text into the vault, that's **arabic-ocr**, not this skill.
+- Read-only commands (`books`, `show`, `status`, `search`) are safe to run freely.
+- To get transcribed text into the vault, that's **arabic-ocr**, not this skill.
