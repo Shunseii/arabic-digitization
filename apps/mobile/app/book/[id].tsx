@@ -200,6 +200,7 @@ export default function BookScreen() {
     (f: FileStatus, label: string) => {
       if (READABLE.includes(f.state)) router.push(`/reader/${id}/${f.file_id}`);
       else if (f.error) setErrorPage({ file: f, label });
+      else router.push(`/reader/${id}/${f.file_id}?pane=scan`);
     },
     [id, router],
   );
@@ -475,6 +476,16 @@ export default function BookScreen() {
               label="Re-run OCR"
               icon="rotate-cw"
               onPress={() => rerun(errorPage.file)}
+            />
+            <Button
+              label="View scan"
+              icon="image"
+              variant="secondary"
+              onPress={() => {
+                const fileId = errorPage.file.file_id;
+                setErrorPage(null);
+                router.push(`/reader/${id}/${fileId}?pane=scan`);
+              }}
             />
             <Button
               label="Close"

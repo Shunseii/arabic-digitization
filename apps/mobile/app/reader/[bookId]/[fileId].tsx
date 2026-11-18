@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -37,6 +37,10 @@ import { useColors } from "@/theme";
 type Pane = "text" | "scan";
 
 const PANES: Pane[] = ["text", "scan"];
+
+// Gemini errors embed the whole response JSON; the finish reason is the useful bit.
+const failureReason = (error: string | null | undefined): string | null =>
+  error ? (/"finishReason":\s*"([A-Z_]+)"/.exec(error)?.[1] ?? null) : null;
 const PANE_OPTIONS: { value: Pane; label: string }[] = [
   { value: "text", label: "Text" },
   { value: "scan", label: "Scan" },
@@ -49,12 +53,15 @@ export default function ReaderScreen() {
   const router = useRouter();
   const c = useColors();
   const { width } = useWindowDimensions();
-  const { bookId, fileId } = useLocalSearchParams<{
+  const { bookId, fileId, pane } = useLocalSearchParams<{
     bookId: string;
     fileId: string;
+    pane?: Pane;
   }>();
   const goBack = useGoBack(`/book/${bookId}`);
-  const [index, setIndex] = useState(0);
+  // `?pane=scan` opens on the scan, e.g. for pages with no transcription.
+  const initialIndex = pane === "scan" ? 1 : 0;
+  const [index, setIndex] = useState(initialIndex);
   const [showHint, setShowHint] = useState(false);
   const [scanZoomed, setScanZoomed] = useState(false);
 
@@ -106,8 +113,18 @@ export default function ReaderScreen() {
   };
 
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  // contentOffset sets the starting pane; this backs it up where a horizontal
+  // ScrollView ignores it on first layout.
+  const placedInitialPane = useRef(false);
+  useEffect(() => {
+    if (placedInitialPane.current || initialIndex === 0 || width === 0) return;
+    placedInitialPane.current = true;
+    requestAnimationFrame(() =>
+      scrollRef.current?.scrollTo({ x: width * initialIndex, animated: false }),
+    );
+  }, [initialIndex, width, scrollRef]);
   // 0 on Text, 1 on Scan, fractional mid-swipe; the pane switch follows it.
-  const paneProgress = useSharedValue(0);
+  const paneProgress = useSharedValue(initialIndex);
   const onScroll = useAnimatedScrollHandler({
     onScroll: (e) => {
       paneProgress.value = width > 0 ? e.contentOffset.x / width : 0;
@@ -119,9 +136,9 @@ export default function ReaderScreen() {
 
   // Jump to a pane programmatically. Works even while the scan is zoomed
   // (which disables swipe gestures); leaving the scan resets its zoom.
-  const showPane = (pane: Pane) => {
-    const target = PANES.indexOf(pane);
-    if (pane !== "scan") setScanZoomed(false);
+  const showPane = (targetPane: Pane) => {
+    const target = PANES.indexOf(targetPane);
+    if (targetPane !== "scan") setScanZoomed(false);
     scrollRef.current?.scrollTo({ x: width * target, animated: true });
     setIndex(target);
   };
@@ -154,6 +171,7 @@ export default function ReaderScreen() {
         ref={scrollRef}
         horizontal
         pagingEnabled
+        contentOffset={{ x: initialIndex * width, y: 0 }}
         scrollEnabled={!scanZoomed}
         showsHorizontalScrollIndicator={false}
         onScroll={onScroll}
@@ -167,11 +185,19 @@ export default function ReaderScreen() {
               className="flex-1 justify-center"
               style={{ paddingBottom: bottomClearance }}
             >
-              <EmptyState
-                icon="file-text"
-                title="Not transcribed yet"
-                body="This page has no transcription yet. Switch to Scan to see the page meanwhile."
-              />
+              {currentFile?.state === "failed" ? (
+                <EmptyState
+                  icon="alert-circle"
+                  title="Transcription failed"
+                  body={`OCR couldn't read this page${failureReason(currentFile.error) ? ` (${failureReason(currentFile.error)})` : ""}.`}
+                />
+              ) : (
+                <EmptyState
+                  icon="file-text"
+                  title="Not transcribed yet"
+                  body="This page has no transcription yet."
+                />
+              )}
             </View>
           ) : (
             <ScrollView

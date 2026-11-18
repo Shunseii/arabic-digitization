@@ -4233,6 +4233,21 @@
       },
       "type": "frame"
     },
+    "57p7hAE4": {
+      "content": "نور الإيضاح",
+      "index": "a0",
+      "parentId": "KBVMtgYc",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 14,
+        "font-weight": 700,
+        "line-height": 1.6,
+        "text-align": "center"
+      },
+      "type": "text"
+    },
     "5AHkO92v": {
       "index": "a1",
       "name": "review",
@@ -5228,6 +5243,18 @@
         "line-height": 1.35
       },
       "type": "text"
+    },
+    "6CGycYET": {
+      "icon": "chevron-right",
+      "index": "a0",
+      "parentId": "ZCPEycIo",
+      "set": "lucide",
+      "style": {
+        "flex-shrink": 0,
+        "height": 22,
+        "width": 22
+      },
+      "type": "icon"
     },
     "6DQdLkJ0": {
       "icon": "wifi",
@@ -8058,6 +8085,26 @@
         "gap": 8
       },
       "type": "frame"
+    },
+    "9RKJAyQG": {
+      "componentId": "M4dbV8TV",
+      "index": "a1V",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "image"
+        }
+      },
+      "parentId": "lOmDVaKN",
+      "props": {
+        "icon": true,
+        "label": "View scan",
+        "variant": "secondary"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "9Srmri9J": {
       "content": "Copies of the same text share a work, so they group together.",
@@ -11124,6 +11171,22 @@
       },
       "type": "frame"
     },
+    "CxfKMkBW": {
+      "index": "a0",
+      "name": "Segment · Text",
+      "parentId": "WmLjaKTs",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface-2}",
+        "border-radius": "{radius.full}",
+        "color": "{color.ink}",
+        "display": "flex",
+        "flex": 1,
+        "height": 40,
+        "justify-content": "center"
+      },
+      "type": "frame"
+    },
     "CxgEs6JN": {
       "content": "Add a book and start scanning. You can change these anytime in Settings.",
       "index": "a1",
@@ -12111,6 +12174,18 @@
       },
       "type": "frame"
     },
+    "EA1BTOmA": {
+      "icon": "battery-full",
+      "index": "a4",
+      "parentId": "wpEjFj8j",
+      "set": "lucide",
+      "style": {
+        "flex-shrink": 0,
+        "height": 22,
+        "width": 22
+      },
+      "type": "icon"
+    },
     "EA77htwV": {
       "index": "a1",
       "name": "Spacer",
@@ -12395,6 +12470,21 @@
       },
       "type": "frame"
     },
+    "ETGOGHCa": {
+      "content": "Transcription failed",
+      "index": "a1",
+      "parentId": "oUJAhFtq",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.display}",
+        "font-size": 24,
+        "font-weight": 600,
+        "letter-spacing": "-0.01em",
+        "line-height": 1.2,
+        "text-align": "center"
+      },
+      "type": "text"
+    },
     "EV11GAhh": {
       "index": "aB",
       "name": "Line",
@@ -12647,6 +12737,19 @@
         "gap": 6,
         "height": 54,
         "padding": "0 28px 0 34px"
+      },
+      "type": "frame"
+    },
+    "EnGhmFPs": {
+      "index": "a1",
+      "name": "Header",
+      "parentId": "yMQadipd",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "flex-shrink": 0,
+        "gap": 8,
+        "padding": "6px 16px 8px"
       },
       "type": "frame"
     },
@@ -15009,6 +15112,15 @@
       },
       "type": "frame"
     },
+    "HNlvBPqI": {
+      "index": "a2",
+      "name": "Spacer",
+      "parentId": "EnGhmFPs",
+      "style": {
+        "width": 40
+      },
+      "type": "frame"
+    },
     "HPWTN9c1": {
       "index": "a1",
       "name": "Progress",
@@ -15485,6 +15597,18 @@
         "right": 24
       },
       "type": "frame"
+    },
+    "I3PMMpFC": {
+      "icon": "signal",
+      "index": "a2",
+      "parentId": "wpEjFj8j",
+      "set": "lucide",
+      "style": {
+        "flex-shrink": 0,
+        "height": 17,
+        "width": 17
+      },
+      "type": "icon"
     },
     "I42ZmLJq": {
       "content": "عمدة الفقه",
@@ -16450,6 +16574,18 @@
         "overflow": "hidden"
       },
       "type": "frame"
+    },
+    "It8Nps2G": {
+      "icon": "wifi",
+      "index": "a3",
+      "parentId": "wpEjFj8j",
+      "set": "lucide",
+      "style": {
+        "flex-shrink": 0,
+        "height": 17,
+        "width": 17
+      },
+      "type": "icon"
     },
     "Iu4cQQXO": {
       "content": "124 pages · $0.41 OCR",
@@ -17531,6 +17667,18 @@
         "align-items": "center",
         "display": "flex",
         "gap": 6
+      },
+      "type": "frame"
+    },
+    "KBVMtgYc": {
+      "index": "a1",
+      "name": "Title",
+      "parentId": "EnGhmFPs",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": 0
       },
       "type": "frame"
     },
@@ -20635,6 +20783,21 @@
         "display": "flex",
         "flex-wrap": "wrap",
         "gap": 8
+      },
+      "type": "frame"
+    },
+    "NrPYmHVL": {
+      "index": "a2",
+      "name": "Content",
+      "parentId": "yMQadipd",
+      "style": {
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": 20,
+        "overflow": "hidden",
+        "padding": "8px 24px 24px"
       },
       "type": "frame"
     },
@@ -23982,6 +24145,15 @@
       },
       "type": "frame"
     },
+    "S1vsFtaG": {
+      "index": "a2",
+      "name": "Spacer",
+      "parentId": "NrPYmHVL",
+      "style": {
+        "flex": 1
+      },
+      "type": "frame"
+    },
     "S221xXiV": {
       "icon": "move-horizontal",
       "index": "a0",
@@ -24300,6 +24472,23 @@
         "align-items": "center",
         "display": "flex",
         "gap": 6
+      },
+      "type": "frame"
+    },
+    "SLLWml59": {
+      "index": "a0",
+      "name": "Mark",
+      "parentId": "oUJAhFtq",
+      "style": {
+        "align-items": "center",
+        "align-self": "center",
+        "background": "{color.accent-soft}",
+        "border-radius": "{radius.full}",
+        "color": "{color.accent}",
+        "display": "flex",
+        "height": 72,
+        "justify-content": "center",
+        "width": 72
       },
       "type": "frame"
     },
@@ -26139,6 +26328,19 @@
       },
       "type": "icon"
     },
+    "UPtk5tsr": {
+      "content": "Text",
+      "index": "a0",
+      "parentId": "CxfKMkBW",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "UPxn8etm": {
       "index": "a1",
       "name": "Work",
@@ -27859,6 +28061,20 @@
       },
       "type": "icon"
     },
+    "WU4yfla8": {
+      "content": "OCR couldn't read this page (RECITATION).",
+      "index": "a2",
+      "parentId": "oUJAhFtq",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.5,
+        "text-align": "center"
+      },
+      "type": "text"
+    },
     "WVKEiMzZ": {
       "content": "Step 1 of 2",
       "index": "a0",
@@ -28182,6 +28398,24 @@
         "text-align": "justify"
       },
       "type": "text"
+    },
+    "WmLjaKTs": {
+      "index": "a1",
+      "name": "Pane Switch",
+      "parentId": "sIcZvm31",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-shadow": "{shadow.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex": 1,
+        "gap": 2,
+        "padding": 4
+      },
+      "type": "frame"
     },
     "WnRdzdKb": {
       "index": "a4",
@@ -29525,6 +29759,19 @@
       },
       "type": "frame"
     },
+    "YVqdhnDZ": {
+      "content": "Scan",
+      "index": "a0",
+      "parentId": "gU20kkiZ",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "YWxxYK5Q": {
       "content": "$0.0029",
       "index": "a2",
@@ -30049,6 +30296,26 @@
         "text-align": "center"
       },
       "type": "text"
+    },
+    "ZCPEycIo": {
+      "index": "a2",
+      "name": "Page Step · chevron-right",
+      "parentId": "sIcZvm31",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-shadow": "{shadow.lg}",
+        "box-sizing": "border-box",
+        "color": "{color.ink}",
+        "display": "flex",
+        "flex-shrink": 0,
+        "height": 48,
+        "justify-content": "center",
+        "width": 48
+      },
+      "type": "frame"
     },
     "ZD7eVhMU": {
       "content": "page",
@@ -35360,6 +35627,15 @@
       },
       "type": "icon"
     },
+    "fT0QRNRd": {
+      "index": "a1",
+      "name": "Spacer",
+      "parentId": "wpEjFj8j",
+      "style": {
+        "flex": 1
+      },
+      "type": "frame"
+    },
     "fTCdbTFi": {
       "index": "a0",
       "name": "Stat · copies",
@@ -36207,6 +36483,21 @@
         "variant": "tonal"
       },
       "type": "instance"
+    },
+    "gU20kkiZ": {
+      "index": "a1",
+      "name": "Segment · Scan",
+      "parentId": "WmLjaKTs",
+      "style": {
+        "align-items": "center",
+        "border-radius": "{radius.full}",
+        "color": "{color.ink-2}",
+        "display": "flex",
+        "flex": 1,
+        "height": 40,
+        "justify-content": "center"
+      },
+      "type": "frame"
     },
     "gU5gpzTD": {
       "index": "a3",
@@ -38220,7 +38511,7 @@
       "type": "frame"
     },
     "j1SyMGbm": {
-      "content": "This page is still in the queue. Switch to Scan to see the page meanwhile.",
+      "content": "This page has no transcription yet.",
       "index": "a2",
       "parentId": "vhXTbFDB",
       "style": {
@@ -38508,6 +38799,20 @@
         "min-width": 0
       },
       "type": "frame"
+    },
+    "jIq3MKa5": {
+      "content": "Page 2",
+      "index": "a1",
+      "parentId": "KBVMtgYc",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 12,
+        "font-weight": 400,
+        "line-height": 1.35,
+        "text-align": "center"
+      },
+      "type": "text"
     },
     "jJ0OY7DV": {
       "index": "a1",
@@ -39231,6 +39536,18 @@
         "gap": 8
       },
       "type": "frame"
+    },
+    "k9tuOqca": {
+      "icon": "chevron-left",
+      "index": "a0",
+      "parentId": "q3Lp5i75",
+      "set": "lucide",
+      "style": {
+        "flex-shrink": 0,
+        "height": 22,
+        "width": 22
+      },
+      "type": "icon"
     },
     "kA8iA5WJ": {
       "content": "Page 12",
@@ -40344,6 +40661,15 @@
         "overflow": "hidden",
         "padding": "57px 38px",
         "width": 345
+      },
+      "type": "frame"
+    },
+    "laxodiaO": {
+      "index": "a0",
+      "name": "Spacer",
+      "parentId": "NrPYmHVL",
+      "style": {
+        "flex": 1
       },
       "type": "frame"
     },
@@ -42407,6 +42733,21 @@
       },
       "type": "text"
     },
+    "o2U5Z46j": {
+      "componentId": "m6GU5N7j",
+      "index": "a0",
+      "name": "IconButton",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "EnGhmFPs",
+      "props": {
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "o2WtoN37": {
       "icon": "battery-full",
       "index": "a4",
@@ -42811,6 +43152,18 @@
       },
       "type": "frame"
     },
+    "oUJAhFtq": {
+      "index": "a1",
+      "name": "Empty State",
+      "parentId": "NrPYmHVL",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "flex-shrink": 0,
+        "gap": 10
+      },
+      "type": "frame"
+    },
     "oWPlmDBb": {
       "index": "a1",
       "name": "Group · Library API",
@@ -43073,6 +43426,19 @@
         "font-weight": 600,
         "line-height": 1.6,
         "text-align": "left"
+      },
+      "type": "text"
+    },
+    "ompIACtw": {
+      "content": "9:41",
+      "index": "a0",
+      "parentId": "wpEjFj8j",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.body}",
+        "font-size": 16,
+        "font-weight": 600,
+        "line-height": 1.5
       },
       "type": "text"
     },
@@ -43942,6 +44308,26 @@
       },
       "type": "text"
     },
+    "q3Lp5i75": {
+      "index": "a0",
+      "name": "Page Step · chevron-left",
+      "parentId": "sIcZvm31",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-shadow": "{shadow.lg}",
+        "box-sizing": "border-box",
+        "color": "{color.ink}",
+        "display": "flex",
+        "flex-shrink": 0,
+        "height": 48,
+        "justify-content": "center",
+        "width": 48
+      },
+      "type": "frame"
+    },
     "q3Q7NIBP": {
       "index": "a2",
       "name": "Action Bar",
@@ -44368,6 +44754,18 @@
         "width": 50
       },
       "type": "frame"
+    },
+    "qgc9lCB9": {
+      "icon": "circle-alert",
+      "index": "a0",
+      "parentId": "SLLWml59",
+      "set": "lucide",
+      "style": {
+        "flex-shrink": 0,
+        "height": 30,
+        "width": 30
+      },
+      "type": "icon"
     },
     "qgyxTyjL": {
       "index": "a3",
@@ -45875,6 +46273,21 @@
         "height": 5,
         "opacity": 0.7,
         "width": "90%"
+      },
+      "type": "frame"
+    },
+    "sIcZvm31": {
+      "index": "a3",
+      "name": "Toolbar",
+      "parentId": "yMQadipd",
+      "style": {
+        "align-items": "center",
+        "bottom": 40,
+        "display": "flex",
+        "gap": 12,
+        "left": 20,
+        "position": "absolute",
+        "right": 20
       },
       "type": "frame"
     },
@@ -47469,6 +47882,15 @@
         "width": 18
       },
       "type": "icon"
+    },
+    "u8ldopNH": {
+      "index": "a3",
+      "name": "Spacer",
+      "parentId": "NrPYmHVL",
+      "style": {
+        "flex": 1
+      },
+      "type": "frame"
     },
     "u9DooB2O": {
       "index": "a1",
@@ -49528,6 +49950,21 @@
       },
       "type": "frame"
     },
+    "wpEjFj8j": {
+      "index": "a0",
+      "name": "Status Bar",
+      "parentId": "yMQadipd",
+      "style": {
+        "align-items": "center",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-shrink": 0,
+        "gap": 6,
+        "height": 54,
+        "padding": "0 28px 0 34px"
+      },
+      "type": "frame"
+    },
     "wpVj4Su8": {
       "content": "مَا",
       "index": "aG",
@@ -50792,6 +51229,23 @@
         "width": "100%"
       },
       "type": "instance"
+    },
+    "yMQadipd": {
+      "name": "Reader · Transcription failed",
+      "style": {
+        "background": "{color.bg}",
+        "color": "{color.ink}",
+        "display": "flex",
+        "flex-direction": "column",
+        "font-family": "{font.body}",
+        "height": 852,
+        "overflow": "hidden",
+        "position": "relative",
+        "width": 393
+      },
+      "type": "frame",
+      "x": 2172,
+      "y": 6072
     },
     "yMQnDpMz": {
       "content": "فَصْلٌ فِي بَيَانِ أَحْكَامِ السُّؤْرِ…",
