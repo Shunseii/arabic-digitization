@@ -79,6 +79,8 @@ Secrets, never committed:
 
 `MEILI_URL` is a non-secret var in `wrangler.jsonc` (the Meilisearch instance URL).
 
+**Command line:** the `corpus` CLI (`packages/cli`) reads the API key and Meilisearch read key from 1Password once and caches them in RAM, so scripts and agents don't prompt on every call. Setup in [`packages/cli/README.md`](packages/cli/README.md).
+
 **Local** (`wrangler dev`): put the secrets in `.dev.vars` (gitignored; see `.dev.vars.example`).
 **Production**: `pnpm wrangler secret put <NAME>` for each. These are separate stores — keep them in sync manually if you rotate.
 
