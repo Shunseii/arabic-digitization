@@ -7,6 +7,7 @@ import type {
   CreateBookResponse,
   DeleteBookResponse,
   FetchBookResponse,
+  FileStatus,
   ListBooksResponse,
   PauseBookResponse,
   ResumeBookResponse,
@@ -35,7 +36,7 @@ Books
 OCR
   corpus status <book> [--state <s>]      per-page states (filter, e.g. failed)
   corpus retry <book> [--states a,b]      re-queue pages (default failed,rate_limited)
-  corpus ocr <book> <fileId...>           re-run OCR on specific pages now (waits)
+  corpus ocr <book> <fileId...>           re-run OCR on specific pages and wait for the result
   corpus export <book>                    all pages + text as JSON
   corpus text <book> <fileId>             one page's Markdown transcription
 
@@ -67,6 +68,8 @@ const { values: opts, positionals } = parseArgs({
 });
 
 class UsageError extends Error {}
+
+const OCR_WAIT_MS = 4 * 60_000;
 
 const print = ({ data, human }: { data: unknown; human: () => string }) => {
   console.log(opts.json ? JSON.stringify(data, null, 2) : human());
@@ -309,39 +312,57 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   async ocr([ref, ...fileIds]) {
     const book = await resolveBook(need(ref, "<book>"));
     if (fileIds.length === 0) throw new UsageError("missing <fileId>");
-    const results: { file_id: string; ok: boolean; detail: string }[] = [];
-    // One at a time: each call runs OCR synchronously on the server.
+    const since = Date.now() - 60_000;
     for (const fileId of fileIds) {
-      try {
-        const res = await request<{ text: string; model: string }>({
-          service: "api",
-          path: bookPath(book.id, `/files/${encodeURIComponent(fileId)}/ocr`),
-          method: "POST",
-        });
-        results.push({
-          file_id: fileId,
-          ok: true,
-          detail:
-            res.text.trim() === "" ? "blank page" : `${res.text.length} chars`,
-        });
-      } catch (err) {
-        results.push({
-          file_id: fileId,
-          ok: false,
-          detail: shortError(err instanceof Error ? err.message : String(err)),
-        });
-      }
+      await request({
+        service: "api",
+        path: bookPath(book.id, `/files/${encodeURIComponent(fileId)}/ocr`),
+        method: "POST",
+      });
     }
+    // OCR runs on the queue; wait for these pages using cheap delta reads.
+    const wanted = new Set(fileIds);
+    const latest = new Map<string, FileStatus>();
+    const deadline = Date.now() + OCR_WAIT_MS;
+    const settled = (f?: FileStatus) =>
+      f != null && !["queued", "processing", "rate_limited"].includes(f.state);
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5_000));
+      const { files } = await request<BookStatusResponse>({
+        service: "api",
+        path: bookPath(book.id, `/status?since=${since}`),
+      });
+      for (const f of files)
+        if (wanted.has(f.file_id)) latest.set(f.file_id, f);
+      if (fileIds.every((id) => settled(latest.get(id)))) break;
+    }
+    const results = fileIds.map((id) => {
+      const f = latest.get(id);
+      const detail = !settled(f)
+        ? "still running; check `corpus status`"
+        : f?.state === "failed"
+          ? shortError(f.error ?? "")
+          : f?.preview === ""
+            ? "blank page"
+            : (f?.preview ?? "").slice(0, 40);
+      return {
+        file_id: id,
+        page_number: f?.page_number ?? null,
+        state: f?.state ?? "queued",
+        detail,
+      };
+    });
     print({
       data: results,
       human: () =>
         results
           .map(
-            (r) => `${r.ok ? "done  " : "failed"}  ${r.file_id}  ${r.detail}`,
+            (r) =>
+              `  p${r.page_number ?? "?"}  ${r.state}  ${r.file_id}  ${r.detail}`,
           )
           .join("\n"),
     });
-    if (results.some((r) => !r.ok)) process.exitCode = 1;
+    if (results.some((r) => r.state === "failed")) process.exitCode = 1;
   },
 
   async export([ref]) {
@@ -430,8 +451,13 @@ main().catch((err: unknown) => {
     console.error(`corpus: ${err.message}\nRun \`corpus --help\` for usage.`);
     process.exit(2);
   }
+  // Node's fetch reports network errors as "fetch failed"; the cause says why.
+  const cause =
+    err instanceof Error && err.cause instanceof Error
+      ? ` (${(err.cause as NodeJS.ErrnoException).code ?? err.cause.message})`
+      : "";
   console.error(
-    `corpus: ${err instanceof HttpError || err instanceof Error ? err.message : String(err)}`,
+    `corpus: ${err instanceof HttpError || err instanceof Error ? err.message : String(err)}${cause}`,
   );
   process.exit(1);
 });

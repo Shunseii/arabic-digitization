@@ -17,7 +17,7 @@ interface RequestOptions {
   body?: unknown;
 }
 
-const send = ({
+const send = async ({
   secrets,
   service,
   path,
@@ -29,14 +29,24 @@ const send = ({
 }): Promise<Response> => {
   const base = service === "api" ? secrets.apiUrl : secrets.meiliUrl;
   const key = service === "api" ? secrets.apiKey : secrets.meiliKey;
-  return fetch(`${base.replace(/\/$/, "")}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const attempt = () =>
+    fetch(`${base.replace(/\/$/, "")}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${key}`,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  try {
+    return await attempt();
+  } catch (err) {
+    // One retry for a dropped connection, reads only: repeating a POST could
+    // queue (and bill) an OCR run twice.
+    if (method !== "GET") throw err;
+    await new Promise((r) => setTimeout(r, 1_000));
+    return attempt();
+  }
 };
 
 // A 401/403 usually means a rotated key: re-read from 1Password once, retry,

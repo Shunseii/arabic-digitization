@@ -28,7 +28,7 @@ Everything goes through `corpus` (repo: `~/Projects/arabic-digitization/packages
 | `corpus status <book> [--state <s>]` | Per-page states; failed pages listed with a short reason |
 | `corpus text <book> <fileId>` | One page's transcription (Markdown) |
 | `corpus retry <book> [--states failed,rate_limited]` | Re-queue pages for OCR (default: failed + rate_limited; `done` re-applies new instructions) |
-| `corpus ocr <book> <fileId...>` | Re-run OCR on specific pages right away (waits for each; reports `blank page`, text length, or the failure). Use this, not `retry --states done`, to redo a few done pages |
+| `corpus ocr <book> <fileId...>` | Re-run OCR on specific pages: queues them, waits up to 4 minutes, and reports each (`blank page`, a text preview, or the failure reason). Use this, not `retry --states done`, to redo a few done pages |
 | `corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]` | Hybrid search |
 | `corpus auth status` / `auth login` / `auth logout` | Secret cache: when it expires / refresh it / wipe it |
 
