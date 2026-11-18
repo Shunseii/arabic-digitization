@@ -20,6 +20,7 @@ Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
 - On upload a file is enqueued and OCR runs automatically (state queued -> processing -> done).
 - rate_limited is transient: a Gemini 429/5xx auto-re-queues with backoff (no action needed).
   Only 'failed' needs a manual re-run (POST .../ocr).
+- A blank page is 'done' with empty text (and an empty preview), not 'failed'.
 
 ## Endpoints
 

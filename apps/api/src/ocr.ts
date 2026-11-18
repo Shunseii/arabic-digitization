@@ -13,6 +13,10 @@
 
 import { buildPageDocs, deleteDocsByFile, upsertDocs } from "./lib/meili";
 
+// What the model outputs for a page with no text (see SYSTEM_PROMPT). Stored as
+// an empty transcription, so a blank page is 'done' rather than 'failed'.
+const BLANK_MARKER = "[blank]";
+
 const SYSTEM_PROMPT = `You transcribe scanned pages of classical Arabic printed books into clean Markdown.
 
 Rules:
@@ -23,6 +27,7 @@ Rules:
 - If the page has footnotes (حاشية) in smaller print at the bottom, transcribe the main text (matn) first, then a BLANK line, then a line containing only "---", then a BLANK line, then a heading "### الحاشية", then the footnotes.
 - Use a ruby tag ONLY for small explanatory text physically written BETWEEN the main lines (an interlinear gloss sitting above the words it explains): <ruby>النص<rt>الشرح</rt></ruby>, wrapping exactly the word or phrase it sits above. Keep the rest of the line as normal text.
 - Do NOT use ruby for anything that is part of the main line itself. In particular: enumeration numbers/letters (e.g. a numbered list of شروط like ١ ٢ ٣) are normal text — render them as a numbered or inline list as printed, never as a gloss. Footnote/reference markers in the matn are normal text too.
+- If the page has no text to transcribe at all (a blank page, or only an image or ornament), output exactly ${BLANK_MARKER} and nothing else.
 - Output ONLY the transcription as Markdown (HTML ruby tags allowed). No preamble, no commentary, no code fences.`;
 
 const MODEL = "gemini-3.1-pro-preview";
@@ -100,7 +105,7 @@ export async function transcribe({
   const base64 = toBase64(new Uint8Array(await obj.arrayBuffer()));
 
   const {
-    text,
+    text: output,
     usage,
     model: ranModel,
   } = await runWithFallback({
@@ -110,6 +115,8 @@ export async function transcribe({
     base64,
     systemPrompt: buildSystemPrompt(row.ocr_instructions),
   });
+
+  const text = output.trim() === BLANK_MARKER ? "" : output;
 
   const textKey = `books/${row.book_id}/text/${fileId}.md`;
   await env.BUCKET.put(textKey, text, {
