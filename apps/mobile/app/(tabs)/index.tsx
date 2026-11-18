@@ -5,7 +5,7 @@ import { Redirect, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BookRows, inFlightCount } from "@/components/book-row";
+import { BookRows } from "@/components/book-row";
 import {
   Badge,
   Button,
@@ -167,8 +167,6 @@ export default function LibraryScreen() {
     queryKey: ["books"],
     queryFn: api.listBooks,
     enabled: configured,
-    refetchInterval: (q) =>
-      q.state.data?.some((b) => inFlightCount(b) > 0) ? 5000 : false,
   });
   const worksQuery = useQuery({
     queryKey: ["works"],

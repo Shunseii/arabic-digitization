@@ -7,6 +7,7 @@ import { BookDelete } from "./endpoints/bookDelete";
 import { BookExport } from "./endpoints/bookExport";
 import { BookFetch } from "./endpoints/bookFetch";
 import { BookList } from "./endpoints/bookList";
+import { BookPause, BookResume } from "./endpoints/bookPause";
 import { BookRequeue } from "./endpoints/bookRequeue";
 import { BookStatus } from "./endpoints/bookStatus";
 import { BookUpdate } from "./endpoints/bookUpdate";
@@ -65,6 +66,8 @@ openapi.delete("/api/books/:bookId", BookDelete);
 openapi.get("/api/books/:bookId/status", BookStatus);
 openapi.get("/api/books/:bookId/export", BookExport);
 openapi.post("/api/books/:bookId/requeue", BookRequeue);
+openapi.post("/api/books/:bookId/pause", BookPause);
+openapi.post("/api/books/:bookId/resume", BookResume);
 
 // Works (the abstract book; a book row is one copy of a work)
 openapi.post("/api/works", WorkCreate);

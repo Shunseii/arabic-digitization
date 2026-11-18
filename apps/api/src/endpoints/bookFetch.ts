@@ -37,7 +37,7 @@ export class BookFetch extends OpenAPIRoute {
     const { params } = await this.getValidatedData<typeof this.schema>();
 
     const book = await c.env.DB.prepare(
-      "SELECT id, title, created_at, ocr_instructions, work_id FROM books WHERE id = ?",
+      "SELECT id, title, created_at, ocr_instructions, work_id, paused FROM books WHERE id = ?",
     )
       .bind(params.bookId)
       .first<{
@@ -46,6 +46,7 @@ export class BookFetch extends OpenAPIRoute {
         created_at: number;
         ocr_instructions: string | null;
         work_id: string | null;
+        paused: number;
       }>();
 
     if (!book) {
@@ -56,7 +57,7 @@ export class BookFetch extends OpenAPIRoute {
     }
 
     const { results } = await c.env.DB.prepare(
-      "SELECT state, COUNT(*) AS c FROM files WHERE book_id = ? GROUP BY state",
+      "SELECT state, n AS c FROM book_state_counts WHERE book_id = ? AND n > 0",
     )
       .bind(params.bookId)
       .all<{ state: string; c: number }>();
@@ -71,9 +72,8 @@ export class BookFetch extends OpenAPIRoute {
     // Aggregate token usage + cost, grouped by model so mixed-model books price
     // correctly. cost_usd is null if any contributing model has no known price.
     const { results: usageRows } = await c.env.DB.prepare(
-      `SELECT ocr_model, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens
-         FROM files WHERE book_id = ? AND input_tokens IS NOT NULL
-         GROUP BY ocr_model`,
+      `SELECT NULLIF(ocr_model, '') AS ocr_model, input_tokens, output_tokens
+         FROM book_usage WHERE book_id = ? AND n > 0`,
     )
       .bind(params.bookId)
       .all<{
@@ -114,6 +114,7 @@ export class BookFetch extends OpenAPIRoute {
       success: true,
       book: {
         ...book,
+        paused: book.paused === 1,
         files_total,
         counts: counts as Record<z.infer<typeof FileState>, number>,
         usage,

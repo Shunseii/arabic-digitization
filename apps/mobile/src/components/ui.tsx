@@ -250,17 +250,19 @@ export const StatusBadge = ({ state }: { state: FileState }) => (
 export const StatusLine = ({
   state,
   trailing,
+  paused = false,
 }: {
   state: FileState;
   trailing?: string;
+  paused?: boolean;
 }) => {
   const c = useColors();
-  const color = toneColor(c, statusTone[state]);
+  const color = paused ? c.ink3 : toneColor(c, statusTone[state]);
   return (
     <View className="flex-row items-center gap-1.5">
       <Dot color={color} size={6} />
       <Text className="font-body-medium text-xs" style={{ color }}>
-        {statusLabel[state]}
+        {paused ? "paused" : statusLabel[state]}
       </Text>
       {trailing ? (
         <Text className="font-body text-xs text-ink-3">{trailing}</Text>

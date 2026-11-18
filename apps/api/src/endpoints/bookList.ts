@@ -8,7 +8,7 @@ interface BookCountRow {
   title: string;
   created_at: number;
   work_id: string | null;
-  files_total: number;
+  paused: number;
   state: string | null;
   state_count: number;
 }
@@ -33,16 +33,13 @@ export class BookList extends OpenAPIRoute {
   };
 
   async handle(c: AppContext) {
-    // One row per (book, state); books with no files yield a single row with
-    // NULL state. Assemble into per-book count maps in JS.
+    // One row per (book, state) from the trigger-maintained counters; books
+    // with no files yield a single row with NULL state.
     const { results } = await c.env.DB.prepare(
-      `SELECT b.id, b.title, b.created_at, b.work_id,
-			        (SELECT COUNT(*) FROM files WHERE book_id = b.id) AS files_total,
-			        f.state AS state,
-			        COUNT(f.file_id) AS state_count
+      `SELECT b.id, b.title, b.created_at, b.work_id, b.paused,
+			        s.state AS state, s.n AS state_count
 			 FROM books b
-			 LEFT JOIN files f ON f.book_id = b.id
-			 GROUP BY b.id, f.state
+			 LEFT JOIN book_state_counts s ON s.book_id = b.id AND s.n > 0
 			 ORDER BY b.created_at DESC`,
     ).all<BookCountRow>();
 
@@ -56,11 +53,15 @@ export class BookList extends OpenAPIRoute {
           title: row.title,
           created_at: row.created_at,
           work_id: row.work_id,
-          files_total: row.files_total,
+          paused: row.paused === 1,
+          files_total: 0,
           counts: {},
         } satisfies z.infer<typeof BookWithStatus>);
       if (!existing) byId.set(row.id, book);
-      if (row.state) book.counts[row.state] = row.state_count;
+      if (row.state) {
+        book.counts[row.state] = row.state_count;
+        book.files_total += row.state_count;
+      }
     }
 
     return c.json({ success: true, books: [...byId.values()] });

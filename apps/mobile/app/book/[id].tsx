@@ -1,3 +1,4 @@
+import { Feather } from "@expo/vector-icons";
 import type { FileState, FileStatus } from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -34,6 +35,7 @@ import {
 } from "@/components/work-fields";
 import { api } from "@/lib/api";
 import { useGoBack } from "@/lib/navigation";
+import { loadStatus } from "@/lib/status";
 import { type Palette, useColors } from "@/theme";
 
 const READABLE: FileState[] = ["done", "approved", "needs_review"];
@@ -103,9 +105,25 @@ export default function BookScreen() {
   });
   const statusQuery = useQuery({
     queryKey: ["status", id],
-    queryFn: () => api.status(id),
-    refetchInterval: (query) =>
-      query.state.data?.some(isPending) ? 4000 : false,
+    queryFn: () => loadStatus(id),
+  });
+  const refreshing = statusQuery.isRefetching || bookQuery.isRefetching;
+  const refresh = () => {
+    statusQuery.refetch();
+    bookQuery.refetch();
+  };
+
+  const invalidateBook = () => {
+    invalidate();
+    queryClient.invalidateQueries({ queryKey: ["book", id] });
+  };
+  const pause = useMutation({
+    mutationFn: () => api.pauseBook(id),
+    onSettled: invalidateBook,
+  });
+  const resume = useMutation({
+    mutationFn: () => api.resumeBook(id),
+    onSettled: invalidateBook,
   });
 
   const retry = useMutation({
@@ -199,9 +217,13 @@ export default function BookScreen() {
     },
     { done: 0, review: 0, failed: 0, queue: 0 },
   );
-  const visibleGroups = GROUPS.filter((g) => groupCounts[g.key] > 0);
-
   const book = bookQuery.data;
+  const paused = book?.paused === true;
+  const visibleGroups = GROUPS.filter((g) => groupCounts[g.key] > 0).map((g) =>
+    paused && g.key === "queue"
+      ? { ...g, label: "paused", color: "ink3" as const }
+      : g,
+  );
   const costUsd = book?.usage?.cost_usd;
   const summary =
     files.length === 0
@@ -276,6 +298,7 @@ export default function BookScreen() {
               first={index === 0}
               last={index === files.length - 1}
               removing={del.isPending && del.variables === item.file_id}
+              paused={paused && isPending(item)}
               onOpen={openPage}
               onMenu={openMenu}
             />
@@ -326,16 +349,36 @@ export default function BookScreen() {
                     </View>
                   </View>
 
-                  {pendingCount > 0 ? (
-                    <View className="mt-5 flex-row items-center gap-3 rounded-xl bg-accent-soft px-4 py-3.5">
+                  {pendingCount > 0 && paused ? (
+                    <View className="mt-5 flex-row items-center gap-3 rounded-xl bg-surface-2 py-3 pr-3 pl-4">
+                      <Feather name="pause-circle" size={18} color={c.ink2} />
+                      <T variant="bodyStrong" className="flex-1">
+                        {pendingCount} {pendingCount === 1 ? "page" : "pages"}{" "}
+                        paused
+                      </T>
+                      <Button
+                        label="Resume"
+                        icon="play"
+                        size="sm"
+                        loading={resume.isPending}
+                        onPress={() => resume.mutate()}
+                      />
+                    </View>
+                  ) : pendingCount > 0 ? (
+                    <View className="mt-5 flex-row items-center gap-3 rounded-xl bg-accent-soft py-3 pr-3 pl-4">
                       <ActivityIndicator size="small" color={c.accent} />
                       <T variant="bodyStrong" className="flex-1">
                         Transcribing {pendingCount}{" "}
                         {pendingCount === 1 ? "page" : "pages"}
                       </T>
-                      <T variant="small" className="text-ink-3">
-                        auto-refreshing
-                      </T>
+                      <Button
+                        label="Pause"
+                        icon="pause"
+                        size="sm"
+                        variant="secondary"
+                        loading={pause.isPending}
+                        onPress={() => pause.mutate()}
+                      />
                     </View>
                   ) : null}
                   <View className="mt-6 pb-2.5">
@@ -354,8 +397,8 @@ export default function BookScreen() {
           removeClippedSubviews
           refreshControl={
             <RefreshControl
-              refreshing={statusQuery.isRefetching}
-              onRefresh={() => statusQuery.refetch()}
+              refreshing={refreshing}
+              onRefresh={refresh}
               tintColor={c.accent}
             />
           }
@@ -529,6 +572,7 @@ const PageRow = memo(
     first,
     last,
     removing,
+    paused,
     onOpen,
     onMenu,
   }: {
@@ -537,6 +581,7 @@ const PageRow = memo(
     first: boolean;
     last: boolean;
     removing: boolean;
+    paused: boolean;
     onOpen: (f: FileStatus, label: string) => void;
     onMenu: (f: FileStatus, label: string) => void;
   }) => {
@@ -571,9 +616,10 @@ const PageRow = memo(
               </T>
             </View>
             <View className="flex-1 gap-1">
-              <PagePreview file={file} label={label} />
+              <PagePreview file={file} label={label} paused={paused} />
               <StatusLine
                 state={file.state}
+                paused={paused}
                 trailing={
                   file.cost_usd != null
                     ? `$${file.cost_usd.toFixed(4)}`
@@ -594,7 +640,15 @@ const PageRow = memo(
   },
 );
 
-const PagePreview = ({ file, label }: { file: FileStatus; label: string }) => {
+const PagePreview = ({
+  file,
+  label,
+  paused,
+}: {
+  file: FileStatus;
+  label: string;
+  paused: boolean;
+}) => {
   if (file.error)
     return (
       <T variant="small" className="text-danger" numberOfLines={1}>
@@ -609,7 +663,7 @@ const PagePreview = ({ file, label }: { file: FileStatus; label: string }) => {
     );
   return (
     <T variant="small" className="text-ink-3" numberOfLines={1}>
-      {PENDING_SENTENCE[file.state] ?? `Page ${label}`}
+      {paused ? "Paused" : (PENDING_SENTENCE[file.state] ?? `Page ${label}`)}
     </T>
   );
 };

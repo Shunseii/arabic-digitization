@@ -1,13 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
-import { ScrollView, View } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  BookRows,
-  inFlightCount,
-  transcribedCount,
-} from "@/components/book-row";
+import { BookRows, transcribedCount } from "@/components/book-row";
 import {
   ActionBar,
   Badge,
@@ -21,6 +17,7 @@ import {
   T,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useColors } from "@/theme";
 
 const Stat = ({ value, label }: { value: string; label: string }) => (
   <View className="flex-1 gap-0.5">
@@ -45,9 +42,13 @@ export default function WorkDetailScreen() {
   const booksQuery = useQuery({
     queryKey: ["books"],
     queryFn: api.listBooks,
-    refetchInterval: (q) =>
-      q.state.data?.some((b) => inFlightCount(b) > 0) ? 5000 : false,
   });
+  const c = useColors();
+  const refreshing = workQuery.isRefetching || booksQuery.isRefetching;
+  const refresh = () => {
+    workQuery.refetch();
+    booksQuery.refetch();
+  };
 
   const copies = useMemo(
     () => (booksQuery.data ?? []).filter((b) => b.work_id === workId),
@@ -112,6 +113,13 @@ export default function WorkDetailScreen() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refresh}
+            tintColor={c.accent}
+          />
+        }
       >
         <View className="mt-2 gap-1.5">
           <T variant="overline" className="text-ink-3">

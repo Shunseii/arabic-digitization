@@ -36,6 +36,8 @@ export interface Book {
   /** The work this copy belongs to; null/undefined = ungrouped/standalone. */
   work_id?: string | null;
   ocr_instructions?: string | null;
+  /** OCR paused for this book: its pages wait in 'queued' until resumed. */
+  paused?: boolean;
 }
 
 /** A tag (subject/genre), shared across works. */
@@ -184,6 +186,8 @@ export interface FetchBookResponse {
 export interface BookStatusResponse {
   success: true;
   files: FileStatus[];
+  /** All of the book's files, even when `since` filtered `files`. */
+  files_total: number;
 }
 
 export interface BookExportResponse {
@@ -213,6 +217,18 @@ export interface FileDeleteResponse {
     file_id: string;
     r2_objects: number;
   };
+}
+
+export interface PauseBookResponse {
+  success: true;
+  paused: true;
+}
+
+/** Resume clears the pause and re-enqueues the book's waiting pages. */
+export interface ResumeBookResponse {
+  success: true;
+  paused: false;
+  requeued: number;
 }
 
 /** OCR is now enqueued (async); poll status/export for the result. */

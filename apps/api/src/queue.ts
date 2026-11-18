@@ -110,11 +110,23 @@ export async function handleOcrQueue(
     }
     const { fileId } = msg.body;
     try {
-      await env.DB.prepare(
-        "UPDATE files SET state = 'processing', updated_at = ? WHERE file_id = ?",
+      // Claim the file only if its book isn't paused and it's still waiting.
+      // A paused book's message is dropped (the page stays 'queued'; resume
+      // re-enqueues it). The state guard also drops duplicate messages, e.g.
+      // one left over from before a pause/resume, so a page is never billed
+      // twice. 'processing' is claimable on redelivery after a crashed run.
+      const claim = await env.DB.prepare(
+        `UPDATE files SET state = 'processing', updated_at = ?
+          WHERE file_id = ?
+            AND (state IN ('queued', 'rate_limited') OR (state = 'processing' AND ? > 1))
+            AND (SELECT paused FROM books WHERE id = files.book_id) = 0`,
       )
-        .bind(Date.now(), fileId)
+        .bind(Date.now(), fileId, msg.attempts)
         .run();
+      if (claim.meta.changes === 0) {
+        msg.ack();
+        continue;
+      }
       await transcribe({ env, fileId });
       msg.ack();
     } catch (err) {

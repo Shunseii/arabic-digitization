@@ -14,12 +14,13 @@ import type {
   FileDeleteResponse,
   FileOcrResponse,
   FileRecord,
-  FileStatus,
   FileUpdateResponse,
   HighlightResponse,
   ListBooksResponse,
   ListTagsResponse,
   ListWorksResponse,
+  PauseBookResponse,
+  ResumeBookResponse,
   UpdateBookResponse,
   UpdateWorkResponse,
   UploadContentType,
@@ -178,14 +179,20 @@ export const api = {
       )
     ).tags,
 
-  status: async (id: string): Promise<FileStatus[]> =>
-    (
-      await asJson<BookStatusResponse>(
-        await fetch(`${base()}/api/books/${id}/status`, {
-          headers: authHeaders(),
-        }),
-      )
-    ).files,
+  /** A book's files; with `since`, only those updated after it (see lib/status). */
+  status: async ({
+    bookId,
+    since,
+  }: {
+    bookId: string;
+    since?: number;
+  }): Promise<BookStatusResponse> =>
+    asJson<BookStatusResponse>(
+      await fetch(
+        `${base()}/api/books/${bookId}/status${since === undefined ? "" : `?since=${since}`}`,
+        { headers: authHeaders() },
+      ),
+    ),
 
   exportBook: async (id: string): Promise<ExportFile[]> =>
     (
@@ -296,25 +303,23 @@ export const api = {
       }),
     ),
 
-  /** Recent page-fragments across all books, newest first (for Activity). */
-  recentFiles: async (
-    limit = 20,
-  ): Promise<{ book_id: string; title: string; file: FileStatus }[]> => {
-    const books = await api.listBooks();
-    const groups = await Promise.all(
-      books.map(async (b) =>
-        (await api.status(b.id)).map((file) => ({
-          book_id: b.id,
-          title: b.title,
-          file,
-        })),
-      ),
-    );
-    return groups
-      .flat()
-      .sort((a, b) => b.file.updated_at - a.file.updated_at)
-      .slice(0, limit);
-  },
+  /** Stop OCR for one book; its waiting pages stay queued until resumed. */
+  pauseBook: async (bookId: string): Promise<PauseBookResponse> =>
+    asJson<PauseBookResponse>(
+      await fetch(`${base()}/api/books/${bookId}/pause`, {
+        method: "POST",
+        headers: authHeaders(),
+      }),
+    ),
+
+  /** Resume OCR for a paused book; re-enqueues its waiting pages. */
+  resumeBook: async (bookId: string): Promise<ResumeBookResponse> =>
+    asJson<ResumeBookResponse>(
+      await fetch(`${base()}/api/books/${bookId}/resume`, {
+        method: "POST",
+        headers: authHeaders(),
+      }),
+    ),
 
   /** Re-run OCR on a single file now (synchronous server-side). */
   rerunOcr: async ({

@@ -21,6 +21,12 @@ export const Book = z.object({
     .describe(
       "Book-specific OCR notes appended to the global system prompt at transcription time",
     ),
+  paused: z
+    .boolean()
+    .optional()
+    .describe(
+      "OCR paused for this book: its pages wait in 'queued' until resumed",
+    ),
 });
 
 export const BookCreateBody = z.object({

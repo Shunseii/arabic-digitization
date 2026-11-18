@@ -52,9 +52,14 @@ DELETE /api/books/:bookId
   200 -> { success, deleted: { book_id, files, r2_objects } }
   404 if missing.
 
-GET /api/books/:bookId/status
-  Per-file states (no text). Poll this to watch progress.
-  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at, input_tokens, output_tokens, cost_usd } ] }
+GET /api/books/:bookId/status[?since=<epoch ms>]
+  Per-file states (no text).
+  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at, input_tokens, output_tokens, cost_usd } ], files_total }
+  // With since, files holds only files whose updated_at > since; merge them
+  // into the previous list by file_id. files_total always counts every file:
+  // if the merged list is longer, files were deleted, so refetch without since.
+  // Pass since a minute below the newest updated_at you hold: a slow write can
+  // commit with an older timestamp than one you already saw.
   // input_tokens/output_tokens/cost_usd are null for pages OCR'd before usage
   // tracking (or not done yet); cost_usd is null if the model has no known price.
 
@@ -69,6 +74,18 @@ POST /api/books/:bookId/requeue
   All work flows through the throttled, auto-retrying consumer, so requeuing a
   whole book at once is safe. Pass states:["done"] to re-apply new ocr_instructions.
   200 -> { success, requeued: <n>, states: [...] }
+  404 if book missing.
+
+POST /api/books/:bookId/pause
+  Pause OCR for one book (other books keep processing). Its pages stay 'queued'
+  and queued messages are dropped without calling Gemini; pages uploaded while
+  paused wait too. Book responses carry paused: boolean.
+  200 -> { success, paused: true }
+  404 if book missing.
+
+POST /api/books/:bookId/resume
+  Clear the pause and re-enqueue every 'queued' / 'rate_limited' page of the book.
+  200 -> { success, paused: false, requeued: <n> }
   404 if book missing.
 
 POST /api/books/:bookId/files?page=<n>

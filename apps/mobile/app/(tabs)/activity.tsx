@@ -16,14 +16,10 @@ import {
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
+import { loadRecentFiles } from "@/lib/status";
 import { useColors } from "@/theme";
 
 const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
-const isPending = (f: FileStatus): boolean =>
-  f.state === "queued" ||
-  f.state === "processing" ||
-  f.state === "rate_limited";
-
 const sum = (
   books: BookWithStatus[],
   key: keyof BookWithStatus["counts"],
@@ -100,19 +96,11 @@ export default function ActivityScreen() {
     queryKey: ["books"],
     queryFn: api.listBooks,
     enabled: configured,
-    refetchInterval: (q) =>
-      q.state.data?.some(
-        (b) => (b.counts.queued ?? 0) + (b.counts.processing ?? 0) > 0,
-      )
-        ? 5000
-        : false,
   });
   const recentQuery = useQuery({
     queryKey: ["recent"],
-    queryFn: () => api.recentFiles(25),
+    queryFn: () => loadRecentFiles(25),
     enabled: configured,
-    refetchInterval: (query) =>
-      query.state.data?.some((r) => isPending(r.file)) ? 5000 : false,
   });
 
   if (!ready) return <Loading />;
@@ -203,8 +191,18 @@ export default function ActivityScreen() {
                     }
                     className={`flex-row items-center gap-3.5 py-3.5 active:opacity-70 ${i > 0 ? "border-t border-line" : ""}`}
                   >
-                    <View className="w-10 items-center">
-                      <T variant="title" className="leading-7">
+                    <View className="w-12 items-center">
+                      <T
+                        variant="title"
+                        numberOfLines={1}
+                        style={{
+                          fontSize:
+                            String(r.file.page_number ?? "").length > 3
+                              ? 15
+                              : 18,
+                          lineHeight: 28,
+                        }}
+                      >
                         {r.file.page_number ?? "—"}
                       </T>
                       <T variant="caption" className="font-body text-ink-3">

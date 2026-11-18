@@ -31,6 +31,7 @@ import { ZoomableImage } from "@/components/zoomable-image";
 import { api } from "@/lib/api";
 import { Markdown } from "@/lib/markdown";
 import { useGoBack } from "@/lib/navigation";
+import { loadStatus } from "@/lib/status";
 import { useColors } from "@/theme";
 
 type Pane = "text" | "scan";
@@ -74,7 +75,7 @@ export default function ReaderScreen() {
 
   const statusQuery = useQuery({
     queryKey: ["status", bookId],
-    queryFn: () => api.status(bookId),
+    queryFn: () => loadStatus(bookId),
   });
 
   // Same key as the book screen, so this is usually served from cache.

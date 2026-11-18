@@ -82,11 +82,14 @@ export class BookUpdate extends OpenAPIRoute {
     }
 
     const book = await c.env.DB.prepare(
-      "SELECT id, title, created_at, ocr_instructions, work_id FROM books WHERE id = ?",
+      "SELECT id, title, created_at, ocr_instructions, work_id, paused FROM books WHERE id = ?",
     )
       .bind(params.bookId)
-      .first();
+      .first<{ paused: number }>();
 
-    return c.json({ success: true, book });
+    return c.json({
+      success: true,
+      book: book && { ...book, paused: book.paused === 1 },
+    });
   }
 }
