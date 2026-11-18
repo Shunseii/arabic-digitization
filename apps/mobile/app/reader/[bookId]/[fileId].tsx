@@ -199,6 +199,17 @@ export default function ReaderScreen() {
                 />
               )}
             </View>
+          ) : textQuery.data?.trim() === "" ? (
+            <View
+              className="flex-1 justify-center"
+              style={{ paddingBottom: bottomClearance }}
+            >
+              <EmptyState
+                icon="file"
+                title="Blank page"
+                body="OCR found no text on this page."
+              />
+            </View>
           ) : (
             <ScrollView
               contentContainerStyle={{

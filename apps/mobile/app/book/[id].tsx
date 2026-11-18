@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import type { FileState, FileStatus } from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,10 +12,16 @@ import {
   ScrollView,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Button,
   Card,
+  Chip,
   Dialog,
   Dot,
   FieldLabel,
@@ -75,6 +81,11 @@ const GROUPS: { key: ProgressGroup; label: string; color: keyof Palette }[] = [
 
 type PageSelection = { file: FileStatus; label: string };
 
+const capitalize = (s: string): string =>
+  s.charAt(0).toUpperCase() + s.slice(1);
+// Where a jumped-to row lands: a little below the top of the list.
+const JUMP_VIEW_POSITION = 0.2;
+
 export default function BookScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -86,6 +97,12 @@ export default function BookScreen() {
   const [menuPage, setMenuPage] = useState<PageSelection | null>(null);
   const [errorPage, setErrorPage] = useState<PageSelection | null>(null);
   const [editing, setEditing] = useState<FileStatus | null>(null);
+  const [filter, setFilter] = useState<ReadonlySet<ProgressGroup>>(new Set());
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const [jumpInput, setJumpInput] = useState("");
+  const [jumpTarget, setJumpTarget] = useState<string | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const listRef = useRef<FlatList<FileStatus>>(null);
   const [pageInput, setPageInput] = useState("");
   const [editBook, setEditBook] = useState(false);
   const [bookTitle, setBookTitle] = useState("");
@@ -196,6 +213,67 @@ export default function BookScreen() {
         ),
     [statusQuery.data],
   );
+  // Filters for groups the book no longer has are ignored, not applied.
+  const shownFiles = useMemo(() => {
+    const active = GROUPS.map((g) => g.key).filter(
+      (g) => filter.has(g) && files.some((f) => GROUP_OF[f.state] === g),
+    );
+    return active.length === 0
+      ? files
+      : files.filter((f) => active.includes(GROUP_OF[f.state]));
+  }, [files, filter]);
+  const filtering = shownFiles !== files;
+  // Labels for unnumbered pages use their position in the whole book.
+  const indexOf = useMemo(
+    () => new Map(files.map((f, i) => [f.file_id, i])),
+    [files],
+  );
+  const toggleGroup = (g: ProgressGroup) =>
+    setFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return next;
+    });
+
+  const numbered = files.filter((f) => f.page_number != null);
+  const firstPage = numbered[0]?.page_number ?? null;
+  const lastPage = numbered[numbered.length - 1]?.page_number ?? null;
+  const openJump = () => {
+    setJumpInput("");
+    setJumpOpen(true);
+  };
+  // The page itself, or the next one after it when that number is missing.
+  const goToPage = () => {
+    const n = Number(jumpInput);
+    if (!jumpInput || !Number.isFinite(n)) return;
+    const target =
+      numbered.find((f) => (f.page_number ?? 0) >= n) ??
+      numbered[numbered.length - 1];
+    setJumpOpen(false);
+    if (!target) return;
+    if (!shownFiles.includes(target)) setFilter(new Set());
+    setJumpTarget(target.file_id);
+  };
+  // Runs once the (possibly unfiltered) list holds the target.
+  useEffect(() => {
+    if (!jumpTarget) return;
+    const index = shownFiles.findIndex((f) => f.file_id === jumpTarget);
+    if (index < 0) return;
+    listRef.current?.scrollToIndex({
+      index,
+      viewPosition: JUMP_VIEW_POSITION,
+      animated: true,
+    });
+    setHighlightId(jumpTarget);
+    setJumpTarget(null);
+  }, [jumpTarget, shownFiles]);
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = setTimeout(() => setHighlightId(null), 1600);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
+
   const openPage = useCallback(
     (f: FileStatus, label: string) => {
       if (READABLE.includes(f.state)) router.push(`/reader/${id}/${f.file_id}`);
@@ -290,14 +368,32 @@ export default function BookScreen() {
         <Loading />
       ) : (
         <FlatList
-          data={files}
+          ref={listRef}
+          data={shownFiles}
           keyExtractor={(f) => f.file_id}
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            // Rows far down aren't measured yet: get close, then retry.
+            listRef.current?.scrollToOffset({
+              offset: averageItemLength * index,
+              animated: false,
+            });
+            setTimeout(
+              () =>
+                listRef.current?.scrollToIndex({
+                  index,
+                  viewPosition: JUMP_VIEW_POSITION,
+                  animated: true,
+                }),
+              100,
+            );
+          }}
           renderItem={({ item, index }) => (
             <PageRow
               file={item}
-              label={pageLabel(item, index)}
+              label={pageLabel(item, indexOf.get(item.file_id) ?? index)}
               first={index === 0}
-              last={index === files.length - 1}
+              last={index === shownFiles.length - 1}
+              highlighted={item.file_id === highlightId}
               removing={del.isPending && del.variables === item.file_id}
               paused={paused && isPending(item)}
               onOpen={openPage}
@@ -382,8 +478,38 @@ export default function BookScreen() {
                       />
                     </View>
                   ) : null}
-                  <View className="mt-6 pb-2.5">
-                    <FieldLabel>Pages</FieldLabel>
+                  <View className="mt-6 gap-2.5 pb-2.5">
+                    <View className="h-8 flex-row items-center justify-between">
+                      <FieldLabel>
+                        {filtering
+                          ? `Pages · ${shownFiles.length} of ${files.length}`
+                          : "Pages"}
+                      </FieldLabel>
+                      <View className="-mr-3">
+                        <Button
+                          label="Go to page"
+                          icon="hash"
+                          variant="ghost"
+                          size="sm"
+                          onPress={openJump}
+                        />
+                      </View>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      className="-mx-6"
+                      contentContainerStyle={{ gap: 8, paddingHorizontal: 24 }}
+                    >
+                      {visibleGroups.map((g) => (
+                        <Chip
+                          key={g.key}
+                          label={`${capitalize(g.label)} ${groupCounts[g.key]}`}
+                          selected={filter.has(g.key)}
+                          onPress={() => toggleGroup(g.key)}
+                        />
+                      ))}
+                    </ScrollView>
                   </View>
                 </>
               )}
@@ -497,6 +623,35 @@ export default function BookScreen() {
       </Sheet>
 
       <Dialog
+        visible={jumpOpen}
+        onClose={() => setJumpOpen(false)}
+        title="Go to page"
+        message={
+          firstPage != null && lastPage != null
+            ? `Pages ${firstPage}–${lastPage}`
+            : undefined
+        }
+      >
+        <TextField
+          value={jumpInput}
+          onChangeText={(v) => setJumpInput(v.replace(/[^0-9]/g, ""))}
+          keyboardType="number-pad"
+          autoFocus
+          placeholder="—"
+          onSubmitEditing={goToPage}
+        />
+        <View className="flex-row gap-2.5">
+          <Button
+            label="Cancel"
+            variant="secondary"
+            className="flex-1"
+            onPress={() => setJumpOpen(false)}
+          />
+          <Button label="Go" className="flex-1" onPress={goToPage} />
+        </View>
+      </Dialog>
+
+      <Dialog
         visible={editing != null}
         onClose={() => setEditing(null)}
         title="Change page number"
@@ -584,6 +739,7 @@ const PageRow = memo(
     last,
     removing,
     paused,
+    highlighted,
     onOpen,
     onMenu,
   }: {
@@ -593,11 +749,17 @@ const PageRow = memo(
     last: boolean;
     removing: boolean;
     paused: boolean;
+    highlighted: boolean;
     onOpen: (f: FileStatus, label: string) => void;
     onMenu: (f: FileStatus, label: string) => void;
   }) => {
     const c = useColors();
-    const readable = READABLE.includes(file.state);
+    // A jumped-to row lights up, then fades out.
+    const glow = useSharedValue(0);
+    useEffect(() => {
+      glow.value = highlighted ? 1 : withTiming(0, { duration: 600 });
+    }, [highlighted, glow]);
+    const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
     return (
       <View
         className={`border-x border-line bg-surface px-4 ${first ? "rounded-t-2xl border-t" : ""} ${last ? "rounded-b-2xl border-b" : ""}`}
@@ -605,12 +767,16 @@ const PageRow = memo(
         // the hairline gap that would otherwise show between card slices.
         style={first ? undefined : { marginTop: -1 }}
       >
+        <Animated.View
+          pointerEvents="none"
+          className={`absolute inset-0 bg-accent-soft ${first ? "rounded-t-2xl" : ""} ${last ? "rounded-b-2xl" : ""}`}
+          style={glowStyle}
+        />
         <View
           className={`flex-row items-center gap-2 py-3 ${first ? "" : "border-t border-line"}`}
           style={removing ? { opacity: 0.4 } : null}
         >
           <Pressable
-            disabled={!readable && !(file.state === "failed" && !!file.error)}
             onPress={() => onOpen(file, label)}
             className="flex-1 flex-row items-center gap-3 active:opacity-70"
           >
@@ -664,6 +830,12 @@ const PagePreview = ({
     return (
       <T variant="small" className="text-danger" numberOfLines={1}>
         {file.error}
+      </T>
+    );
+  if (file.preview === "" && READABLE.includes(file.state))
+    return (
+      <T variant="small" className="italic text-ink-3" numberOfLines={1}>
+        Blank page
       </T>
     );
   if (file.preview)
