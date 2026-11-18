@@ -35,6 +35,7 @@ Books
 OCR
   corpus status <book> [--state <s>]      per-page states (filter, e.g. failed)
   corpus retry <book> [--states a,b]      re-queue pages (default failed,rate_limited)
+  corpus ocr <book> <fileId...>           re-run OCR on specific pages now (waits)
   corpus export <book>                    all pages + text as JSON
   corpus text <book> <fileId>             one page's Markdown transcription
 
@@ -303,6 +304,44 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       human: () =>
         `Re-queued ${res.requeued} pages (${res.states.join(", ")}) of ${book.title}.`,
     });
+  },
+
+  async ocr([ref, ...fileIds]) {
+    const book = await resolveBook(need(ref, "<book>"));
+    if (fileIds.length === 0) throw new UsageError("missing <fileId>");
+    const results: { file_id: string; ok: boolean; detail: string }[] = [];
+    // One at a time: each call runs OCR synchronously on the server.
+    for (const fileId of fileIds) {
+      try {
+        const res = await request<{ text: string; model: string }>({
+          service: "api",
+          path: bookPath(book.id, `/files/${encodeURIComponent(fileId)}/ocr`),
+          method: "POST",
+        });
+        results.push({
+          file_id: fileId,
+          ok: true,
+          detail:
+            res.text.trim() === "" ? "blank page" : `${res.text.length} chars`,
+        });
+      } catch (err) {
+        results.push({
+          file_id: fileId,
+          ok: false,
+          detail: shortError(err instanceof Error ? err.message : String(err)),
+        });
+      }
+    }
+    print({
+      data: results,
+      human: () =>
+        results
+          .map(
+            (r) => `${r.ok ? "done  " : "failed"}  ${r.file_id}  ${r.detail}`,
+          )
+          .join("\n"),
+    });
+    if (results.some((r) => !r.ok)) process.exitCode = 1;
   },
 
   async export([ref]) {

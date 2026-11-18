@@ -28,6 +28,7 @@ Everything goes through `corpus` (repo: `~/Projects/arabic-digitization/packages
 | `corpus status <book> [--state <s>]` | Per-page states; failed pages listed with a short reason |
 | `corpus text <book> <fileId>` | One page's transcription (Markdown) |
 | `corpus retry <book> [--states failed,rate_limited]` | Re-queue pages for OCR (default: failed + rate_limited; `done` re-applies new instructions) |
+| `corpus ocr <book> <fileId...>` | Re-run OCR on specific pages right away (waits for each; reports `blank page`, text length, or the failure). Use this, not `retry --states done`, to redo a few done pages |
 | `corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]` | Hybrid search |
 | `corpus auth status` / `auth login` / `auth logout` | Secret cache: when it expires / refresh it / wipe it |
 
@@ -42,7 +43,7 @@ File states: `captured → queued → processing → done`, or `rate_limited` (t
 **Watch progress** — `corpus show <book>` gives counts and OCR cost cheaply. Use it for repeated checks while OCR runs; `corpus status` reads every page of the book from D1, and the free plan allows 5M row reads a day (a 1,150-page book is 1,150 reads per call).
 
 **Status of a book** — `corpus status <book>`. Summarize counts per state; call out `failed` pages with their reason, and pages with no page number (`p?`, report the `file_id`).
-- `no text (STOP)` is usually a blank page — nothing to recover.
+- Blank pages come back as `done` with empty text (shown as "Blank page"). `no text (STOP)` is an empty reply Gemini gave without saying the page is blank; a re-run (`corpus ocr`) usually settles it.
 - `no text (RECITATION)` is Gemini's copyright filter, often on Qur'an-heavy pages. A retry often passes (Tafsir as-Sa'di: 9 of 13 failed pages recovered on one retry); for pages that keep failing, the book's OCR instructions are the next lever.
 
 **Re-run failed OCR** — check `corpus status <book> --state failed` first. Re-running costs a Gemini call per page (roughly $0.02–0.04 for dense pages), so confirm the count with the user before re-queuing many. Then `corpus retry <book>`. It's asynchronous: wait with `corpus show <book>` until nothing is queued or processing, then `corpus status <book> --state failed` once. One retry pass, then report what is still broken — don't loop.
