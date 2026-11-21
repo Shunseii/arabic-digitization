@@ -1,5 +1,6 @@
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { decode as decodeJpeg } from "jpeg-js";
+import { PagePixels } from "../../modules/page-pixels";
 
 export interface GrayImage {
   gray: Uint8Array;
@@ -30,6 +31,33 @@ export const grayscaleImage = async ({
   uri: string;
   size: TargetSize;
   halving?: boolean;
+}): Promise<GrayImage> => {
+  if (PagePixels) {
+    try {
+      return await PagePixels.grayscale(
+        uri,
+        "width" in size ? size.width : null,
+        "height" in size ? size.height : null,
+      );
+    } catch (err) {
+      console.warn("[pixels] native decode failed, using JS", err);
+    }
+  }
+  return grayscaleImageJs({ uri, size, halving });
+};
+
+/**
+ * JS fallback (iOS, or a binary without the native module): resize natively,
+ * then decode the JPEG in JS. Blocks the JS thread for most of a second.
+ */
+const grayscaleImageJs = async ({
+  uri,
+  size,
+  halving,
+}: {
+  uri: string;
+  size: TargetSize;
+  halving: boolean;
 }): Promise<GrayImage> => {
   const context = ImageManipulator.manipulate(uri);
   if (halving) {

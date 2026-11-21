@@ -5,7 +5,9 @@ The app resizes with Android's bilinear scaling (no antialiasing), re-encodes
 as JPEG, and decodes to grayscale before cutting strips; training used
 antialiased PIL resizing. This measures what that difference costs, and
 whether resizing in halving steps (what the app can do to approximate
-antialiasing) wins it back.
+antialiasing) wins it back. "app native" emulates the native decoder
+(modules/page-pixels): power-of-two sampled decode (box reduce), plain
+bilinear to the exact size, grayscale, no JPEG round trip.
 
 Usage: python check_app_pipeline.py [model.pt]   (held-out = every 5th page)
 """
@@ -47,6 +49,16 @@ def resize_halving(a: np.ndarray, w: int, h: int) -> np.ndarray:
     return resize_plain(a, w, h)
 
 
+def native_gray(path: str, w: int, h: int) -> np.ndarray:
+    im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+    f = 1
+    while im.width // (f * 2) >= w and im.height // (f * 2) >= h:
+        f *= 2
+    rgb = np.asarray(im.reduce(f) if f > 1 else im)
+    chans = np.stack([resize_plain(np.ascontiguousarray(rgb[..., c]), w, h) for c in range(3)], -1)
+    return np.asarray(Image.fromarray(chans).convert("L"))
+
+
 def jpeg(a: np.ndarray, q: int = 90) -> np.ndarray:
     buf = io.BytesIO()
     Image.fromarray(a).save(buf, "JPEG", quality=q)
@@ -69,7 +81,7 @@ def read(page: np.ndarray) -> tuple[str, float]:
     return "", max(tc, bc)
 
 
-results = {"training": [], "app plain": [], "app halving": []}
+results = {"training": [], "app plain": [], "app halving": [], "app native": []}
 for n in test:
     im = ImageOps.exif_transpose(Image.open(f"../orientation/data/pages/{n}")).convert("L")
     w, h = im.size
@@ -84,6 +96,7 @@ for n in test:
         Image.fromarray(chans).save(buf, "JPEG", quality=90)
         gray = np.asarray(Image.open(io.BytesIO(buf.getvalue())).convert("L"))
         results[key].append((truth, *read(gray)))
+    results["app native"].append((truth, *read(native_gray(f"../orientation/data/pages/{n}", PAGE_W, ph))))
 
 for key, rs in results.items():
     top = sum(t == r for t, r, _ in rs) / len(rs)
