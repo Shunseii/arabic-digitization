@@ -1,7 +1,0 @@
-expo.modules.pagepixels.page-pixels-pngs-0 /home/shunsei-pop/Projects/arabic-digitization/apps/mobile/modules/page-pixels/android/build/generated/res/pngs/release
-expo.modules.pagepixels.page-pixels-resValues-1 /home/shunsei-pop/Projects/arabic-digitization/apps/mobile/modules/page-pixels/android/build/generated/res/resValues/release
-expo.modules.pagepixels.page-pixels-mergeReleaseResources-2 /home/shunsei-pop/Projects/arabic-digitization/apps/mobile/modules/page-pixels/android/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
-expo.modules.pagepixels.page-pixels-mergeReleaseResources-3 /home/shunsei-pop/Projects/arabic-digitization/apps/mobile/modules/page-pixels/android/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
-expo.modules.pagepixels.page-pixels-release-4 /home/shunsei-pop/Projects/arabic-digitization/apps/mobile/modules/page-pixels/android/build/intermediates/merged_res/release/mergeReleaseResources
-expo.modules.pagepixels.page-pixels-main-5 /home/shunsei-pop/Projects/arabic-digitization/apps/mobile/modules/page-pixels/android/src/main/res
-expo.modules.pagepixels.page-pixels-release-6 /home/shunsei-pop/Projects/arabic-digitization/apps/mobile/modules/page-pixels/android/src/release/res

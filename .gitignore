@@ -178,3 +178,6 @@ apps/desktop/release/
 
 # Design overview renders: generate locally with `lamsa render`, not committed
 designs/qiraa-screens.png
+
+# Gradle output of local Expo modules
+apps/mobile/modules/*/android/build/
