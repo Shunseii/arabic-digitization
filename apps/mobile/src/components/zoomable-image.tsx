@@ -38,12 +38,15 @@ export function ZoomableImage({
   resizeMode = "contain",
   zoomed = false,
   onZoomChange,
+  onPinchingChange,
 }: {
   source: ImageSourcePropType;
   style?: ImageStyle;
   resizeMode?: ComponentProps<typeof Image>["resizeMode"];
   zoomed?: boolean;
   onZoomChange?: (zoomed: boolean) => void;
+  /** True while two fingers are on the image, so a parent pager can hold still. */
+  onPinchingChange?: (pinching: boolean) => void;
 }) {
   const width = useSharedValue(0);
   const height = useSharedValue(0);
@@ -68,6 +71,18 @@ export function ZoomableImage({
     (next: boolean) => onZoomChange?.(next),
     [onZoomChange],
   );
+  const notifyPinching = useCallback(
+    (next: boolean) => onPinchingChange?.(next),
+    [onPinchingChange],
+  );
+  // Last value sent to onPinchingChange, so it fires once per change.
+  const twoFingers = useSharedValue(false);
+  const setTwoFingers = (next: boolean) => {
+    "worklet";
+    if (twoFingers.value === next) return;
+    twoFingers.value = next;
+    runOnJS(notifyPinching)(next);
+  };
 
   const onLayout = (e: LayoutChangeEvent) => {
     width.value = e.nativeEvent.layout.width;
@@ -100,12 +115,15 @@ export function ZoomableImage({
   const pinch = Gesture.Pinch()
     .onTouchesDown((e) => {
       touches.value = e.numberOfTouches;
+      if (e.numberOfTouches >= 2) setTwoFingers(true);
     })
     .onTouchesUp((e) => {
       touches.value = e.numberOfTouches;
+      if (e.numberOfTouches === 0) setTwoFingers(false);
     })
     .onTouchesCancelled(() => {
       touches.value = 0;
+      setTwoFingers(false);
     })
     .onStart(() => {
       pinchActive.value = true;
@@ -129,6 +147,7 @@ export function ZoomableImage({
     })
     .onFinalize(() => {
       pinching.value = false;
+      setTwoFingers(false);
       if (!pinchActive.value) return;
       pinchActive.value = false;
       anchor.value = null;

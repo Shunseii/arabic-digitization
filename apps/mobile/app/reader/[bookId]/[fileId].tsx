@@ -64,6 +64,8 @@ export default function ReaderScreen() {
   const [index, setIndex] = useState(initialIndex);
   const [showHint, setShowHint] = useState(false);
   const [scanZoomed, setScanZoomed] = useState(false);
+  // Two fingers on the scan: hold the pager still so a pinch can't swipe.
+  const [scanPinching, setScanPinching] = useState(false);
 
   useEffect(() => {
     SecureStore.getItemAsync("qiraa.hint.readerSwipe").then((v) => {
@@ -113,8 +115,8 @@ export default function ReaderScreen() {
   };
 
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
-  // contentOffset sets the starting pane; this backs it up where a horizontal
-  // ScrollView ignores it on first layout.
+  // Places the starting pane. Not via the contentOffset prop: on Android it is
+  // re-applied on re-renders (e.g. a zoom change), jumping back to Text.
   const placedInitialPane = useRef(false);
   useEffect(() => {
     if (placedInitialPane.current || initialIndex === 0 || width === 0) return;
@@ -171,8 +173,7 @@ export default function ReaderScreen() {
         ref={scrollRef}
         horizontal
         pagingEnabled
-        contentOffset={{ x: initialIndex * width, y: 0 }}
-        scrollEnabled={!scanZoomed}
+        scrollEnabled={!scanZoomed && !scanPinching}
         showsHorizontalScrollIndicator={false}
         onScroll={onScroll}
         scrollEventThrottle={16}
@@ -234,6 +235,7 @@ export default function ReaderScreen() {
             style={{ width: width - 32, flex: 1 }}
             zoomed={scanZoomed}
             onZoomChange={setScanZoomed}
+            onPinchingChange={setScanPinching}
           />
         </View>
       </Animated.ScrollView>
