@@ -75,7 +75,7 @@ corpus resume <book>                          resume and re-queue its waiting pa
 corpus status <book> [--state failed]         per-page states; lists failed and (edited) pages
 corpus retry <book> [--states failed,rate_limited]
 corpus ocr <book> <fileId...>                 re-run OCR on specific pages, wait for the results
-corpus export <book>                          all pages + text as JSON (always JSON)
+corpus export <book>                          all pages + text as JSON (always JSON; fetched 200 pages at a time, progress on stderr)
 corpus text <book> <fileId> [--rev <id>]      one page's Markdown, or an earlier version
 
 corpus edit <book> <fileId> --old <text> --new <text> [--note <why>]

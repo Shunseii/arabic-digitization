@@ -41,7 +41,7 @@ Every `/api/*` request needs `Authorization: Bearer <MASTER_KEY>`. Full, always-
 | GET | `/api/books` | List books with per-state counts |
 | GET | `/api/books/:bookId` | Book + status summary |
 | GET | `/api/books/:bookId/status` | Per-file states (poll the pipeline) |
-| GET | `/api/books/:bookId/export` | All files + transcription text, for local assembly |
+| GET | `/api/books/:bookId/export` | All files + transcription text, for local assembly; `?limit=<1-200>[&cursor=<next_cursor>]` returns one batch with `files_total` and `next_cursor` (null on the last batch) |
 | POST | `/api/books/:bookId/files?page=<n>` | Upload a page (raw image/PDF body); auto-enqueues OCR |
 | POST | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file (synchronous) |
 | GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`); `?rev=<id>` for an earlier version |

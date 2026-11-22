@@ -45,7 +45,7 @@ OCR
                                   Re-OCR overwrites hand edits (--states done included);
                                   the old text stays in the page's history. Check
                                   "edited" in corpus status first.
-  corpus export <book>                    all pages + text as JSON
+  corpus export <book>                    all pages + text as JSON (fetched in batches)
   corpus text <book> <fileId> [--rev <id>] one page's Markdown (or an earlier version)
 
 Editing (every change keeps the replaced text in the page's history)
@@ -118,6 +118,7 @@ const readEdits = (): TextEdit[] => {
 };
 
 const OCR_WAIT_MS = 4 * 60_000;
+const EXPORT_BATCH = 200;
 
 const print = ({ data, human }: { data: unknown; human: () => string }) => {
   console.log(opts.json ? JSON.stringify(data, null, 2) : human());
@@ -421,11 +422,28 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 
   async export([ref]) {
     const book = await resolveBook(need(ref, "<book>"));
-    const res = await request<BookExportResponse>({
-      service: "api",
-      path: bookPath(book.id, "/export"),
-    });
-    console.log(JSON.stringify({ ...res, title: book.title }, null, 2));
+    const files: BookExportResponse["files"] = [];
+    let cursor: string | null = null;
+    do {
+      const query = `?limit=${EXPORT_BATCH}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const res: BookExportResponse = await request<BookExportResponse>({
+        service: "api",
+        path: bookPath(book.id, `/export${query}`),
+      });
+      files.push(...res.files);
+      cursor = res.next_cursor ?? null;
+      if (process.stderr.isTTY && res.files_total !== undefined) {
+        process.stderr.write(`\rexported ${files.length}/${res.files_total}`);
+      }
+    } while (cursor);
+    if (process.stderr.isTTY) process.stderr.write("\n");
+    console.log(
+      JSON.stringify(
+        { success: true, book_id: book.id, files, title: book.title },
+        null,
+        2,
+      ),
+    );
   },
 
   async text([ref, fileId]) {

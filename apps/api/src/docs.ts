@@ -95,10 +95,20 @@ GET /api/books/:bookId/status[?since=<epoch ms>]
   // input_tokens/output_tokens/cost_usd are null for pages OCR'd before usage
   // tracking (or not done yet); cost_usd is null if the model has no known price.
 
-GET /api/books/:bookId/export
+GET /api/books/:bookId/export[?limit=<1-200>[&cursor=<next_cursor>]]
   All files + their transcription text in one payload (for local assembly).
   200 -> { success, book_id, files: [ { file_id, page_number, role, order_hint, state, text } ] }
-  text is null if not transcribed yet. Files ordered by page_number.
+  text is null if not transcribed yet. Files ordered by page_number, then
+  order_hint, then file_id; files with no page_number come last.
+  // With limit, returns at most limit files plus files_total (every file in the
+  // book, recounted each batch) and next_cursor (null on the last batch):
+  //   200 -> { success, book_id, files: [...], files_total, next_cursor }
+  // Pass next_cursor back as cursor (with limit) for the next batch. The cursor
+  // marks the last file returned, so files added mid-import are neither skipped
+  // nor repeated; a new file that sorts before the cursor arrives in no batch,
+  // so the final count may differ from files_total.
+  400 if limit is not an integer 1-200, cursor is malformed, or cursor is
+  passed without limit. 404 if book missing.
 
 POST /api/books/:bookId/requeue
   Bulk re-OCR. Body (JSON): { "states"?: FileState[] }. Moves every file in those

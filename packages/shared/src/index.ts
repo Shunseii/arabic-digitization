@@ -196,6 +196,10 @@ export interface BookExportResponse {
   success: true;
   book_id: string;
   files: ExportFile[];
+  /** Every file in the book at request time. Only set when `limit` is passed. */
+  files_total?: number;
+  /** Pass as `cursor` to fetch the next batch; null on the last batch. Only set when `limit` is passed. */
+  next_cursor?: string | null;
 }
 
 export interface UploadFileResponse {
