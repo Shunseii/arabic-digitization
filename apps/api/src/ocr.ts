@@ -152,7 +152,7 @@ export async function transcribe({
 }
 
 // Try Gemini; on a transient/capacity failure (rate limit incl. daily quota, or
-// 5xx) fall back to Claude via the AI Gateway. Terminal Gemini errors (a bad
+// 5xx) or a recitation block, fall back to Claude via the AI Gateway. Terminal Gemini errors (a bad
 // request, an empty response) rethrow without falling back — Claude wouldn't
 // fare better and the masking would hide a real bug. Returns the model that
 // actually produced the text, so cost/UI attribute the page correctly.
@@ -179,9 +179,14 @@ async function runWithFallback({
     });
     return { ...r, model: geminiModel };
   } catch (err) {
-    if (!(err instanceof OcrError) || !err.isTransient) throw err;
+    const recitation = err instanceof RecitationError;
+    if (!recitation && (!(err instanceof OcrError) || !err.isTransient)) {
+      throw err;
+    }
     console.warn(
-      `Gemini transient failure, falling back to Claude: ${err.message.slice(0, 160)}`,
+      recitation
+        ? "Gemini blocked the page for recitation, falling back to Claude"
+        : `Gemini transient failure, falling back to Claude: ${err.message.slice(0, 160)}`,
     );
     const r = await runClaude({ env, mimeType, base64, systemPrompt });
     return { ...r, model: CLAUDE_MODEL };
@@ -227,6 +232,16 @@ export class GeminiError extends OcrError {
       message: `Gemini ${status}: ${body}`,
       retryAfterSeconds: parseRetryDelaySeconds(body),
     });
+  }
+}
+
+// Gemini stops with finishReason RECITATION when the output matches text it
+// has seen often (e.g. Qur'an verses quoted in a tafsir). Retrying Gemini
+// gives the same result, but Claude has no such filter, so it falls back.
+export class RecitationError extends Error {
+  constructor(body: string) {
+    super(`Gemini blocked the output for recitation: ${body}`);
+    this.name = "RecitationError";
   }
 }
 
@@ -304,7 +319,10 @@ async function runGemini({
   }
 
   const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> };
+      finishReason?: string;
+    }>;
     usageMetadata?: {
       promptTokenCount?: number;
       candidatesTokenCount?: number;
@@ -314,6 +332,10 @@ async function runGemini({
   const text = (data.candidates?.[0]?.content?.parts ?? [])
     .map((p) => p.text ?? "")
     .join("");
+  // A recitation stop can come with partial text; never keep a cut-off page.
+  if (data.candidates?.[0]?.finishReason === "RECITATION") {
+    throw new RecitationError(JSON.stringify(data).slice(0, 400));
+  }
   if (!text) {
     throw new Error(
       `no text in Gemini response: ${JSON.stringify(data).slice(0, 400)}`,
