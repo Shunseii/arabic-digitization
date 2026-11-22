@@ -54,7 +54,7 @@ export class BookStatus extends OpenAPIRoute {
     }
 
     const columns =
-      "file_id, page_number, state, role, order_hint, preview, error, updated_at, input_tokens, output_tokens, ocr_model";
+      "file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, ocr_model";
     const filesQuery =
       query.since === undefined
         ? c.env.DB.prepare(

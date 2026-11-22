@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { historyPrefix } from "../lib/pageText";
 import type { AppContext } from "../types";
 
 // Delete a single page fragment: its scan and transcription R2 objects plus the
@@ -52,8 +53,18 @@ export class FileDelete extends OpenAPIRoute {
       );
     }
 
-    const keys = [file.r2_key, ...(file.text_key ? [file.text_key] : [])];
+    const history = await c.env.BUCKET.list({
+      prefix: historyPrefix({ bookId: params.bookId, fileId: params.fileId }),
+    });
+    const keys = [
+      file.r2_key,
+      ...(file.text_key ? [file.text_key] : []),
+      ...history.objects.map((o) => o.key),
+    ];
     await c.env.BUCKET.delete(keys);
+    await c.env.DB.prepare("DELETE FROM text_revisions WHERE file_id = ?")
+      .bind(params.fileId)
+      .run();
     await c.env.DB.prepare("DELETE FROM files WHERE file_id = ?")
       .bind(params.fileId)
       .run();

@@ -46,6 +46,9 @@ export async function deleteBook({
     .bind(bookId)
     .first<{ c: number }>();
 
+  await env.DB.prepare("DELETE FROM text_revisions WHERE book_id = ?")
+    .bind(bookId)
+    .run();
   await env.DB.prepare("DELETE FROM files WHERE book_id = ?")
     .bind(bookId)
     .run();

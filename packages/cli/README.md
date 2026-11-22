@@ -72,14 +72,21 @@ corpus delete <book> --yes                    irreversible; refuses without --ye
 corpus pause <book>                           stop OCR for this book only
 corpus resume <book>                          resume and re-queue its waiting pages
 
-corpus status <book> [--state failed]         per-page states
+corpus status <book> [--state failed]         per-page states; lists failed and (edited) pages
 corpus retry <book> [--states failed,rate_limited]
 corpus ocr <book> <fileId...>                 re-run OCR on specific pages, wait for the results
 corpus export <book>                          all pages + text as JSON (always JSON)
-corpus text <book> <fileId>                   one page's Markdown
+corpus text <book> <fileId> [--rev <id>]      one page's Markdown, or an earlier version
+
+corpus edit <book> <fileId> --old <text> --new <text> [--note <why>]
+corpus edit <book> <fileId> --edits <file.json|-> [--note <why>]
+                                              exact find-and-replace, all or nothing
+corpus history <book> <fileId>                changes to a page's text, newest first
 
 corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]
 ```
+
+Editing: each `old` must occur exactly once in the page (add surrounding words to pick one of several), and nothing is applied if any edit fails. Every change to a page's text, by hand or by re-OCR, first saves the text it replaces: `corpus history` lists the changes and `corpus text --rev <id>` shows the text just before one. **Re-OCR overwrites hand edits** (`corpus ocr`, `corpus retry --states done`); check for `(edited)` pages in `corpus status` first. To restore a version, replace the whole page with it via `--edits` (one edit whose `old` is the full current text).
 
 Search is hybrid: `--ratio 0` is keyword-only, `1` is semantic-only, default `0.5`. Concrete phrases work better than category words ("rules of ablution", not "fiqh").
 

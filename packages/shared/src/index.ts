@@ -103,6 +103,8 @@ export interface FileStatus {
   preview: string | null;
   error: string | null;
   updated_at: number;
+  /** When the text was last edited by hand (epoch ms); null if never. */
+  text_edited_at: number | null;
   /** OCR usage; null for pages done before tracking, or not yet done. */
   input_tokens: number | null;
   output_tokens: number | null;
@@ -236,6 +238,40 @@ export interface FileOcrResponse {
   success: true;
   file_id: string;
   state: "queued";
+}
+
+/** One exact find-and-replace edit; `old` must occur exactly once. */
+export interface TextEdit {
+  old: string;
+  new: string;
+}
+
+/** PATCH .../files/:fileId/text */
+export interface EditTextResponse {
+  success: true;
+  file_id: string;
+  /** False when the edits left the text as it was (nothing recorded). */
+  changed: boolean;
+  /** History entry holding the text before this edit; null if unchanged. */
+  revision_id: number | null;
+  text_edited_at: number | null;
+}
+
+/** One change to a page's text; GET .../text?rev=<id> is the text before it. */
+export interface TextRevision {
+  id: number;
+  change: "edit" | "ocr";
+  model: string | null;
+  note: string | null;
+  created_at: number;
+}
+
+/** GET .../files/:fileId/text/history (newest first). */
+export interface TextHistoryResponse {
+  success: true;
+  file_id: string;
+  text_edited_at: number | null;
+  revisions: TextRevision[];
 }
 
 export interface DeleteBookResponse {

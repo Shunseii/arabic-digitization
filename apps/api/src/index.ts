@@ -16,6 +16,8 @@ import { FileHighlight } from "./endpoints/fileHighlight";
 import { FileImage } from "./endpoints/fileImage";
 import { FileOcr } from "./endpoints/fileOcr";
 import { FileText } from "./endpoints/fileText";
+import { FileTextEdit } from "./endpoints/fileTextEdit";
+import { FileTextHistory } from "./endpoints/fileTextHistory";
 import { FileUpdate } from "./endpoints/fileUpdate";
 import { FileUpload } from "./endpoints/fileUpload";
 import { SearchReindex } from "./endpoints/searchReindex";
@@ -83,6 +85,8 @@ openapi.patch("/api/books/:bookId/files/:fileId", FileUpdate);
 openapi.delete("/api/books/:bookId/files/:fileId", FileDelete);
 openapi.post("/api/books/:bookId/files/:fileId/ocr", FileOcr);
 openapi.get("/api/books/:bookId/files/:fileId/text", FileText);
+openapi.patch("/api/books/:bookId/files/:fileId/text", FileTextEdit);
+openapi.get("/api/books/:bookId/files/:fileId/text/history", FileTextHistory);
 openapi.get("/api/books/:bookId/files/:fileId/image", FileImage);
 openapi.post("/api/books/:bookId/files/:fileId/highlight", FileHighlight);
 

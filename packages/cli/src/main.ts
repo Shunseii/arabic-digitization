@@ -1,4 +1,5 @@
 #!/usr/bin/env -S node --no-warnings
+import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import type {
   BookExportResponse,
@@ -6,11 +7,14 @@ import type {
   BookWithStatus,
   CreateBookResponse,
   DeleteBookResponse,
+  EditTextResponse,
   FetchBookResponse,
   FileStatus,
   ListBooksResponse,
   PauseBookResponse,
   ResumeBookResponse,
+  TextEdit,
+  TextHistoryResponse,
 } from "@qiraa/shared";
 import { HttpError, request, requestText } from "./http.ts";
 import { cacheStatus, clearCache, loadSecrets } from "./secrets.ts";
@@ -34,11 +38,22 @@ Books
   corpus resume <book>            resume OCR and re-queue its waiting pages
 
 OCR
-  corpus status <book> [--state <s>]      per-page states (filter, e.g. failed)
+  corpus status <book> [--state <s>]      per-page states (filter, e.g. failed);
+                                  lists failed and hand-edited pages by default
   corpus retry <book> [--states a,b]      re-queue pages (default failed,rate_limited)
   corpus ocr <book> <fileId...>           re-run OCR on specific pages and wait for the result
+                                  Re-OCR overwrites hand edits (--states done included);
+                                  the old text stays in the page's history. Check
+                                  "edited" in corpus status first.
   corpus export <book>                    all pages + text as JSON
-  corpus text <book> <fileId>             one page's Markdown transcription
+  corpus text <book> <fileId> [--rev <id>] one page's Markdown (or an earlier version)
+
+Editing (every change keeps the replaced text in the page's history)
+  corpus edit <book> <fileId> --old <text> --new <text> [--note <why>]
+  corpus edit <book> <fileId> --edits <file.json|-> [--note <why>]
+                                  exact find-and-replace; each old must match once,
+                                  all or nothing. JSON: [{"old": "...", "new": "..."}]
+  corpus history <book> <fileId>          changes to a page's text, newest first
 
 Search
   corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]
@@ -64,10 +79,43 @@ const { values: opts, positionals } = parseArgs({
     book: { type: "string" },
     ratio: { type: "string" },
     limit: { type: "string" },
+    rev: { type: "string" },
+    old: { type: "string" },
+    new: { type: "string" },
+    edits: { type: "string" },
+    note: { type: "string" },
   },
 });
 
 class UsageError extends Error {}
+
+// Edits from --old/--new, or a JSON array from --edits <file> ("-" = stdin).
+const readEdits = (): TextEdit[] => {
+  if (opts.edits) {
+    const raw = readFileSync(opts.edits === "-" ? 0 : opts.edits, "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    const valid =
+      Array.isArray(parsed) &&
+      parsed.length > 0 &&
+      parsed.every(
+        (e) =>
+          typeof e === "object" &&
+          e !== null &&
+          typeof (e as TextEdit).old === "string" &&
+          typeof (e as TextEdit).new === "string",
+      );
+    if (!valid) {
+      throw new UsageError(
+        '--edits must be a JSON array of {"old": "...", "new": "..."}',
+      );
+    }
+    return parsed as TextEdit[];
+  }
+  if (opts.old === undefined || opts.new === undefined) {
+    throw new UsageError("pass --old and --new, or --edits <file.json>");
+  }
+  return [{ old: opts.old, new: opts.new }];
+};
 
 const OCR_WAIT_MS = 4 * 60_000;
 
@@ -278,16 +326,22 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
     const shown = opts.state
       ? files.filter((f) => f.state === opts.state)
       : files;
+    const edited = files.filter((f) => f.text_edited_at !== null).length;
     print({
       data: shown,
       human: () =>
         [
-          `${book.title}: ${countsLine(book.counts)}${book.paused ? "  [paused]" : ""}`,
+          `${book.title}: ${countsLine(book.counts)}${book.paused ? "  [paused]" : ""}${edited ? `  ${edited} hand-edited` : ""}`,
+          // Without --state: the pages that need attention (failed) or that a
+          // re-OCR would overwrite (hand-edited).
           ...shown
-            .filter((f) => opts.state || f.state === "failed")
+            .filter(
+              (f) =>
+                opts.state || f.state === "failed" || f.text_edited_at !== null,
+            )
             .map(
               (f) =>
-                `  p${f.page_number ?? "?"}  ${f.state}  ${f.file_id}${f.error ? `  ${shortError(f.error)}` : ""}`,
+                `  p${f.page_number ?? "?"}  ${f.state}${f.text_edited_at !== null ? " (edited)" : ""}  ${f.file_id}${f.error ? `  ${shortError(f.error)}` : ""}`,
             ),
         ].join("\n"),
     });
@@ -376,14 +430,59 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 
   async text([ref, fileId]) {
     const book = await resolveBook(need(ref, "<book>"));
+    const rev = opts.rev ? `?rev=${encodeURIComponent(opts.rev)}` : "";
     const text = await requestText({
       service: "api",
       path: bookPath(
         book.id,
-        `/files/${encodeURIComponent(need(fileId, "<fileId>"))}/text`,
+        `/files/${encodeURIComponent(need(fileId, "<fileId>"))}/text${rev}`,
       ),
     });
-    print({ data: { file_id: fileId, text }, human: () => text });
+    print({
+      data: { file_id: fileId, rev: opts.rev ?? null, text },
+      human: () => text,
+    });
+  },
+
+  async edit([ref, fileId]) {
+    const book = await resolveBook(need(ref, "<book>"));
+    const id = need(fileId, "<fileId>");
+    const edits = readEdits();
+    const res = await request<EditTextResponse>({
+      service: "api",
+      method: "PATCH",
+      path: bookPath(book.id, `/files/${encodeURIComponent(id)}/text`),
+      body: { edits, ...(opts.note ? { note: opts.note } : {}) },
+    });
+    print({
+      data: res,
+      human: () =>
+        res.changed
+          ? `Edited ${id} (${edits.length} edit${edits.length === 1 ? "" : "s"}); previous text is revision ${res.revision_id} (corpus text ${ref} ${id} --rev ${res.revision_id}).`
+          : `No change: the edits left ${id} as it was.`,
+    });
+  },
+
+  async history([ref, fileId]) {
+    const book = await resolveBook(need(ref, "<book>"));
+    const id = need(fileId, "<fileId>");
+    const res = await request<TextHistoryResponse>({
+      service: "api",
+      path: bookPath(book.id, `/files/${encodeURIComponent(id)}/text/history`),
+    });
+    print({
+      data: res,
+      human: () =>
+        res.revisions.length === 0
+          ? `No changes to ${id} yet.`
+          : res.revisions
+              .map(
+                (r) =>
+                  `#${r.id}  ${new Date(r.created_at).toISOString().slice(0, 16).replace("T", " ")}  ${r.change}${r.model ? ` (${r.model})` : ""}${r.note ? `  ${r.note}` : ""}`,
+              )
+              .join("\n") +
+            "\n(each entry's text before the change: corpus text <book> <fileId> --rev <id>)",
+    });
   },
 
   async search(words) {

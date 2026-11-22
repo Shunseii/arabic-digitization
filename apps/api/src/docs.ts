@@ -22,6 +22,35 @@ Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
   Only 'failed' needs a manual re-run (POST .../ocr).
 - A blank page is 'done' with empty text (and an empty preview), not 'failed'.
 
+## Hand edits and text history
+A page's text changes in two ways: OCR (upload, POST .../ocr, POST .../requeue)
+and hand edits (PATCH .../files/:fileId/text). Every change keeps the text it
+replaced, so nothing is ever lost, but:
+
+- Re-OCR OVERWRITES hand edits. Nothing is skipped or protected: re-running a
+  single page, or requeueing a book with states:["done"] (e.g. after changing
+  ocr_instructions), replaces hand-fixed pages with fresh OCR, which usually
+  brings back the mistake that was fixed.
+- Before re-OCRing done pages, check GET .../status: a file with
+  text_edited_at != null has hand edits that the re-run will replace. Tell the
+  user, or leave those pages out (re-OCR the others one by one).
+- After a re-OCR, text_edited_at is null again; the edited text is in history.
+
+Checking a page's history (agents: do this before overwriting or restoring):
+  GET .../files/:fileId/text/history   -> revisions, newest first
+    Each revision is one change: change ("edit" by hand | "ocr" re-run, with
+    model), note (why/who, for edits), created_at (epoch ms). Its id addresses
+    the text as it was just BEFORE that change:
+  GET .../files/:fileId/text?rev=<id>  -> that earlier text
+  The current text is GET .../files/:fileId/text (no rev).
+  A page whose newest revision is "ocr" right after an "edit" had its hand
+  fixes overwritten by that re-run; ?rev=<that ocr revision's id> is the
+  hand-fixed text.
+
+Restoring an earlier version: read it with ?rev=<id>, then PATCH the page with
+one edit whose "old" is the full current text and "new" is the earlier text
+(note e.g. "restore rev 12"). The restore is itself recorded in history.
+
 ## Endpoints
 
 POST /api/books
@@ -43,7 +72,8 @@ GET /api/books/:bookId
 PATCH /api/books/:bookId
   Update a book. Body (JSON): any of { "title"?: string, "ocr_instructions"?: string|null }.
   At least one field required; ocr_instructions=null clears them. Does NOT re-OCR
-  done pages — requeue them (POST .../requeue with states:["done"]) to apply them.
+  done pages — requeue them (POST .../requeue with states:["done"]) to apply them,
+  which overwrites hand-edited pages too (see "Hand edits and text history").
   200 -> { success, book: { id, title, created_at, ocr_instructions } }
   404 if missing.
 
@@ -54,8 +84,9 @@ DELETE /api/books/:bookId
   404 if missing.
 
 GET /api/books/:bookId/status[?since=<epoch ms>]
-  Per-file states (no text).
-  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at, input_tokens, output_tokens, cost_usd } ], files_total }
+  Per-file states (no text). Each file includes text_edited_at (epoch ms of the
+  last hand edit, null if none).
+  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, cost_usd } ], files_total }
   // With since, files holds only files whose updated_at > since; merge them
   // into the previous list by file_id. files_total always counts every file:
   // if the merged list is longer, files were deleted, so refetch without since.
@@ -74,6 +105,8 @@ POST /api/books/:bookId/requeue
   states back to 'queued' and enqueues it. Defaults to ["failed","rate_limited"].
   All work flows through the throttled, auto-retrying consumer, so requeuing a
   whole book at once is safe. Pass states:["done"] to re-apply new ocr_instructions.
+  This OVERWRITES hand-edited pages too (check text_edited_at in status first);
+  the replaced text is kept in each page's history.
   200 -> { success, requeued: <n>, states: [...] }
   404 if book missing.
 
@@ -100,12 +133,33 @@ POST /api/books/:bookId/files?page=<n>
 POST /api/books/:bookId/files/:fileId/ocr
   (Re-)queue a single file for OCR. Enqueues onto the same throttled, auto-retrying
   path as upload and returns immediately; poll status/export for the result.
+  OVERWRITES hand edits too (text_edited_at in status); the replaced text is kept
+  in the page's history.
   202 -> { success, file_id, state: "queued" }
   404 if file missing.
 
 GET /api/books/:bookId/files/:fileId/text
   Raw Markdown transcription (Content-Type: text/markdown).
-  404 if file missing, 409 if not transcribed yet.
+  ?rev=<id> returns the text as it was just before that change (see history).
+  404 if file or revision missing, 409 if not transcribed yet.
+
+PATCH /api/books/:bookId/files/:fileId/text
+  Hand-edit a transcription with exact find-and-replace edits.
+  Body: { "edits": [ { "old": "<exact text>", "new": "<replacement>" }, ... ], "note"?: "<why/who>" }
+  Each "old" must occur exactly once in the text as it stands after the previous
+  edits; include surrounding text to disambiguate. All or nothing. To replace the
+  whole page, use one edit whose "old" is the full current text.
+  200 -> { success, file_id, changed, revision_id, text_edited_at }
+  422 -> { success: false, failed_edit, reason } (nothing applied)
+  409 if the page isn't 'done', or changed during the edit (re-read and retry).
+  The replaced text is saved to the history, and the page is marked hand-edited
+  (text_edited_at in status) until a re-OCR replaces it.
+
+GET /api/books/:bookId/files/:fileId/text/history
+  Every change to the page's text, newest first. Hand edits and re-OCRs both
+  save the text they replace; GET .../text?rev=<id> reads it back. Changes made
+  before history existed (2026-11-21) are not listed.
+  200 -> { success, file_id, text_edited_at, revisions: [ { id, change: "edit"|"ocr", model, note, created_at } ] }
 
 ## Output Markdown conventions (what the OCR produces)
 - First line = the running page header (topic + page number), then a blank line,

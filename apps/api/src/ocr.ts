@@ -11,7 +11,7 @@
 // provider key. (Gemini stays direct: the gateway's BYOK never resolved the AI
 // Studio key, and pass-through there is unnecessary since the direct call works.)
 
-import { buildPageDocs, deleteDocsByFile, upsertDocs } from "./lib/meili";
+import { indexPage, saveRevision } from "./lib/pageText";
 
 // What the model outputs for a page with no text (see SYSTEM_PROMPT). Stored as
 // an empty transcription, so a blank page is 'done' rather than 'failed'.
@@ -58,13 +58,8 @@ interface FileRow {
   file_id: string;
   book_id: string;
   r2_key: string;
+  text_key: string | null;
   ocr_instructions: string | null;
-  book_title: string;
-  work_id: string | null;
-  work_name: string | null;
-  author: string | null;
-  page_number: number | null;
-  role: string | null;
 }
 
 // Global rules plus any book-specific notes, layered as a labeled supplement so
@@ -86,12 +81,9 @@ export async function transcribe({
   const useModel = model ?? MODEL;
 
   const row = await env.DB.prepare(
-    `SELECT f.file_id, f.book_id, f.r2_key, f.page_number, f.role,
-            b.ocr_instructions, b.title AS book_title, b.work_id,
-            w.name AS work_name, w.author
+    `SELECT f.file_id, f.book_id, f.r2_key, f.text_key, b.ocr_instructions
        FROM files f
        JOIN books b ON b.id = f.book_id
-       LEFT JOIN works w ON w.id = b.work_id
       WHERE f.file_id = ?`,
   )
     .bind(fileId)
@@ -118,6 +110,22 @@ export async function transcribe({
 
   const text = output.trim() === BLANK_MARKER ? "" : output;
 
+  // Keep the text this run replaces (a re-OCR), so it can be read back.
+  if (row.text_key) {
+    const prev = await env.BUCKET.get(row.text_key);
+    if (prev) {
+      await saveRevision({
+        env,
+        bookId: row.book_id,
+        fileId,
+        previous: await prev.text(),
+        next: text,
+        change: "ocr",
+        model: ranModel,
+      });
+    }
+  }
+
   const textKey = `books/${row.book_id}/text/${fileId}.md`;
   await env.BUCKET.put(textKey, text, {
     httpMetadata: { contentType: "text/markdown; charset=utf-8" },
@@ -125,7 +133,7 @@ export async function transcribe({
 
   const now = Date.now();
   await env.DB.prepare(
-    "UPDATE files SET state = 'done', text_key = ?, preview = ?, input_tokens = ?, output_tokens = ?, ocr_model = ?, error = NULL, updated_at = ? WHERE file_id = ?",
+    "UPDATE files SET state = 'done', text_key = ?, preview = ?, input_tokens = ?, output_tokens = ?, ocr_model = ?, error = NULL, text_edited_at = NULL, updated_at = ? WHERE file_id = ?",
   )
     .bind(
       textKey,
@@ -138,45 +146,7 @@ export async function transcribe({
     )
     .run();
 
-  // Auto-index into search. Best-effort: a Meili outage (or cold start, or
-  // unconfigured MEILI_*) must not fail OCR — the page is safe in R2/D1 and
-  // POST /api/search/reindex is the backstop that re-syncs anything missed.
-  if (env.MEILI_URL && env.MEILI_KEY) {
-    try {
-      // Tag names live on the work (denormalized onto every chunk for faceting).
-      let tags: string[] = [];
-      if (row.work_id) {
-        const { results } = await env.DB.prepare(
-          `SELECT t.name FROM work_tags wt JOIN tags t ON wt.tag_id = t.id
-            WHERE wt.work_id = ?`,
-        )
-          .bind(row.work_id)
-          .all<{ name: string }>();
-        tags = results.map((r) => r.name);
-      }
-
-      // Clear this page's prior chunks first — a re-OCR can produce a different
-      // chunk count, so upsert alone would leave stale `file_id#N` docs behind.
-      await deleteDocsByFile({ env, fileId });
-      await upsertDocs({
-        env,
-        docs: buildPageDocs({
-          file_id: fileId,
-          book_id: row.book_id,
-          book_title: row.book_title,
-          work_id: row.work_id,
-          work_name: row.work_name,
-          author: row.author,
-          tags,
-          page_number: row.page_number,
-          role: row.role,
-          text,
-        }),
-      });
-    } catch (err) {
-      console.error(`search auto-index failed for ${fileId}: ${err}`);
-    }
-  }
+  await indexPage({ env, fileId, text });
 
   return { file_id: fileId, model: ranModel, text, text_key: textKey, usage };
 }

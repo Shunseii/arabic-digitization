@@ -123,6 +123,8 @@ export const FileStatus = z.object({
   preview: z.string().nullable(),
   error: z.string().nullable(),
   updated_at: z.number().int(),
+  // When the text was last edited by hand (epoch ms); null if never.
+  text_edited_at: z.number().int().nullable(),
   // OCR usage. Null for pages OCR'd before usage tracking, or not yet done.
   // cost_usd is derived (tokens x model price); null if the model has no price.
   input_tokens: z.number().int().nullable(),

@@ -14,7 +14,7 @@ upload image ──▶ R2 (scan)         enqueue {fileId}
                                                   D1 row → done
 ```
 
-- **R2** (`BUCKET`) stores both the uploaded scans (`books/<bookId>/scans/<fileId>`) and the transcribed Markdown (`books/<bookId>/text/<fileId>.md`).
+- **R2** (`BUCKET`) stores both the uploaded scans (`books/<bookId>/scans/<fileId>`) and the transcribed Markdown (`books/<bookId>/text/<fileId>.md`). Each earlier version of a page's text, saved whenever a hand edit or re-OCR replaces it, is under `books/<bookId>/text-history/<fileId>/` and listed in D1's `text_revisions`.
 - **D1** (`DB`) stores metadata only: `books` and a flat `files` table. A "page" is **not** a stored entity — files carry a `page_number`, and you group/stitch them at assembly time (locally).
 - **Queue** (`OCR_Q`, `arabic-ocr`) decouples OCR from the upload request. Uploading a file enqueues it; the consumer (`src/queue.ts`) runs the transcription off the request path, with retries.
 - **OCR** (`src/ocr.ts`) calls Google AI Studio directly (`gemini-3.1-pro-preview`, thinking set to `low` since transcription needs little reasoning and high thinking is the main cost driver). The Worker holds only the Google API key.
@@ -44,8 +44,12 @@ Every `/api/*` request needs `Authorization: Bearer <MASTER_KEY>`. Full, always-
 | GET | `/api/books/:bookId/export` | All files + transcription text, for local assembly |
 | POST | `/api/books/:bookId/files?page=<n>` | Upload a page (raw image/PDF body); auto-enqueues OCR |
 | POST | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file (synchronous) |
-| GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`) |
+| GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`); `?rev=<id>` for an earlier version |
+| PATCH | `/api/books/:bookId/files/:fileId/text` | Hand-edit a transcription with exact find-and-replace edits (`{edits: [{old, new}], note?}`) |
+| GET | `/api/books/:bookId/files/:fileId/text/history` | Every change to a page's text (hand edits and re-OCRs), newest first |
 | POST | `/api/search/reindex` | Rebuild the search index from R2 (`{bookId?}`) |
+
+**Hand edits and history.** Every change to a page's text, whether a hand edit (`PATCH …/text`) or a re-OCR, first saves the text it replaces; `…/text/history` lists the changes and `…/text?rev=<id>` reads an earlier version back. Re-OCR is not blocked by hand edits: re-running a page, or requeueing a book with `states: ["done"]`, overwrites hand-fixed pages (their edited text stays in history). `text_edited_at` in the status rows marks pages with hand edits, so check it before re-OCRing finished pages. Details and the restore recipe are in `/llms.txt`.
 
 Search *queries* don't go through the Worker — clients query Meilisearch
 directly with a read-only key (see `infra/meili`). The Worker only *writes* to
