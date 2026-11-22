@@ -31,7 +31,7 @@ Rules:
 - Output ONLY the transcription as Markdown (HTML ruby tags allowed). No preamble, no commentary, no code fences.`;
 
 const MODEL = "gemini-3.1-pro-preview";
-const CLAUDE_MODEL = "claude-sonnet-5";
+const CLAUDE_MODEL = "claude-sonnet-5-5";
 const USER_PROMPT = "Transcribe this page.";
 const MAX_TOKENS = 16000;
 
@@ -396,8 +396,9 @@ async function runClaude({
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
-      // Transcription, not reasoning — no thinking tokens to pay for.
-      thinking: { type: "disabled" },
+      // Transcription, not reasoning — no thinking tokens to pay for. Sonnet 5.5
+      // turns thinking off with "between_tools" and rejects "disabled".
+      thinking: { type: "between_tools" },
       messages: [
         {
           role: "user",
