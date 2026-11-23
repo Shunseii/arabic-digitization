@@ -11,7 +11,7 @@ const RequeueBody = z.object({
 // them on the OCR queue. Defaults to 'failed' + 'rate_limited'. Everything flows
 // through the throttled, auto-retrying consumer, so requeuing a whole book at
 // once is safe — no rate-limit storm. Also the way to re-apply changed
-// ocr_instructions to already-done pages (pass states: ["done"]).
+// ocr_instructions or ocr_engine to already-done pages (pass states: ["done"]).
 export class BookRequeue extends OpenAPIRoute {
   schema = {
     tags: ["Books"],

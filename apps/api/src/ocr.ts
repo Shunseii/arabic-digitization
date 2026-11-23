@@ -1,10 +1,12 @@
 // OCR core. Single source of truth for transcription — the manual endpoint and
 // the queue consumer both call transcribe().
 //
-// Two providers, tried in order:
-//   1. Gemini — direct to Google AI Studio with env.GOOGLE_API_KEY (primary).
-//   2. Claude — via the Cloudflare AI Gateway (fallback), used when Gemini fails
-//      for a transient/capacity reason (rate limit incl. daily quota, or 5xx).
+// Two providers, Gemini and Claude. A book's ocr_engine picks which runs first
+// (default Gemini); the other is the fallback, used when the first fails for a
+// transient/capacity reason (rate limit incl. daily quota, or 5xx) or, for
+// Gemini, a recitation block.
+//   - Gemini — direct to Google AI Studio with env.GOOGLE_API_KEY.
+//   - Claude — via the Cloudflare AI Gateway.
 //
 // Claude routes through the gateway's Anthropic endpoint. The Anthropic key is
 // stored in the gateway (BYOK) — we send only the gateway auth token, never the
@@ -12,6 +14,7 @@
 // Studio key, and pass-through there is unnecessary since the direct call works.)
 
 import { indexPage, saveRevision } from "./lib/pageText";
+import type { OcrEngine } from "./types";
 
 // What the model outputs for a page with no text (see SYSTEM_PROMPT). Stored as
 // an empty transcription, so a blank page is 'done' rather than 'failed'.
@@ -38,7 +41,9 @@ const MAX_TOKENS = 16000;
 export interface TranscribeOpts {
   env: Env;
   fileId: string;
-  model?: string; // bare AI Studio model id; defaults to MODEL
+  // Bare AI Studio model id for an ad-hoc re-run. Forces Gemini first with this
+  // model, whatever the book's ocr_engine; defaults to MODEL.
+  model?: string;
 }
 
 export interface Usage {
@@ -60,6 +65,7 @@ interface FileRow {
   r2_key: string;
   text_key: string | null;
   ocr_instructions: string | null;
+  ocr_engine: OcrEngine | null;
 }
 
 // Global rules plus any book-specific notes, layered as a labeled supplement so
@@ -78,10 +84,8 @@ export async function transcribe({
   fileId,
   model,
 }: TranscribeOpts): Promise<TranscribeResult> {
-  const useModel = model ?? MODEL;
-
   const row = await env.DB.prepare(
-    `SELECT f.file_id, f.book_id, f.r2_key, f.text_key, b.ocr_instructions
+    `SELECT f.file_id, f.book_id, f.r2_key, f.text_key, b.ocr_instructions, b.ocr_engine
        FROM files f
        JOIN books b ON b.id = f.book_id
       WHERE f.file_id = ?`,
@@ -96,16 +100,25 @@ export async function transcribe({
   const mimeType = obj.httpMetadata?.contentType ?? "image/jpeg";
   const base64 = toBase64(new Uint8Array(await obj.arrayBuffer()));
 
+  const primary = pickPrimaryEngine({
+    bookEngine: row.ocr_engine,
+    modelOverride: model,
+    mimeType,
+  });
   const {
     text: output,
     usage,
     model: ranModel,
   } = await runWithFallback({
     env,
-    geminiModel: useModel,
-    mimeType,
-    base64,
-    systemPrompt: buildSystemPrompt(row.ocr_instructions),
+    primary,
+    secondary: primary === "gemini" ? "claude" : "gemini",
+    geminiModel: model ?? MODEL,
+    page: {
+      mimeType,
+      base64,
+      systemPrompt: buildSystemPrompt(row.ocr_instructions),
+    },
   });
 
   const text = output.trim() === BLANK_MARKER ? "" : output;
@@ -151,45 +164,84 @@ export async function transcribe({
   return { file_id: fileId, model: ranModel, text, text_key: textKey, usage };
 }
 
-// Try Gemini; on a transient/capacity failure (rate limit incl. daily quota, or
-// 5xx) or a recitation block, fall back to Claude via the AI Gateway. Terminal Gemini errors (a bad
-// request, an empty response) rethrow without falling back — Claude wouldn't
-// fare better and the masking would hide a real bug. Returns the model that
-// actually produced the text, so cost/UI attribute the page correctly.
-async function runWithFallback({
-  env,
-  geminiModel,
+// A model override is a Gemini model id, so it runs Gemini first. Claude only
+// reads raster images, so anything else (e.g. a PDF) also starts on Gemini.
+function pickPrimaryEngine({
+  bookEngine,
+  modelOverride,
   mimeType,
-  base64,
-  systemPrompt,
 }: {
-  env: Env;
-  geminiModel: string;
+  bookEngine: OcrEngine | null;
+  modelOverride: string | undefined;
+  mimeType: string;
+}): OcrEngine {
+  if (modelOverride || !mimeType.startsWith("image/")) return "gemini";
+  return bookEngine ?? "gemini";
+}
+
+interface PageInput {
   mimeType: string;
   base64: string;
   systemPrompt: string;
-}): Promise<{ text: string; usage: Usage; model: string }> {
-  try {
-    const r = await runGemini({
-      env,
-      model: geminiModel,
-      mimeType,
-      base64,
-      systemPrompt,
-    });
+}
+
+interface EngineOutput {
+  text: string;
+  usage: Usage;
+  model: string;
+}
+
+async function runEngine({
+  env,
+  engine,
+  geminiModel,
+  page,
+}: {
+  env: Env;
+  engine: OcrEngine;
+  geminiModel: string;
+  page: PageInput;
+}): Promise<EngineOutput> {
+  if (engine === "gemini") {
+    const r = await runGemini({ env, model: geminiModel, ...page });
     return { ...r, model: geminiModel };
+  }
+  const r = await runClaude({ env, ...page });
+  return { ...r, model: CLAUDE_MODEL };
+}
+
+// Run the primary engine; on a transient/capacity failure (rate limit incl.
+// daily quota, or 5xx) — or a recitation block when Gemini is the one that
+// failed — run the secondary instead. Terminal errors (a bad request, an empty
+// response) rethrow without falling back — the other provider wouldn't fare
+// better and the masking would hide a real bug. Returns the model that
+// actually produced the text, so cost/UI attribute the page correctly.
+async function runWithFallback({
+  env,
+  primary,
+  secondary,
+  geminiModel,
+  page,
+}: {
+  env: Env;
+  primary: OcrEngine;
+  secondary: OcrEngine;
+  geminiModel: string;
+  page: PageInput;
+}): Promise<EngineOutput> {
+  try {
+    return await runEngine({ env, engine: primary, geminiModel, page });
   } catch (err) {
-    const recitation = err instanceof RecitationError;
+    const recitation = primary === "gemini" && err instanceof RecitationError;
     if (!recitation && (!(err instanceof OcrError) || !err.isTransient)) {
       throw err;
     }
     console.warn(
       recitation
-        ? "Gemini blocked the page for recitation, falling back to Claude"
-        : `Gemini transient failure, falling back to Claude: ${err.message.slice(0, 160)}`,
+        ? `Gemini blocked the page for recitation, falling back to ${secondary}`
+        : `${primary} transient failure, falling back to ${secondary}: ${err.message.slice(0, 160)}`,
     );
-    const r = await runClaude({ env, mimeType, base64, systemPrompt });
-    return { ...r, model: CLAUDE_MODEL };
+    return runEngine({ env, engine: secondary, geminiModel, page });
   }
 }
 

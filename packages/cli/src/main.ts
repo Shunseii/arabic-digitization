@@ -11,10 +11,12 @@ import type {
   FetchBookResponse,
   FileStatus,
   ListBooksResponse,
+  OcrEngine,
   PauseBookResponse,
   ResumeBookResponse,
   TextEdit,
   TextHistoryResponse,
+  UpdateBookResponse,
 } from "@qiraa/shared";
 import { HttpError, request, requestText } from "./http.ts";
 import { cacheStatus, clearCache, loadSecrets } from "./secrets.ts";
@@ -31,8 +33,13 @@ Auth
 
 Books
   corpus books                    list books with per-state page counts
-  corpus show <book>              one book: counts, OCR cost, paused, instructions
+  corpus show <book>              one book: counts, OCR cost, paused, engine, instructions
   corpus create --title <t> [--id <slug>] [--instructions <text>] [--work <id>]
+                [--engine gemini|claude]
+  corpus engine <book> <gemini|claude|default>
+                                  OCR provider tried first (the other is the fallback);
+                                  default = gemini. Does not re-OCR existing pages:
+                                  run corpus retry <book> --states done for that
   corpus delete <book> --yes      delete a book and all its pages (irreversible)
   corpus pause <book>             stop OCR for this book only
   corpus resume <book>            resume OCR and re-queue its waiting pages
@@ -73,6 +80,7 @@ const { values: opts, positionals } = parseArgs({
     title: { type: "string" },
     id: { type: "string" },
     instructions: { type: "string" },
+    engine: { type: "string" },
     work: { type: "string" },
     state: { type: "string" },
     states: { type: "string" },
@@ -128,6 +136,21 @@ const need = (value: string | undefined, what: string): string => {
   if (!value) throw new UsageError(`missing ${what}`);
   return value;
 };
+
+const OCR_ENGINES: readonly OcrEngine[] = ["gemini", "claude"];
+
+const parseEngine = (value: string): OcrEngine => {
+  const engine = OCR_ENGINES.find((e) => e === value);
+  if (!engine) {
+    throw new UsageError(
+      `unknown engine "${value}" (expected ${OCR_ENGINES.join(" or ")})`,
+    );
+  }
+  return engine;
+};
+
+const engineLabel = (engine: OcrEngine | null | undefined): string =>
+  engine ?? "gemini (default)";
 
 const countsLine = (counts: Record<string, number>): string =>
   Object.entries(counts)
@@ -228,7 +251,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
         books
           .map(
             (b) =>
-              `${b.id}  ${b.title}${b.paused ? "  [paused]" : ""}\n    ${b.files_total} pages · ${countsLine(b.counts)}`,
+              `${b.id}  ${b.title}${b.paused ? "  [paused]" : ""}${b.ocr_engine ? `  [${b.ocr_engine}]` : ""}\n    ${b.files_total} pages · ${countsLine(b.counts)}`,
           )
           .join("\n"),
     });
@@ -249,6 +272,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
           book.usage?.cost_usd != null
             ? `OCR cost $${book.usage.cost_usd.toFixed(2)}`
             : null,
+          `OCR engine ${engineLabel(book.ocr_engine)}`,
           book.work_id ? `work ${book.work_id}` : null,
           book.ocr_instructions
             ? `instructions:\n  ${book.ocr_instructions.replace(/\n/g, "\n  ")}`
@@ -265,6 +289,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       ...(opts.id ? { id: opts.id } : {}),
       ...(opts.instructions ? { ocr_instructions: opts.instructions } : {}),
       ...(opts.work ? { work_id: opts.work } : {}),
+      ...(opts.engine ? { ocr_engine: parseEngine(opts.engine) } : {}),
     };
     const { book } = await request<CreateBookResponse>({
       service: "api",
@@ -273,6 +298,23 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       body,
     });
     print({ data: book, human: () => `Created ${book.id}  ${book.title}` });
+  },
+
+  async engine([ref, value]) {
+    const book = await resolveBook(need(ref, "<book>"));
+    const choice = need(value, "<gemini|claude|default>");
+    const ocr_engine = choice === "default" ? null : parseEngine(choice);
+    const { book: updated } = await request<UpdateBookResponse>({
+      service: "api",
+      path: bookPath(book.id),
+      method: "PATCH",
+      body: { ocr_engine },
+    });
+    print({
+      data: updated,
+      human: () =>
+        `OCR engine for ${updated.title}: ${engineLabel(updated.ocr_engine)}. Done pages keep their text; \`corpus retry ${updated.id} --states done\` re-OCRs them (overwriting hand edits).`,
+    });
   },
 
   async delete([ref]) {

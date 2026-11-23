@@ -1,6 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
-import { type AppContext, BookWithStatus } from "../types";
+import { type AppContext, BookWithStatus, type OcrEngine } from "../types";
 
 // Row shape returned by the aggregate query (one row per book).
 interface BookCountRow {
@@ -8,6 +8,7 @@ interface BookCountRow {
   title: string;
   created_at: number;
   work_id: string | null;
+  ocr_engine: OcrEngine | null;
   paused: number;
   state: string | null;
   state_count: number;
@@ -36,7 +37,7 @@ export class BookList extends OpenAPIRoute {
     // One row per (book, state) from the trigger-maintained counters; books
     // with no files yield a single row with NULL state.
     const { results } = await c.env.DB.prepare(
-      `SELECT b.id, b.title, b.created_at, b.work_id, b.paused,
+      `SELECT b.id, b.title, b.created_at, b.work_id, b.ocr_engine, b.paused,
 			        s.state AS state, s.n AS state_count
 			 FROM books b
 			 LEFT JOIN book_state_counts s ON s.book_id = b.id AND s.n > 0
@@ -53,6 +54,7 @@ export class BookList extends OpenAPIRoute {
           title: row.title,
           created_at: row.created_at,
           work_id: row.work_id,
+          ocr_engine: row.ocr_engine,
           paused: row.paused === 1,
           files_total: 0,
           counts: {},

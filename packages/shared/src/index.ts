@@ -28,6 +28,9 @@ export const UPLOAD_CONTENT_TYPES = [
 
 export type UploadContentType = (typeof UPLOAD_CONTENT_TYPES)[number];
 
+/** OCR provider a book runs first; the other is the fallback on a transient failure. */
+export type OcrEngine = "gemini" | "claude";
+
 /** A book: one copy/scan of a work. Copies of one work share a work_id. */
 export interface Book {
   id: string;
@@ -36,6 +39,8 @@ export interface Book {
   /** The work this copy belongs to; null/undefined = ungrouped/standalone. */
   work_id?: string | null;
   ocr_instructions?: string | null;
+  /** OCR provider that runs first; null/undefined = default (gemini). */
+  ocr_engine?: OcrEngine | null;
   /** OCR paused for this book: its pages wait in 'queued' until resumed. */
   paused?: boolean;
 }
@@ -129,6 +134,8 @@ export interface BookCreateBody {
   /** Optional explicit slug id (a-z0-9-); a UUID is generated if omitted. */
   id?: string;
   ocr_instructions?: string;
+  /** OCR provider that runs first; omitted/null = default (gemini). */
+  ocr_engine?: OcrEngine | null;
   /** Attach to an existing work; if omitted a work is auto-created from the title. */
   work_id?: string;
   /** Tags for the auto-created work (created on write); ignored when work_id is given. */
@@ -139,6 +146,8 @@ export interface BookUpdateBody {
   title?: string;
   /** null clears the stored instructions. */
   ocr_instructions?: string | null;
+  /** null resets to the default engine. Does not re-OCR existing pages. */
+  ocr_engine?: OcrEngine | null;
   /** Reassign to a work; null unlinks (flat). */
   work_id?: string | null;
 }

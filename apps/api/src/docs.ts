@@ -5,7 +5,8 @@
 export const LLMS_TXT = `# Arabic Digitization API
 
 Backend for digitizing scanned Arabic books: upload page images, they are OCR'd
-to Markdown by Gemini, and the text is retrievable per-page or in bulk.
+to Markdown by an AI model (Gemini or Claude, chosen per book), and the text is
+retrievable per-page or in bulk.
 
 ## Auth
 Every /api/* request requires:
@@ -18,9 +19,14 @@ Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
 - "Pages" are not a stored entity: group files by page_number yourself when assembling.
 - File state: captured | queued | processing | rate_limited | done | needs_review | approved | failed
 - On upload a file is enqueued and OCR runs automatically (state queued -> processing -> done).
-- rate_limited is transient: a Gemini 429/5xx auto-re-queues with backoff (no action needed).
+- rate_limited is transient: an OCR provider 429/5xx auto-re-queues with backoff (no action needed).
   Only 'failed' needs a manual re-run (POST .../ocr).
 - A blank page is 'done' with empty text (and an empty preview), not 'failed'.
+- OCR engine: each book has ocr_engine "gemini" | "claude" | null (null = default,
+  gemini). That provider runs first; on a transient failure (429/5xx) the other one
+  transcribes the page instead (also when Gemini blocks a page for recitation).
+  The model that produced each page's text is recorded on the page and in history.
+  Claude only reads images, so non-image files always start on Gemini.
 
 ## Hand edits and text history
 A page's text changes in two ways: OCR (upload, POST .../ocr, POST .../requeue)
@@ -29,7 +35,7 @@ replaced, so nothing is ever lost, but:
 
 - Re-OCR OVERWRITES hand edits. Nothing is skipped or protected: re-running a
   single page, or requeueing a book with states:["done"] (e.g. after changing
-  ocr_instructions), replaces hand-fixed pages with fresh OCR, which usually
+  ocr_instructions or ocr_engine), replaces hand-fixed pages with fresh OCR, which usually
   brings back the mistake that was fixed.
 - Before re-OCRing done pages, check GET .../status: a file with
   text_edited_at != null has hand edits that the re-run will replace. Tell the
@@ -54,27 +60,32 @@ one edit whose "old" is the full current text and "new" is the earlier text
 ## Endpoints
 
 POST /api/books
-  Body (JSON): { "title": string, "id"?: slug, "ocr_instructions"?: string }
+  Body (JSON): { "title": string, "id"?: slug, "ocr_instructions"?: string,
+                "ocr_engine"?: "gemini"|"claude"|null }
   // id auto-generated if omitted; ocr_instructions are book-specific OCR notes
-  // appended to the global system prompt at transcription time.
-  201 -> { success, book: { id, title, created_at, ocr_instructions } }
+  // appended to the global system prompt at transcription time; ocr_engine picks
+  // the provider that runs first (omitted/null = default, gemini).
+  201 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine } }
   409 if id exists.
 
 GET /api/books
-  200 -> { success, books: [ { id, title, created_at, files_total, counts: {state: n} } ] }
+  200 -> { success, books: [ { id, title, created_at, ocr_engine, files_total, counts: {state: n} } ] }
 
 GET /api/books/:bookId
-  200 -> { success, book: { id, title, created_at, ocr_instructions, files_total, counts,
+  200 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine, files_total, counts,
            usage: { input_tokens, output_tokens, cost_usd } | null } }
   // usage aggregates the book's done pages; null if none tracked yet.
   404 if missing.
 
 PATCH /api/books/:bookId
-  Update a book. Body (JSON): any of { "title"?: string, "ocr_instructions"?: string|null }.
-  At least one field required; ocr_instructions=null clears them. Does NOT re-OCR
-  done pages — requeue them (POST .../requeue with states:["done"]) to apply them,
-  which overwrites hand-edited pages too (see "Hand edits and text history").
-  200 -> { success, book: { id, title, created_at, ocr_instructions } }
+  Update a book. Body (JSON): any of { "title"?: string, "ocr_instructions"?: string|null,
+  "ocr_engine"?: "gemini"|"claude"|null }.
+  At least one field required; ocr_instructions=null clears them; ocr_engine=null
+  resets to the default engine (gemini). Changing ocr_instructions or ocr_engine
+  does NOT re-OCR done pages — requeue them (POST .../requeue with states:["done"])
+  to apply the change, which overwrites hand-edited pages too (see "Hand edits
+  and text history").
+  200 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine } }
   404 if missing.
 
 DELETE /api/books/:bookId
@@ -114,7 +125,8 @@ POST /api/books/:bookId/requeue
   Bulk re-OCR. Body (JSON): { "states"?: FileState[] }. Moves every file in those
   states back to 'queued' and enqueues it. Defaults to ["failed","rate_limited"].
   All work flows through the throttled, auto-retrying consumer, so requeuing a
-  whole book at once is safe. Pass states:["done"] to re-apply new ocr_instructions.
+  whole book at once is safe. Pass states:["done"] to re-apply new ocr_instructions
+  or a new ocr_engine.
   This OVERWRITES hand-edited pages too (check text_edited_at in status first);
   the replaced text is kept in each page's history.
   200 -> { success, requeued: <n>, states: [...] }
@@ -122,7 +134,7 @@ POST /api/books/:bookId/requeue
 
 POST /api/books/:bookId/pause
   Pause OCR for one book (other books keep processing). Its pages stay 'queued'
-  and queued messages are dropped without calling Gemini; pages uploaded while
+  and queued messages are dropped without calling an OCR model; pages uploaded while
   paused wait too. Book responses carry paused: boolean.
   200 -> { success, paused: true }
   404 if book missing.

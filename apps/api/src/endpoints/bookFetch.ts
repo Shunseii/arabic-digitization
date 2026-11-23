@@ -1,7 +1,12 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { costUsd } from "../lib/cost";
-import { type AppContext, BookWithStatus, type FileState } from "../types";
+import {
+  type AppContext,
+  BookWithStatus,
+  type FileState,
+  type OcrEngine,
+} from "../types";
 
 export class BookFetch extends OpenAPIRoute {
   schema = {
@@ -37,7 +42,7 @@ export class BookFetch extends OpenAPIRoute {
     const { params } = await this.getValidatedData<typeof this.schema>();
 
     const book = await c.env.DB.prepare(
-      "SELECT id, title, created_at, ocr_instructions, work_id, paused FROM books WHERE id = ?",
+      "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused FROM books WHERE id = ?",
     )
       .bind(params.bookId)
       .first<{
@@ -45,6 +50,7 @@ export class BookFetch extends OpenAPIRoute {
         title: string;
         created_at: number;
         ocr_instructions: string | null;
+        ocr_engine: OcrEngine | null;
         work_id: string | null;
         paused: number;
       }>();

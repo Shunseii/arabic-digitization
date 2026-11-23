@@ -38,6 +38,7 @@ export class BookCreate extends OpenAPIRoute {
     const id = body.id ?? crypto.randomUUID();
     const created_at = Date.now();
     const ocr_instructions = body.ocr_instructions ?? null;
+    const ocr_engine = body.ocr_engine ?? null;
 
     // A copy always belongs to a work: attach to the given one, or auto-create a
     // work named after the copy so nothing lands ungrouped going forward.
@@ -55,8 +56,8 @@ export class BookCreate extends OpenAPIRoute {
     }
     statements.push(
       c.env.DB.prepare(
-        "INSERT INTO books (id, title, created_at, ocr_instructions, work_id) VALUES (?, ?, ?, ?, ?)",
-      ).bind(id, body.title, created_at, ocr_instructions, work_id),
+        "INSERT INTO books (id, title, created_at, ocr_instructions, ocr_engine, work_id) VALUES (?, ?, ?, ?, ?, ?)",
+      ).bind(id, body.title, created_at, ocr_instructions, ocr_engine, work_id),
     );
 
     try {
@@ -80,7 +81,14 @@ export class BookCreate extends OpenAPIRoute {
     return c.json(
       {
         success: true,
-        book: { id, title: body.title, created_at, ocr_instructions, work_id },
+        book: {
+          id,
+          title: body.title,
+          created_at,
+          ocr_instructions,
+          ocr_engine,
+          work_id,
+        },
       },
       201,
     );

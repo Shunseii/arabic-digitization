@@ -6,7 +6,7 @@ import { type AppContext, Book, BookUpdateBody } from "../types";
 export class BookUpdate extends OpenAPIRoute {
   schema = {
     tags: ["Books"],
-    summary: "Update a book (e.g. its OCR instructions)",
+    summary: "Update a book (e.g. its OCR instructions or engine)",
     request: {
       params: z.object({ bookId: z.string() }),
       body: {
@@ -47,6 +47,10 @@ export class BookUpdate extends OpenAPIRoute {
       sets.push("ocr_instructions = ?");
       binds.push(body.ocr_instructions);
     }
+    if (body.ocr_engine !== undefined) {
+      sets.push("ocr_engine = ?");
+      binds.push(body.ocr_engine); // null resets to the default engine
+    }
     if (body.work_id !== undefined) {
       sets.push("work_id = ?");
       binds.push(body.work_id); // null unlinks (flat)
@@ -82,7 +86,7 @@ export class BookUpdate extends OpenAPIRoute {
     }
 
     const book = await c.env.DB.prepare(
-      "SELECT id, title, created_at, ocr_instructions, work_id, paused FROM books WHERE id = ?",
+      "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused FROM books WHERE id = ?",
     )
       .bind(params.bookId)
       .first<{ paused: number }>();

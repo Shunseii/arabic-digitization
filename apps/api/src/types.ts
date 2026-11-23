@@ -3,6 +3,11 @@ import { z } from "zod";
 
 export type AppContext = Context<{ Bindings: Env }>;
 
+// Which provider transcribes a book's pages first; the other is the fallback on
+// a transient failure. A book with no engine set uses Gemini.
+export const OcrEngine = z.enum(["gemini", "claude"]);
+export type OcrEngine = z.infer<typeof OcrEngine>;
+
 // A book: top-level collection of scanned files. Pages are derived at assembly
 // time (locally), not stored — see migrations/0001_init_schema.sql.
 export const Book = z.object({
@@ -20,6 +25,11 @@ export const Book = z.object({
     .optional()
     .describe(
       "Book-specific OCR notes appended to the global system prompt at transcription time",
+    ),
+  ocr_engine: OcrEngine.nullable()
+    .optional()
+    .describe(
+      "Provider that OCRs this book first (the other is the fallback); null = default (gemini)",
     ),
   paused: z
     .boolean()
@@ -41,6 +51,11 @@ export const BookCreateBody = z.object({
     .optional()
     .describe(
       "Optional book-specific OCR notes appended to the global system prompt",
+    ),
+  ocr_engine: OcrEngine.nullable()
+    .optional()
+    .describe(
+      "Provider that OCRs this book first (the other is the fallback); omitted or null = default (gemini)",
     ),
   work_id: z
     .string()
@@ -66,6 +81,9 @@ export const BookUpdateBody = z
       .describe(
         "Book-specific OCR notes appended to the global system prompt; null clears them",
       ),
+    ocr_engine: OcrEngine.nullable().describe(
+      "Provider that OCRs this book first; null resets to the default (gemini). Does not re-OCR existing pages",
+    ),
     work_id: z
       .string()
       .nullable()
@@ -81,7 +99,7 @@ export const FileState = z.enum([
   "captured",
   "queued",
   "processing",
-  "rate_limited", // transient Gemini 429/5xx — awaiting an automatic re-queue
+  "rate_limited", // transient OCR 429/5xx — awaiting an automatic re-queue
   "done",
   "needs_review",
   "approved",
