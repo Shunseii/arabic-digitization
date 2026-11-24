@@ -38,6 +38,18 @@ export class EditNotApplied extends Schema.Error<EditNotApplied>(
   { httpApiStatus: 422 },
 ) {}
 
+export class TooManyRequests extends Schema.Error<TooManyRequests>(
+  "TooManyRequests",
+)(
+  {
+    ...fields,
+    retry_after_seconds: Schema.NullOr(Schema.Int).annotate({
+      description: "When to try again; null when retrying won't help",
+    }),
+  },
+  { httpApiStatus: 429 },
+) {}
+
 export class AuthNotConfigured extends Schema.Error<AuthNotConfigured>(
   "AuthNotConfigured",
 )(fields, { httpApiStatus: 500 }) {}

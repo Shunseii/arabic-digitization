@@ -221,6 +221,7 @@ describe("public routes", () => {
         "POST /api/search/reindex",
         "GET /api/jobs",
         "GET /api/reviews/summary",
+        "POST /api/reviews/batches/{instanceId}/check",
         "POST /api/admin/ocr-runs/recompute-metrics",
       ].sort(),
     );
@@ -2374,7 +2375,7 @@ describe("every API operation", () => {
         path: path.replace(/\{[^}]+\}/g, "x"),
       })),
     );
-    expect(operations.length).toBe(32);
+    expect(operations.length).toBe(33);
     for (const { method, path } of operations) {
       for (const headers of [{}, { Authorization: "Bearer wrong" }] as Record<
         string,

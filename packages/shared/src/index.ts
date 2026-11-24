@@ -226,6 +226,21 @@ export interface OcrProblemPage {
   error_type: string | null;
 }
 
+/** POST /api/reviews/batches/:instanceId/check (202). */
+export interface CheckReviewBatchResponse {
+  success: true;
+  instance_id: string;
+  batch_id: string | null;
+}
+
+/** 429 from POST /api/reviews/batches/:instanceId/check. */
+export interface CheckReviewBatchTooSoon {
+  success: false;
+  error: string;
+  /** Seconds until a check is allowed; null once the batch's early checks are used up. */
+  retry_after_seconds: number | null;
+}
+
 /** GET /api/jobs: running work. Refresh on demand; don't poll. */
 export interface JobsResponse {
   success: true;

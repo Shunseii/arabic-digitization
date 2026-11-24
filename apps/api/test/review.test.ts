@@ -532,18 +532,14 @@ describe("review_batches stages", () => {
     await run(world, claimPages("review-1"));
     expect(row()).toMatchObject({ stage: "preparing", pages: 1 });
 
-    await run(
+    const submittedAt = await run(
       world,
-      recordBatch({
-        instanceId: "review-1",
-        batchId: "msgbatch_x",
-        pages: 1,
-        nextCheckInMs: 1000,
-      }),
+      recordBatch({ instanceId: "review-1", batchId: "msgbatch_x", pages: 1 }),
     );
     expect(row()).toMatchObject({
       stage: "processing",
       batch_id: "msgbatch_x",
+      next_check_at: submittedAt + 30 * 60_000,
     });
 
     const counts = {
@@ -560,21 +556,31 @@ describe("review_batches stages", () => {
         counts: { ...counts, processing: 0, succeeded: 1 },
       },
     ];
-    const check = (nextCheckInMs: number | null) =>
+    const check = ({ nudged }: { nudged: boolean }) =>
       run(
         world,
         checkBatch({
           instanceId: "review-1",
           batchId: "msgbatch_x",
-          nextCheckInMs,
+          submittedAt,
+          nudged,
+          nudgedSoFar: nudged ? 1 : 0,
         }),
       );
-    expect((await check(5000)).ended).toBe(false);
+    expect((await check({ nudged: false })).ended).toBe(false);
     const waiting = row();
     expect(waiting).toMatchObject({ stage: "processing", processing: 1 });
-    expect(waiting.next_check_at).toBe(Number(waiting.last_checked_at) + 5000);
+    expect(waiting.next_check_at).toBe(
+      Number(waiting.last_checked_at) + 30 * 60_000,
+    );
 
-    expect((await check(5000)).ended).toBe(true);
+    // A nudge right after a check (the test clock moves 100 ms per reading)
+    // skips the Anthropic call and writes nothing.
+    expect(await check({ nudged: true })).toMatchObject({ skipped: true });
+    expect(world.batches.retrieved).toHaveLength(1);
+    expect(row()).toEqual(waiting);
+
+    expect((await check({ nudged: false })).ended).toBe(true);
     expect(row()).toMatchObject({
       stage: "ingesting",
       processing: 0,

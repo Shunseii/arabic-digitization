@@ -36,6 +36,8 @@ CREATE TABLE review_queue (
 --   empty      nothing eligible to send (no batch)
 --   timed_out  the batch didn't end within 26 hours; pages went back to the queue
 --   failed     a step ran out of retries; pages went back to the queue
+-- nudged_checks counts checks woken early by POST .../check (written with
+-- the check), so that endpoint can stop accepting nudges past the cap.
 -- The index on created_at serves the recent-batches list and the in-flight
 -- window (one extra written row per batch).
 CREATE TABLE review_batches (
@@ -51,6 +53,7 @@ CREATE TABLE review_batches (
   processing_status TEXT,
   last_checked_at   INTEGER,
   next_check_at     INTEGER,
+  nudged_checks     INTEGER NOT NULL DEFAULT 0,
   processing        INTEGER NOT NULL DEFAULT 0,
   succeeded         INTEGER NOT NULL DEFAULT 0,
   errored           INTEGER NOT NULL DEFAULT 0,

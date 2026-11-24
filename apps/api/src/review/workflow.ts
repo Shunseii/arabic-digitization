@@ -5,8 +5,10 @@
 //   prepare-N    build their requests into R2, 25 pages per step
 //   submit       create the batch (returns only its id)
 //   record       batch id on the row, stage 'processing'
-//   wait-N/check-N  sleep, then read the batch status and store it on the
-//                row, until the batch has ended (stage 'ingesting')
+//   wait-N/check-N  wait for the next scheduled check or a "check-now" event
+//                (review/poll.ts), then read the batch status and store it
+//                on the row, until the batch has ended (stage 'ingesting') or
+//                26 hours have passed
 //   results      copy the results JSONL into R2, unparsed
 //   release      take the pages off the review queue
 //   dispatch     one review_apply queue message per page (review/apply.ts)
@@ -24,8 +26,8 @@ import {
 } from "cloudflare:workers";
 import { Effect, type Layer } from "effect";
 import { type AppServices, liveLayer } from "../effect/services";
+import { pollUntilEnded } from "./poll";
 import {
-  type BatchCheck,
   checkBatch,
   claimPages,
   dispatchApplies,
@@ -38,16 +40,6 @@ import {
   storeResults,
   submitBatch,
 } from "./steps";
-
-const MINUTE_MS = 60 * 1000;
-
-// 4 checks 30 minutes apart, then hourly: 28 checks over 26 hours. A batch
-// ends within 24 hours (unfinished requests expire), so the last checks are
-// a margin, not the normal path.
-export const POLL_SCHEDULE_MS = [
-  ...Array.from({ length: 4 }, () => 30 * MINUTE_MS),
-  ...Array.from({ length: 24 }, () => 60 * MINUTE_MS),
-];
 
 // Creating a batch spends money, so a failed create is retried only a little:
 // a create that succeeded but whose step failed afterwards would be repeated.
@@ -122,31 +114,30 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
       const batchId = await step.do("submit", SUBMIT_RETRIES, () =>
         run(submitBatch({ instanceId, parts })),
       );
-      await step.do("record", () =>
-        run(
-          recordBatch({
-            batchId,
-            instanceId,
-            pages,
-            nextCheckInMs: POLL_SCHEDULE_MS[0] ?? null,
-          }),
-        ),
+      const submittedAt = await step.do("record", () =>
+        run(recordBatch({ batchId, instanceId, pages })),
       );
 
-      let check: BatchCheck | null = null;
-      for (const [index, waitMs] of POLL_SCHEDULE_MS.entries()) {
-        await step.sleep(`wait-${index}`, waitMs);
-        check = await step.do(`check-${index}`, () =>
-          run(
-            checkBatch({
-              instanceId,
-              batchId,
-              nextCheckInMs: POLL_SCHEDULE_MS[index + 1] ?? null,
-            }),
+      const { last } = await pollUntilEnded({
+        step: {
+          waitForEvent: (name, options) => step.waitForEvent(name, options),
+          sleep: (name, durationMs) => step.sleep(name, durationMs),
+        },
+        submittedAt,
+        check: ({ index, nudged, nudgedSoFar }) =>
+          step.do(`check-${index}`, () =>
+            run(
+              checkBatch({
+                instanceId,
+                batchId,
+                submittedAt,
+                nudged,
+                nudgedSoFar,
+              }),
+            ),
           ),
-        );
-        if (check.ended) break;
-      }
+      });
+      const check = last;
       if (!check?.ended) {
         await step.do("release", () =>
           run(

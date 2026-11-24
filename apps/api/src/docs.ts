@@ -275,6 +275,21 @@ GET /api/jobs
   // (pages being applied: reviewed of pages) | done | empty | timed_out |
   // failed. recent: the last 10 finished batches.
 
+POST /api/reviews/batches/:instanceId/check
+  "Check now": wakes a submitted batch's Workflow so it checks the batch
+  status at Anthropic right away instead of at its next scheduled check (every
+  30 minutes for the first 2 hours, then hourly). Sends one event; reads one
+  row, writes nothing, never calls Anthropic itself. The result appears on the
+  batch in GET /api/jobs (last_checked_at, request_counts) once the Workflow
+  has run the check, usually within seconds. The next scheduled check is a
+  full interval after it. Polling still stops 26 hours after submission.
+  202 -> { success, instance_id, batch_id }
+  404 if no such batch. 409 if its stage isn't "processing", or its Workflow
+  instance isn't running. 429 -> { success: false, error, retry_after_seconds }
+  if it was checked less than a minute ago (retry_after_seconds says when), or
+  it already had 20 early checks (retry_after_seconds null: scheduled checks
+  only from then on).
+
 GET /api/reviews/summary[?days=<1-90, default 30>][&book=<bookId>]
   Opus review totals over the window, for the usage dashboard.
   200 -> { success, since, book_id, pages_reviewed, pages_changed,
