@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Loading } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
+import { loadStatus, recentKey, statusKey } from "@/lib/status";
 import { colors } from "@/theme";
 
 type ItemState = "pending" | "uploading" | "done" | "error";
@@ -35,8 +36,8 @@ export const UploadScreen = () => {
     queryFn: () => api.getBook(bookId),
   });
   const statusQuery = useQuery({
-    queryKey: ["status", bookId],
-    queryFn: () => api.status(bookId),
+    queryKey: statusKey(bookId),
+    queryFn: () => loadStatus(bookId),
   });
 
   const nextPage = useMemo(() => {
@@ -102,9 +103,9 @@ export const UploadScreen = () => {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["status", bookId] });
+      queryClient.invalidateQueries({ queryKey: statusKey(bookId) });
       queryClient.invalidateQueries({ queryKey: ["books"] });
-      queryClient.invalidateQueries({ queryKey: ["recent"] });
+      queryClient.invalidateQueries({ queryKey: recentKey });
     },
   });
 

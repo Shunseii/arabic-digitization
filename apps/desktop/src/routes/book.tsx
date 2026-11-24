@@ -6,22 +6,18 @@ import {
   type LucideIcon,
   MoreVertical,
   Pencil,
-  RefreshCw,
   RotateCw,
   Trash2,
   Upload,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loading, StatusBadge } from "@/components/ui";
+import { Loading, RefreshButton, StatusBadge } from "@/components/ui";
 import { api } from "@/lib/api";
+import { forgetFile, loadStatus, recentKey, statusKey } from "@/lib/status";
 import { colors } from "@/theme";
 
 const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
-const isPending = (f: FileStatus): boolean =>
-  f.state === "queued" ||
-  f.state === "processing" ||
-  f.state === "rate_limited";
 const pageLabel = (f: FileStatus, index: number): string =>
   f.page_number != null ? String(f.page_number) : `#${index + 1}`;
 
@@ -39,9 +35,9 @@ export const BookScreen = () => {
   const [bookInstructions, setBookInstructions] = useState("");
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["status", id] });
+    queryClient.invalidateQueries({ queryKey: statusKey(id) });
     queryClient.invalidateQueries({ queryKey: ["books"] });
-    queryClient.invalidateQueries({ queryKey: ["recent"] });
+    queryClient.invalidateQueries({ queryKey: recentKey });
   };
 
   const bookQuery = useQuery({
@@ -49,10 +45,8 @@ export const BookScreen = () => {
     queryFn: () => api.getBook(id),
   });
   const statusQuery = useQuery({
-    queryKey: ["status", id],
-    queryFn: () => api.status(id),
-    refetchInterval: (query) =>
-      query.state.data?.some(isPending) ? 4000 : false,
+    queryKey: statusKey(id),
+    queryFn: () => loadStatus(id),
   });
 
   const retry = useMutation({
@@ -61,6 +55,7 @@ export const BookScreen = () => {
   });
   const del = useMutation({
     mutationFn: (fileId: string) => api.deleteFile({ bookId: id, fileId }),
+    onSuccess: (_, fileId) => forgetFile({ bookId: id, fileId }),
     onSettled: invalidate,
   });
   const patch = useMutation({
@@ -150,13 +145,13 @@ export const BookScreen = () => {
         >
           <Pencil size={16} color={colors.textSecondary} />
         </button>
-        <button
-          type="button"
-          onClick={() => statusQuery.refetch()}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <RefreshCw size={16} color={colors.textSecondary} />
-        </button>
+        <RefreshButton
+          onRefresh={() => {
+            statusQuery.refetch();
+            bookQuery.refetch();
+          }}
+          refreshing={statusQuery.isFetching}
+        />
         <button
           type="button"
           onClick={() => navigate(`/upload/${id}`)}

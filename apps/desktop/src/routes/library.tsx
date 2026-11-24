@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Centered, Loading } from "@/components/ui";
+import { Centered, Loading, RefreshButton } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
 import { colors } from "@/theme";
@@ -187,12 +187,6 @@ export const LibraryScreen = () => {
     queryKey: ["books"],
     queryFn: api.listBooks,
     enabled: configured,
-    refetchInterval: (q) =>
-      q.state.data?.some(
-        (b) => (b.counts.queued ?? 0) + (b.counts.processing ?? 0) > 0,
-      )
-        ? 5000
-        : false,
   });
   const worksQuery = useQuery({
     queryKey: ["works"],
@@ -289,9 +283,18 @@ export const LibraryScreen = () => {
             </span>
             <h1 className="text-[34px] font-semibold text-ink">Library</h1>
           </div>
-          <div className="flex flex-row items-center gap-1.5 rounded-full bg-[#16271E] px-3 py-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-st-done" />
-            <span className="text-xs font-semibold text-st-done">Online</span>
+          <div className="flex flex-row items-center gap-3">
+            <div className="flex flex-row items-center gap-1.5 rounded-full bg-[#16271E] px-3 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-st-done" />
+              <span className="text-xs font-semibold text-st-done">Online</span>
+            </div>
+            <RefreshButton
+              onRefresh={() => {
+                booksQuery.refetch();
+                worksQuery.refetch();
+              }}
+              refreshing={booksQuery.isFetching || worksQuery.isFetching}
+            />
           </div>
         </div>
 

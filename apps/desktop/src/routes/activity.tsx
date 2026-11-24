@@ -1,17 +1,14 @@
 import type { BookWithStatus, FileStatus } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Centered, Loading, StatusBadge } from "@/components/ui";
+import { Centered, Loading, RefreshButton, StatusBadge } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
+import { recentKey } from "@/lib/status";
 import { colors } from "@/theme";
 
 const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
-const isPending = (f: FileStatus): boolean =>
-  f.state === "queued" ||
-  f.state === "processing" ||
-  f.state === "rate_limited";
 
 const sum = (
   books: BookWithStatus[],
@@ -52,19 +49,11 @@ export const ActivityScreen = () => {
     queryKey: ["books"],
     queryFn: api.listBooks,
     enabled: configured,
-    refetchInterval: (q) =>
-      q.state.data?.some(
-        (b) => (b.counts.queued ?? 0) + (b.counts.processing ?? 0) > 0,
-      )
-        ? 5000
-        : false,
   });
   const recentQuery = useQuery({
-    queryKey: ["recent"],
+    queryKey: recentKey,
     queryFn: () => api.recentFiles(25),
     enabled: configured,
-    refetchInterval: (query) =>
-      query.state.data?.some((r) => isPending(r.file)) ? 5000 : false,
   });
 
   if (!ready) return <Loading />;
@@ -96,13 +85,10 @@ export const ActivityScreen = () => {
       <div className="mx-auto max-w-3xl">
         <div className="flex flex-row items-center justify-between">
           <h1 className="text-[30px] font-semibold text-ink">Activity</h1>
-          <button
-            type="button"
-            onClick={refetchAll}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-          >
-            <RefreshCw size={17} color={colors.textSecondary} />
-          </button>
+          <RefreshButton
+            onRefresh={refetchAll}
+            refreshing={booksQuery.isFetching || recentQuery.isFetching}
+          />
         </div>
 
         <div className="mt-4 flex flex-row items-center justify-around rounded-2xl border border-border bg-surface px-2 py-3.5">
@@ -128,17 +114,14 @@ export const ActivityScreen = () => {
         ) : (
           <div className="mt-2">
             {recent.map((r, i) => {
-              const readable = READABLE.includes(r.file.state);
-              const label =
-                r.file.page_number != null ? String(r.file.page_number) : "—";
+              const readable = READABLE.includes(r.state);
+              const label = r.page_number != null ? String(r.page_number) : "—";
               return (
                 <button
                   type="button"
-                  key={r.file.file_id}
+                  key={r.file_id}
                   disabled={!readable}
-                  onClick={() =>
-                    navigate(`/reader/${r.book_id}/${r.file.file_id}`)
-                  }
+                  onClick={() => navigate(`/reader/${r.book_id}/${r.file_id}`)}
                   className="flex w-full flex-row items-center gap-3 py-3 text-left disabled:cursor-default"
                   style={
                     i > 0
@@ -153,13 +136,13 @@ export const ActivityScreen = () => {
                   </span>
                   <span className="flex flex-1 flex-col gap-0.5 overflow-hidden">
                     <span className="truncate text-base text-ink" dir="rtl">
-                      {r.title}
+                      {r.book_title}
                     </span>
                     <span className="text-xs text-text-muted">
-                      {relativeTime(r.file.updated_at)} ago
+                      {relativeTime(r.updated_at)} ago
                     </span>
                   </span>
-                  <StatusBadge state={r.file.state} />
+                  <StatusBadge state={r.state} />
                   {readable && (
                     <ChevronRight size={16} color={colors.textMuted} />
                   )}

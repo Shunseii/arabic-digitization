@@ -14,12 +14,13 @@ import type {
   FileDeleteResponse,
   FileOcrResponse,
   FileRecord,
-  FileStatus,
   FileUpdateResponse,
   HighlightResponse,
   ListBooksResponse,
   ListTagsResponse,
   ListWorksResponse,
+  RecentFile,
+  RecentFilesResponse,
   UpdateBookResponse,
   UpdateWorkResponse,
   UploadContentType,
@@ -178,14 +179,20 @@ export const api = {
       )
     ).tags,
 
-  status: async (id: string): Promise<FileStatus[]> =>
-    (
-      await asJson<BookStatusResponse>(
-        await fetch(`${base()}/api/books/${id}/status`, {
-          headers: authHeaders(),
-        }),
-      )
-    ).files,
+  /** A book's files; with `since`, only those updated after it (see lib/status). */
+  status: async ({
+    bookId,
+    since,
+  }: {
+    bookId: string;
+    since?: number;
+  }): Promise<BookStatusResponse> =>
+    asJson<BookStatusResponse>(
+      await fetch(
+        `${base()}/api/books/${bookId}/status${since === undefined ? "" : `?since=${since}`}`,
+        { headers: authHeaders() },
+      ),
+    ),
 
   exportBook: async (id: string): Promise<ExportFile[]> =>
     (
@@ -298,24 +305,14 @@ export const api = {
     ),
 
   /** Recent page-fragments across all books, newest first (for Activity). */
-  recentFiles: async (
-    limit = 20,
-  ): Promise<{ book_id: string; title: string; file: FileStatus }[]> => {
-    const books = await api.listBooks();
-    const groups = await Promise.all(
-      books.map(async (b) =>
-        (await api.status(b.id)).map((file) => ({
-          book_id: b.id,
-          title: b.title,
-          file,
-        })),
-      ),
-    );
-    return groups
-      .flat()
-      .sort((a, b) => b.file.updated_at - a.file.updated_at)
-      .slice(0, limit);
-  },
+  recentFiles: async (limit = 25): Promise<RecentFile[]> =>
+    (
+      await asJson<RecentFilesResponse>(
+        await fetch(`${base()}/api/files/recent?limit=${limit}`, {
+          headers: authHeaders(),
+        }),
+      )
+    ).files,
 
   /** Re-run OCR on a single file now (synchronous server-side). */
   rerunOcr: async ({

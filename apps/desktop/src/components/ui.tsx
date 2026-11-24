@@ -1,5 +1,5 @@
 import type { FileState } from "@qiraa/shared";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { colors, statusColors, statusLabel } from "@/theme";
 
@@ -41,6 +41,31 @@ export const Loading = () => (
   <div className="flex flex-1 items-center justify-center py-16">
     <Loader2 className="animate-spin" size={22} color={colors.accent} />
   </div>
+);
+
+// Server data refreshes only on demand (polling burns D1 reads), so every
+// screen showing it carries this.
+export const RefreshButton = ({
+  onRefresh,
+  refreshing,
+}: {
+  onRefresh: () => void;
+  refreshing: boolean;
+}) => (
+  <button
+    type="button"
+    onClick={onRefresh}
+    disabled={refreshing}
+    aria-label="Refresh"
+    title="Refresh"
+    className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface disabled:cursor-default"
+  >
+    <RefreshCw
+      size={16}
+      color={colors.textSecondary}
+      className={refreshing ? "animate-spin" : undefined}
+    />
+  </button>
 );
 
 export const Centered = ({ children }: { children: ReactNode }) => (

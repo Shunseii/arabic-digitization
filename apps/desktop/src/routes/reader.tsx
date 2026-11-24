@@ -5,6 +5,7 @@ import { Centered, Loading } from "@/components/ui";
 import { ZoomableImage } from "@/components/zoomable-image";
 import { api } from "@/lib/api";
 import { Markdown } from "@/lib/markdown";
+import { loadStatus, statusKey } from "@/lib/status";
 import { colors } from "@/theme";
 
 export const ReaderScreen = () => {
@@ -20,8 +21,8 @@ export const ReaderScreen = () => {
   });
 
   const statusQuery = useQuery({
-    queryKey: ["status", bookId],
-    queryFn: () => api.status(bookId),
+    queryKey: statusKey(bookId),
+    queryFn: () => loadStatus(bookId),
   });
 
   const files = (statusQuery.data ?? [])
