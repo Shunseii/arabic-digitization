@@ -8,11 +8,14 @@ import { applyReview, applyReviewEdits } from "../src/review/apply";
 import type { ReviewApplyMessage } from "../src/review/message";
 import type { ReviewEdit } from "../src/review/prompt";
 import {
+  checkBatch,
   claimPages,
   dispatchApplies,
+  finalizeBatch,
   indexResultLines,
   preparePart,
   REVIEW_SCAN_LINK_TTL_SECONDS,
+  recordBatch,
   releaseClaims,
   reviewKeys,
   storeResults,
@@ -81,13 +84,23 @@ const queueRows = (world: TestWorld) =>
     .prepare("SELECT file_id, instance_id FROM review_queue ORDER BY file_id")
     .all() as { file_id: string; instance_id: string | null }[];
 
+const queueAttempts = (world: TestWorld) =>
+  world.sqlite
+    .prepare("SELECT file_id, attempts FROM review_queue ORDER BY file_id")
+    .all() as { file_id: string; attempts: number }[];
+
 const reviewRows = (world: TestWorld) =>
   world.sqlite
     .prepare("SELECT * FROM page_reviews ORDER BY file_id")
     .all() as unknown as {
     file_id: string;
     status: string;
+    attempt: number;
+    error_type: string | null;
     error: string | null;
+    edits: string | null;
+    chars_changed: number;
+    chars_total: number;
     effort: string;
     model: string;
     edits_proposed: number;
@@ -149,15 +162,16 @@ function succeededLine({
   });
 }
 
-const erroredLine = (fileId: string) =>
+const erroredLine = (
+  fileId: string,
+  errorType = "invalid_request_error",
+  message = "image unreachable",
+) =>
   JSON.stringify({
     custom_id: fileId,
     result: {
       type: "errored",
-      error: {
-        type: "error",
-        error: { type: "invalid_request_error", message: "image unreachable" },
-      },
+      error: { type: "error", error: { type: errorType, message } },
     },
   });
 
@@ -370,7 +384,7 @@ describe("review batch", () => {
     const rows = reviewRows(world);
     expect(rows.map((r) => [r.file_id, r.status])).toEqual([
       ["file-a", "applied"],
-      ["file-b", "errored"],
+      ["file-b", "failed"],
       ["file-c", "expired"],
     ]);
     expect(rows[0]).toMatchObject({
@@ -389,12 +403,30 @@ describe("review batch", () => {
       tashkeel: { proposed: 1, applied: 1, failed: 0 },
       spelling: { proposed: 1, applied: 0, failed: 1 },
     });
-    expect(rows[1]?.error).toContain("invalid_request_error");
-    expect(rows[1]?.cost_usd).toBe(0);
-    // An expired page goes back in the queue for the next batch.
-    expect(queueRows(world)).toEqual([
-      { file_id: "file-c", instance_id: null },
+    expect(JSON.parse(rows[0]?.edits ?? "")).toEqual([
+      {
+        find: "الماء طهور",
+        replace: "الماءُ طَهورٌ",
+        category: "tashkeel",
+        applied: true,
+      },
+      {
+        find: "ليس في الصفحة",
+        replace: "x",
+        category: "spelling",
+        applied: false,
+      },
     ]);
+    expect(rows[0]?.chars_changed).toBe("الماءُ طَهورٌ".length);
+    expect(rows[0]?.chars_total).toBe(PAGE.length);
+    // An invalid request is never retried.
+    expect(rows[1]).toMatchObject({
+      error_type: "invalid_request_error",
+      error: "image unreachable",
+      cost_usd: 0,
+    });
+    // An expired page goes back in the queue for the next batch, one try used.
+    expect(queueAttempts(world)).toEqual([{ file_id: "file-c", attempts: 1 }]);
 
     // A redelivered message changes nothing.
     const [first] = messages;
@@ -479,6 +511,185 @@ describe("review batch", () => {
     expect(reviewKeys("review-1").results).toBe(
       "reviews/review-1/results.jsonl",
     );
+  });
+});
+
+describe("review_batches stages", () => {
+  it("records each stage and the live request counts on the instance's row", async () => {
+    const world = makeWorld();
+    seedBook(world);
+    seedDonePage({ world, fileId: "file-a" });
+    world.sqlite.exec(
+      "INSERT INTO review_queue (file_id, book_id, queued_at) VALUES ('file-a', 'test-book', 1)",
+    );
+    const row = () =>
+      world.sqlite
+        .prepare(
+          "SELECT stage, batch_id, pages, processing, succeeded, next_check_at, last_checked_at FROM review_batches WHERE instance_id = 'review-1'",
+        )
+        .get() as Record<string, unknown>;
+
+    await run(world, claimPages("review-1"));
+    expect(row()).toMatchObject({ stage: "preparing", pages: 1 });
+
+    await run(
+      world,
+      recordBatch({
+        instanceId: "review-1",
+        batchId: "msgbatch_x",
+        pages: 1,
+        nextCheckInMs: 1000,
+      }),
+    );
+    expect(row()).toMatchObject({
+      stage: "processing",
+      batch_id: "msgbatch_x",
+    });
+
+    const counts = {
+      processing: 1,
+      succeeded: 0,
+      errored: 0,
+      canceled: 0,
+      expired: 0,
+    };
+    world.batches.statuses = [
+      { processingStatus: "in_progress", counts },
+      {
+        processingStatus: "ended",
+        counts: { ...counts, processing: 0, succeeded: 1 },
+      },
+    ];
+    const check = (nextCheckInMs: number | null) =>
+      run(
+        world,
+        checkBatch({
+          instanceId: "review-1",
+          batchId: "msgbatch_x",
+          nextCheckInMs,
+        }),
+      );
+    expect((await check(5000)).ended).toBe(false);
+    const waiting = row();
+    expect(waiting).toMatchObject({ stage: "processing", processing: 1 });
+    expect(waiting.next_check_at).toBe(Number(waiting.last_checked_at) + 5000);
+
+    expect((await check(5000)).ended).toBe(true);
+    expect(row()).toMatchObject({
+      stage: "ingesting",
+      processing: 0,
+      succeeded: 1,
+      next_check_at: null,
+    });
+
+    await run(
+      world,
+      finalizeBatch({ instanceId: "review-1", ended: true, resultsKey: "k" }),
+    );
+    expect(row()).toMatchObject({ stage: "applying" });
+  });
+});
+
+describe("results that end without a review", () => {
+  // One page through a batch whose result is `line`, after `attempts` earlier
+  // tries that ended without a review.
+  async function tryPage({
+    attempts,
+    line,
+  }: {
+    attempts: number;
+    line: (fileId: string) => string;
+  }) {
+    const world = makeWorld();
+    seedBook(world);
+    seedDonePage({ world, fileId: "file-a" });
+    world.sqlite
+      .prepare(
+        "INSERT INTO review_queue (file_id, book_id, queued_at, attempts) VALUES ('file-a', 'test-book', 1, ?)",
+      )
+      .run(attempts);
+    const [message] = await reviewThroughDispatch({
+      world,
+      resultLines: () => [line("file-a")],
+    });
+    if (!message) throw new Error("no message");
+    expect(message.attempt).toBe(attempts);
+    const status = await run(world, applyReview(message));
+    return { world, status, row: reviewRows(world)[0] };
+  }
+
+  it("never retries an invalid request", async () => {
+    const { world, status, row } = await tryPage({
+      attempts: 0,
+      line: (id) => erroredLine(id, "invalid_request_error", "bad image"),
+    });
+    expect(status).toBe("failed");
+    expect(row).toMatchObject({
+      error_type: "invalid_request_error",
+      error: "bad image",
+      attempt: 0,
+    });
+    expect(queueAttempts(world)).toEqual([]);
+  });
+
+  for (const errorType of [
+    "api_error",
+    "overloaded_error",
+    "rate_limit_error",
+  ]) {
+    it(`queues the page again after ${errorType}, counting the try`, async () => {
+      const { world, status, row } = await tryPage({
+        attempts: 1,
+        line: (id) => erroredLine(id, errorType, "try later"),
+      });
+      expect(status).toBe("errored");
+      expect(row).toMatchObject({ error_type: errorType, attempt: 1 });
+      expect(queueAttempts(world)).toEqual([
+        { file_id: "file-a", attempts: 2 },
+      ]);
+    });
+  }
+
+  it("fails the page on the third server error in a row, with the last reason", async () => {
+    const { world, status, row } = await tryPage({
+      attempts: 2,
+      line: (id) => erroredLine(id, "overloaded_error", "Overloaded"),
+    });
+    expect(status).toBe("failed");
+    expect(row).toMatchObject({
+      error_type: "overloaded_error",
+      error: "Overloaded",
+      attempt: 2,
+    });
+    expect(queueAttempts(world)).toEqual([]);
+  });
+
+  for (const type of ["expired", "canceled"] as const) {
+    it(`queues a ${type} page again and fails it on the third try`, async () => {
+      const line = (id: string) =>
+        JSON.stringify({ custom_id: id, result: { type } });
+      const first = await tryPage({ attempts: 0, line });
+      expect(first.status).toBe(type);
+      expect(queueAttempts(first.world)).toEqual([
+        { file_id: "file-a", attempts: 1 },
+      ]);
+
+      const last = await tryPage({ attempts: 2, line });
+      expect(last.status).toBe("failed");
+      expect(last.row).toMatchObject({ error_type: type });
+      expect(queueAttempts(last.world)).toEqual([]);
+    });
+  }
+
+  it("starts a page's count again when OCR finishes it anew", async () => {
+    const world = makeWorld({ inkling: [inklingReply({ text: PAGE })] });
+    seedPage({ world });
+    world.sqlite.exec("UPDATE books SET review_enabled = 1");
+    await run(
+      world,
+      transcribe({ fileId: FILE_ID, trigger: "upload", deliveryAttempt: 1 }),
+    );
+    expect(queueAttempts(world)).toEqual([{ file_id: FILE_ID, attempts: 0 }]);
   });
 });
 

@@ -24,7 +24,7 @@ import { applyEdits } from "../endpoints/fileTextEdit";
 import { REVIEW_MODEL, type ReviewUsage, reviewCostUsd } from "../lib/cost";
 import { sha256Hex } from "../lib/ocrRuns";
 import { historyKey } from "../lib/pageText";
-import type { ReviewApplyMessage } from "./message";
+import { REVIEW_MAX_ATTEMPTS, type ReviewApplyMessage } from "./message";
 import { enqueueReview } from "./pending";
 import {
   parseReviewEdits,
@@ -43,7 +43,8 @@ export type ReviewStatus =
   | "refused"
   | "errored"
   | "expired"
-  | "canceled";
+  | "canceled"
+  | "failed";
 
 export interface CategoryCounts {
   proposed: number;
@@ -53,11 +54,19 @@ export interface CategoryCounts {
 
 export type CategoryStats = Partial<Record<ReviewCategory, CategoryCounts>>;
 
+export interface ReviewedEdit extends ReviewEdit {
+  applied: boolean;
+}
+
 export interface EditsOutcome {
   text: string;
   applied: number;
   failed: number;
   categories: CategoryStats;
+  edits: ReviewedEdit[];
+  // Characters the applied edits replaced or inserted (per edit, the longer
+  // of find and replace): a cheap measure of how much of the page changed.
+  charsChanged: number;
 }
 
 // Apply the edits in order. Each `find` must occur exactly once in the text as
@@ -73,7 +82,9 @@ export function applyReviewEdits({
   let current = text;
   let applied = 0;
   let failed = 0;
+  let charsChanged = 0;
   const categories: CategoryStats = {};
+  const reviewed: ReviewedEdit[] = [];
   for (const edit of edits) {
     const counts = categories[edit.category] ?? {
       proposed: 0,
@@ -93,21 +104,42 @@ export function applyReviewEdits({
       current = result.text;
       counts.applied += 1;
       applied += 1;
+      charsChanged += Math.max(edit.find.length, edit.replace.length);
     } else {
       counts.failed += 1;
       failed += 1;
     }
+    reviewed.push({ ...edit, applied: result?.ok === true });
   }
-  return { text: current, applied, failed, categories };
+  return {
+    text: current,
+    applied,
+    failed,
+    categories,
+    edits: reviewed,
+    charsChanged,
+  };
 }
 
-type BatchResult =
+export type BatchResult =
   | { type: "succeeded"; message: unknown }
-  | { type: "errored"; error: string }
+  | { type: "errored"; errorType: string; error: string }
   | { type: "expired" }
   | { type: "canceled" };
 
 const ERROR_MAX = 500;
+
+// The error's type and message, from {type: "error", error: {type, message}}
+// (the API's error envelope) or a bare {type, message}.
+function readError(raw: unknown): { errorType: string; error: string } {
+  const outer = isRecord(raw) ? raw : {};
+  const inner = isRecord(outer.error) ? outer.error : outer;
+  const errorType =
+    typeof inner.type === "string" ? inner.type : "unknown_error";
+  const message =
+    typeof inner.message === "string" ? inner.message : JSON.stringify(raw);
+  return { errorType, error: message.slice(0, ERROR_MAX) };
+}
 
 // One line of the results JSONL: {"custom_id": ..., "result": {...}}.
 export function readBatchResult({
@@ -121,10 +153,18 @@ export function readBatchResult({
   try {
     raw = JSON.parse(line);
   } catch {
-    return { type: "errored", error: "results line is not JSON" };
+    return {
+      type: "errored",
+      errorType: "unreadable_result",
+      error: "results line is not JSON",
+    };
   }
   if (!isRecord(raw) || raw.custom_id !== fileId || !isRecord(raw.result)) {
-    return { type: "errored", error: "results line is not this page's" };
+    return {
+      type: "errored",
+      errorType: "unreadable_result",
+      error: "results line is not this page's",
+    };
   }
   const result = raw.result;
   switch (result.type) {
@@ -135,12 +175,14 @@ export function readBatchResult({
     case "canceled":
       return { type: "canceled" };
     default:
-      return {
-        type: "errored",
-        error: JSON.stringify(result.error ?? result).slice(0, ERROR_MAX),
-      };
+      return { type: "errored", ...readError(result.error) };
   }
 }
+
+// An invalid request fails the same way every time; anything else that
+// errored (api_error, overloaded_error, ...) is on Anthropic's side and
+// worth another try.
+const PERMANENT_ERROR_TYPES = new Set(["invalid_request_error"]);
 
 function readUsage(message: unknown): ReviewUsage {
   const usage =
@@ -163,13 +205,13 @@ const NO_USAGE: ReviewUsage = {
 
 interface ReviewRecord {
   status: ReviewStatus;
+  errorType?: string | null;
   error?: string | null;
   proposed?: number;
-  applied?: number;
-  failed?: number;
-  categories?: CategoryStats | null;
+  outcome?: EditsOutcome | null;
+  charsTotal?: number;
   usage?: ReviewUsage;
-  // SQL for the revision id (last_insert_rowid() of the revision insert).
+  // The revision id is last_insert_rowid() of the revision insert just before.
   revisionFromLastInsert?: boolean;
 }
 
@@ -183,28 +225,35 @@ function insertPageReview({
   record: ReviewRecord;
 }): Statement {
   const usage = record.usage ?? NO_USAGE;
+  const outcome = record.outcome ?? null;
   return statement(
     `INSERT OR IGNORE INTO page_reviews (
-       batch_id, file_id, book_id, created_at, model, effort, status, error,
-       edits_proposed, edits_applied, edits_failed, categories,
+       file_id, batch_id, book_id, created_at, model, effort, attempt, status,
+       error_type, error, edits_proposed, edits_applied, edits_failed,
+       categories, edits, chars_changed, chars_total,
        input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
        output_tokens, cost_usd, revision_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${
        record.revisionFromLastInsert ? "last_insert_rowid()" : "NULL"
 })`,
     [
-      msg.batchId,
       msg.fileId,
+      msg.batchId,
       msg.bookId,
       at,
       REVIEW_MODEL,
       msg.effort,
+      msg.attempt,
       record.status,
+      record.errorType ?? null,
       record.error ?? null,
       record.proposed ?? 0,
-      record.applied ?? 0,
-      record.failed ?? 0,
-      record.categories ? JSON.stringify(record.categories) : null,
+      outcome?.applied ?? 0,
+      outcome?.failed ?? 0,
+      outcome ? JSON.stringify(outcome.categories) : null,
+      outcome ? JSON.stringify(outcome.edits) : null,
+      outcome?.charsChanged ?? 0,
+      record.charsTotal ?? 0,
       usage.inputTokens,
       usage.cacheCreationInputTokens,
       usage.cacheReadInputTokens,
@@ -234,11 +283,12 @@ export function applyReview(
     const bucket = yield* Bucket;
     const clock = yield* WallClock;
     const indexer = yield* PageIndexer;
+    const key = [msg.fileId, msg.batchId];
 
     const seen = yield* db.first<{ status: string }>(
       statement(
-        "SELECT status FROM page_reviews WHERE batch_id = ? AND file_id = ?",
-        [msg.batchId, msg.fileId],
+        "SELECT status FROM page_reviews WHERE file_id = ? AND batch_id = ?",
+        key,
       ),
     );
     if (seen) return "duplicate" as const;
@@ -247,31 +297,60 @@ export function applyReview(
       db
         .batch([...extra, insertPageReview({ msg, at: clock.now(), record })])
         .pipe(Effect.as(record.status));
-    const requeue = () =>
+    const requeue = (attempts = 0) =>
       enqueueReview({
         fileId: msg.fileId,
         bookId: msg.bookId,
         at: clock.now(),
+        attempts,
       });
+    // A try that ended without a review: queue the page again, unless this
+    // was its last allowed try. Such requests aren't billed.
+    const retryLater = ({
+      status,
+      errorType,
+      error,
+    }: {
+      status: "errored" | "expired" | "canceled";
+      errorType: string;
+      error: string | null;
+    }) => {
+      const attempts = msg.attempt + 1;
+      return attempts >= REVIEW_MAX_ATTEMPTS
+        ? finish({ status: "failed", errorType, error })
+        : finish({ status, errorType, error }, [requeue(attempts)]);
+    };
 
     const bytes = msg.line
       ? yield* bucket.getRange({ key: msg.resultsKey, ...msg.line })
       : null;
     if (!bytes) {
-      return yield* finish({ status: "errored", error: "no result for page" });
+      return yield* retryLater({
+        status: "errored",
+        errorType: "missing_result",
+        error: "the batch results have no line for this page",
+      });
     }
     const result = readBatchResult({
       line: new TextDecoder().decode(bytes),
       fileId: msg.fileId,
     });
-    if (result.type === "expired") {
-      return yield* finish({ status: "expired" }, [requeue()]);
-    }
-    if (result.type === "canceled") {
-      return yield* finish({ status: "canceled" }, [requeue()]);
+    if (result.type === "expired" || result.type === "canceled") {
+      return yield* retryLater({
+        status: result.type,
+        errorType: result.type,
+        error: null,
+      });
     }
     if (result.type === "errored") {
-      return yield* finish({ status: "errored", error: result.error });
+      if (PERMANENT_ERROR_TYPES.has(result.errorType)) {
+        return yield* finish({
+          status: "failed",
+          errorType: result.errorType,
+          error: result.error,
+        });
+      }
+      return yield* retryLater({ status: "errored", ...result });
     }
 
     const usage = readUsage(result.message);
@@ -289,8 +368,7 @@ export function applyReview(
         usage,
       });
     }
-    const proposed = edits.length;
-    const unapplied = { usage, proposed, categories: null };
+    const unapplied = { usage, proposed: edits.length };
 
     const page = yield* db.first<PageRow>(
       statement(
@@ -314,15 +392,13 @@ export function applyReview(
     }
 
     const outcome = applyReviewEdits({ text: current.text, edits });
-    const counts = {
-      usage,
-      proposed,
-      applied: outcome.applied,
-      failed: outcome.failed,
-      categories: outcome.categories,
+    const reviewed = {
+      ...unapplied,
+      outcome,
+      charsTotal: current.text.length,
     };
     if (outcome.text === current.text) {
-      return yield* finish({ status: "no_changes", ...counts });
+      return yield* finish({ status: "no_changes", ...reviewed });
     }
 
     // The same order as an OCR re-run: the copy of the old text and its
@@ -334,7 +410,7 @@ export function applyReview(
     // insertPageReview reads last_insert_rowid(), so it directly follows the
     // revision insert.
     yield* finish(
-      { status: "applied", ...counts, revisionFromLastInsert: true },
+      { status: "applied", ...reviewed, revisionFromLastInsert: true },
       [
         statement(
           "UPDATE files SET preview = ?, updated_at = ? WHERE file_id = ?",
@@ -364,13 +440,13 @@ export function applyReview(
       yield* db.batch([
         statement(
           `DELETE FROM text_revisions WHERE id =
-             (SELECT revision_id FROM page_reviews WHERE batch_id = ? AND file_id = ?)`,
-          [msg.batchId, msg.fileId],
+             (SELECT revision_id FROM page_reviews WHERE file_id = ? AND batch_id = ?)`,
+          key,
         ),
         statement(
-          `UPDATE page_reviews SET status = 'conflict', edits_applied = 0, revision_id = NULL
-            WHERE batch_id = ? AND file_id = ?`,
-          [msg.batchId, msg.fileId],
+          `UPDATE page_reviews SET status = 'conflict', edits_applied = 0, chars_changed = 0, revision_id = NULL
+            WHERE file_id = ? AND batch_id = ?`,
+          key,
         ),
         statement(
           "UPDATE files SET preview = ?, updated_at = ? WHERE file_id = ?",

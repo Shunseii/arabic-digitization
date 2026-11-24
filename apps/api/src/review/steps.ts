@@ -15,7 +15,6 @@ import {
   Database,
   ReviewQueue,
   ScanLinks,
-  type Statement,
   statement,
   type TransportError,
   WallClock,
@@ -54,29 +53,68 @@ export const reviewKeys = (instanceId: string) => {
 
 // ---- select ------------------------------------------------------------------
 
-// Claim up to REVIEW_BATCH_PAGES waiting pages for this instance. A retry
-// returns the pages the first attempt claimed instead of claiming more.
+// Claim up to REVIEW_BATCH_PAGES waiting pages for this instance and open its
+// review_batches row (stage 'preparing'). A retry returns the pages the first
+// attempt claimed instead of claiming more.
 export function claimPages(
   instanceId: string,
-): Effect.Effect<string[], StorageError, Database> {
+): Effect.Effect<string[], StorageError, Database | WallClock> {
   return Effect.gen(function* () {
     const db = yield* Database;
+    const clock = yield* WallClock;
     const claimed = statement(
       "SELECT file_id FROM review_queue WHERE instance_id = ? ORDER BY queued_at, file_id",
       [instanceId],
     );
-    const existing = yield* db.all<{ file_id: string }>(claimed);
-    if (existing.length > 0) return existing.map((r) => r.file_id);
+    let fileIds = (yield* db.all<{ file_id: string }>(claimed)).map(
+      (r) => r.file_id,
+    );
+    if (fileIds.length === 0) {
+      yield* db.run(
+        statement(
+          `UPDATE review_queue SET instance_id = ?
+            WHERE file_id IN (SELECT file_id FROM review_queue
+                               WHERE instance_id IS NULL
+                               ORDER BY queued_at, file_id LIMIT ?)`,
+          [instanceId, REVIEW_BATCH_PAGES],
+        ),
+      );
+      fileIds = (yield* db.all<{ file_id: string }>(claimed)).map(
+        (r) => r.file_id,
+      );
+    }
+    if (fileIds.length > 0) {
+      yield* db.run(
+        statement(
+          `INSERT OR IGNORE INTO review_batches (instance_id, created_at, model, pages, stage)
+           VALUES (?, ?, ?, ?, 'preparing')`,
+          [instanceId, clock.now(), REVIEW_MODEL, fileIds.length],
+        ),
+      );
+    }
+    return fileIds;
+  });
+}
+
+// Moves the instance's review_batches row to a stage that ends it early.
+export function endBatch({
+  instanceId,
+  stage,
+  error = null,
+}: {
+  instanceId: string;
+  stage: "empty" | "failed";
+  error?: string | null;
+}): Effect.Effect<void, StorageError, Database | WallClock> {
+  return Effect.gen(function* () {
+    const db = yield* Database;
+    const clock = yield* WallClock;
     yield* db.run(
       statement(
-        `UPDATE review_queue SET instance_id = ?
-          WHERE file_id IN (SELECT file_id FROM review_queue
-                             WHERE instance_id IS NULL
-                             ORDER BY queued_at, file_id LIMIT ?)`,
-        [instanceId, REVIEW_BATCH_PAGES],
+        "UPDATE review_batches SET stage = ?, error = ?, ended_at = ? WHERE instance_id = ?",
+        [stage, error?.slice(0, 500) ?? null, clock.now(), instanceId],
       ),
     );
-    return (yield* db.all<{ file_id: string }>(claimed)).map((r) => r.file_id);
   });
 }
 
@@ -87,6 +125,7 @@ export interface ManifestEntry {
   bookId: string;
   effort: ReviewEffort;
   textSha: string;
+  attempt: number;
 }
 
 export interface PreparedPart {
@@ -103,6 +142,7 @@ interface CandidateRow {
   ocr_instructions: string | null;
   review_enabled: number;
   review_effort: string | null;
+  attempts: number | null;
 }
 
 const effortOf = (value: string | null): ReviewEffort =>
@@ -131,8 +171,9 @@ export function preparePart({
     const rows = yield* db.all<CandidateRow>(
       statement(
         `SELECT f.file_id, f.book_id, f.state, f.text_key, f.text_edited_at,
-                b.ocr_instructions, b.review_enabled, b.review_effort
+                b.ocr_instructions, b.review_enabled, b.review_effort, q.attempts
            FROM files f JOIN books b ON b.id = f.book_id
+           LEFT JOIN review_queue q ON q.file_id = f.file_id
           WHERE f.file_id IN (${fileIds.map(() => "?").join(", ")})`,
         fileIds,
       ),
@@ -170,6 +211,7 @@ export function preparePart({
         bookId: row.book_id,
         effort,
         textSha: yield* Effect.promise(() => sha256Hex(text)),
+        attempt: row.attempts ?? 0,
       });
     }
 
@@ -224,19 +266,29 @@ export function recordBatch({
   batchId,
   instanceId,
   pages,
+  nextCheckInMs,
 }: {
   batchId: string;
   instanceId: string;
   pages: number;
+  nextCheckInMs: number | null;
 }): Effect.Effect<void, StorageError, Database | WallClock> {
   return Effect.gen(function* () {
     const db = yield* Database;
     const clock = yield* WallClock;
+    const now = clock.now();
     yield* db.run(
       statement(
-        `INSERT OR IGNORE INTO review_batches (batch_id, instance_id, created_at, model, pages, status)
-         VALUES (?, ?, ?, ?, ?, 'in_progress')`,
-        [batchId, instanceId, clock.now(), REVIEW_MODEL, pages],
+        `UPDATE review_batches
+            SET batch_id = ?, pages = ?, stage = 'processing', submitted_at = ?, next_check_at = ?
+          WHERE instance_id = ?`,
+        [
+          batchId,
+          pages,
+          now,
+          nextCheckInMs === null ? null : now + nextCheckInMs,
+          instanceId,
+        ],
       ),
     );
   });
@@ -249,16 +301,51 @@ export interface BatchCheck {
   counts: BatchCounts;
 }
 
-export function checkBatch(
-  batchId: string,
-): Effect.Effect<BatchCheck, TransportError, AnthropicBatches> {
+// Read the batch status and keep it on the instance's row (GET /api/jobs
+// shows it without calling Anthropic). An ended batch moves to 'ingesting'.
+// `nextCheckInMs` is when the Workflow will look again (null: it won't).
+export function checkBatch({
+  instanceId,
+  batchId,
+  nextCheckInMs,
+}: {
+  instanceId: string;
+  batchId: string;
+  nextCheckInMs: number | null;
+}): Effect.Effect<
+  BatchCheck,
+  StorageError | TransportError,
+  AnthropicBatches | Database | WallClock
+> {
   return Effect.gen(function* () {
     const batches = yield* AnthropicBatches;
+    const db = yield* Database;
+    const clock = yield* WallClock;
     const status = yield* batches.retrieve(batchId);
-    return {
-      ended: status.processingStatus === "ended",
-      counts: status.counts,
-    };
+    const ended = status.processingStatus === "ended";
+    const now = clock.now();
+    const { counts } = status;
+    yield* db.run(
+      statement(
+        `UPDATE review_batches
+            SET stage = ?, processing_status = ?, last_checked_at = ?, next_check_at = ?,
+                processing = ?, succeeded = ?, errored = ?, expired = ?, canceled = ?
+          WHERE instance_id = ?`,
+        [
+          ended ? "ingesting" : "processing",
+          status.processingStatus,
+          now,
+          ended || nextCheckInMs === null ? null : now + nextCheckInMs,
+          counts.processing,
+          counts.succeeded,
+          counts.errored,
+          counts.expired,
+          counts.canceled,
+          instanceId,
+        ],
+      ),
+    );
+    return { ended, counts };
   });
 }
 
@@ -386,6 +473,7 @@ export function dispatchApplies({
           bookId: entry.bookId,
           effort: entry.effort,
           textSha: entry.textSha,
+          attempt: entry.attempt,
           resultsKey: keys.results,
           line: lineOf.get(entry.fileId) ?? null,
         });
@@ -396,36 +484,29 @@ export function dispatchApplies({
   });
 }
 
+// The batch's last stage: 'applying' once every page has been handed to the
+// queue (GET /api/jobs shows it done when every page has a review row), or
+// 'timed_out' when the Workflow gave up waiting.
 export function finalizeBatch({
-  batchId,
-  check,
+  instanceId,
+  ended,
   resultsKey,
 }: {
-  batchId: string;
-  check: BatchCheck;
+  instanceId: string;
+  ended: boolean;
   resultsKey: string | null;
 }): Effect.Effect<void, StorageError, Database | WallClock> {
   return Effect.gen(function* () {
     const db = yield* Database;
     const clock = yield* WallClock;
-    const { counts } = check;
-    const update: Statement = statement(
-      `UPDATE review_batches
-          SET status = ?, ended_at = ?, succeeded = ?, errored = ?, expired = ?,
-              canceled = ?, results_key = ?
-        WHERE batch_id = ?`,
-      [
-        check.ended ? "ended" : "timed_out",
-        clock.now(),
-        counts.succeeded,
-        counts.errored,
-        counts.expired,
-        counts.canceled,
-        resultsKey,
-        batchId,
-      ],
+    yield* db.run(
+      statement(
+        `UPDATE review_batches
+            SET stage = ?, ended_at = ?, results_key = ?, next_check_at = NULL
+          WHERE instance_id = ?`,
+        [ended ? "applying" : "timed_out", clock.now(), resultsKey, instanceId],
+      ),
     );
-    yield* db.run(update);
   });
 }
 
