@@ -81,9 +81,14 @@ Batches API (half price, results within 24 hours), not inline:
   queued again). A review does not set text_edited_at.
 - review_effort (low | medium | high, default low) trades cost for depth.
   Rough cost per page at batch prices: $0.02-0.06.
-- Each review is recorded in D1 (table page_reviews): status, edits proposed
-  / applied / failed to apply by category, tokens and cost, model, batch id.
-  No read endpoint yet; query D1 directly.
+- A request that errors on Anthropic's side (api_error, overloaded_error, ...),
+  expires or is canceled is not billed; the page is queued again, up to 3
+  tries in a row, then its review is marked failed with the last reason. An
+  invalid_request_error is never retried.
+- Each review is recorded in D1 (table page_reviews): status, each edit with
+  its category and whether it applied, tokens and cost, model, batch id. Read
+  them with GET .../files/:fileId/reviews, GET /api/reviews/summary and
+  GET /api/jobs.
 
 ## Endpoints
 
@@ -229,6 +234,58 @@ GET /api/books/:bookId/files/:fileId/text/history
   save the text they replace; GET .../text?rev=<id> reads it back. Changes made
   before history existed (2026-11-21) are not listed.
   200 -> { success, file_id, text_edited_at, revisions: [ { id, change: "edit"|"ocr"|"review", model, note, created_at } ] }
+
+GET /api/books/:bookId/files/:fileId/reviews
+  The page's Opus reviews, newest first.
+  200 -> { success, file_id, reviews: [ { batch_id, created_at, model, effort, attempt,
+           status, error_type, error, edits_proposed, edits_applied, edits_failed,
+           edits: [ { find, replace, category, applied } ], chars_changed, chars_total,
+           cost_usd, revision_id } ] }
+  // status: applied | no_changes | skipped_hand_edited | stale | conflict |
+  // page_gone | invalid_output | refused | errored | expired | canceled (queued
+  // again) | failed (not retried). revision_id is the "review" history entry.
+  404 if file missing.
+
+## Activity and usage (read-only)
+
+GET /api/jobs
+  Running work, for an activity screen. Reads D1 only (never Anthropic), so
+  refresh it on demand; don't poll.
+  200 -> { success, now,
+    ocr: {
+      books: [ { book_id, title, paused, queued, processing, rate_limited, failed,
+                 oldest_queued_at, done_last_hour, recent_runs, fell_back, retried } ],
+      recent_since,
+      problem_pages: [ { file_id, book_id, created_at, status, final_model, fell_back,
+                         fallback_reason, delivery_attempt, error_type } ] },
+    review: {
+      in_flight: [ Batch ], waiting: [ { book_id, title, pages, retrying } ],
+      recent: [ Batch ] } }
+  Batch = { instance_id, batch_id, stage, instance_status, pages, reviewed,
+            created_at, submitted_at, last_checked_at, next_check_at, ended_at,
+            request_counts: { processing, succeeded, errored, expired, canceled },
+            edits_applied, edits_failed, errors, cost_usd, error }
+  // books: those with pages not done, or OCR runs in the recent window
+  // (recent_since: the last 300 runs within 24 hours). oldest_queued_at is
+  // null for paused books. fell_back = runs finished by the fallback engine;
+  // retried = runs on a redelivery. problem_pages: the latest runs that fell
+  // back, failed, or ran on a third delivery or later.
+  // stage: preparing | processing (waiting on Anthropic; request_counts as of
+  // last_checked_at, next check at next_check_at) | ingesting | applying
+  // (pages being applied: reviewed of pages) | done | empty | timed_out |
+  // failed. recent: the last 10 finished batches.
+
+GET /api/reviews/summary[?days=<1-90, default 30>][&book=<bookId>]
+  Opus review totals over the window, for the usage dashboard.
+  200 -> { success, since, book_id, pages_reviewed, pages_changed,
+           pages_not_reviewed, pages_skipped, by_status: { status: n },
+           edits: { proposed, applied, failed }, by_category: { tashkeel|spelling|
+           quran|footnotes|punctuation|layout: { proposed, applied, failed } },
+           text_changed_share, cost_usd, cost_per_page_usd, hand_edited_after_review }
+  // edits.failed = failed to apply (find didn't match exactly once).
+  // text_changed_share = characters changed by applied edits / characters of
+  // the reviewed pages. hand_edited_after_review = pages a review changed that
+  // were then edited by hand.
 
 ## OCR run history (admin)
 Every OCR run of a page (primary engine plus any fallback) is recorded in D1

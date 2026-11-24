@@ -215,9 +215,12 @@ describe("public routes", () => {
         "GET /api/books/{bookId}/files/{fileId}/text",
         "PATCH /api/books/{bookId}/files/{fileId}/text",
         "GET /api/books/{bookId}/files/{fileId}/text/history",
+        "GET /api/books/{bookId}/files/{fileId}/reviews",
         "GET /api/books/{bookId}/files/{fileId}/image",
         "POST /api/books/{bookId}/files/{fileId}/highlight",
         "POST /api/search/reindex",
+        "GET /api/jobs",
+        "GET /api/reviews/summary",
         "POST /api/admin/ocr-runs/recompute-metrics",
       ].sort(),
     );
@@ -2371,7 +2374,7 @@ describe("every API operation", () => {
         path: path.replace(/\{[^}]+\}/g, "x"),
       })),
     );
-    expect(operations.length).toBe(29);
+    expect(operations.length).toBe(32);
     for (const { method, path } of operations) {
       for (const headers of [{}, { Authorization: "Bearer wrong" }] as Record<
         string,

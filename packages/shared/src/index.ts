@@ -78,6 +78,176 @@ export interface QueueReviewResponse {
   queued: number;
 }
 
+/** Outcome of one page's review try (page_reviews.status). */
+export type PageReviewStatus =
+  | "applied"
+  | "no_changes"
+  | "skipped_hand_edited"
+  | "stale"
+  | "conflict"
+  | "page_gone"
+  | "invalid_output"
+  | "refused"
+  /** errored, expired, canceled: queued again for another try. */
+  | "errored"
+  | "expired"
+  | "canceled"
+  /** Not retried: an invalid request, or the third try in a row without a review. */
+  | "failed";
+
+export interface ReviewedEdit {
+  find: string;
+  replace: string;
+  category: ReviewCategory;
+  /** False when `find` didn't match exactly once (failed to apply). */
+  applied: boolean;
+}
+
+export interface PageReview {
+  batch_id: string;
+  created_at: number;
+  model: string;
+  effort: string;
+  /** Earlier tries of this page that ended without a review. */
+  attempt: number;
+  status: PageReviewStatus;
+  error_type: string | null;
+  error: string | null;
+  edits_proposed: number;
+  edits_applied: number;
+  edits_failed: number;
+  edits: ReviewedEdit[];
+  chars_changed: number;
+  chars_total: number;
+  cost_usd: number;
+  /** The "review" history entry; GET .../text?rev=<id> is the text before it. */
+  revision_id: number | null;
+}
+
+/** GET /api/books/:bookId/files/:fileId/reviews (newest first). */
+export interface PageReviewsResponse {
+  success: true;
+  file_id: string;
+  reviews: PageReview[];
+}
+
+export interface EditCounts {
+  proposed: number;
+  applied: number;
+  /** Failed to apply. */
+  failed: number;
+}
+
+/** GET /api/reviews/summary */
+export interface ReviewSummaryResponse {
+  success: true;
+  since: number;
+  book_id: string | null;
+  pages_reviewed: number;
+  pages_changed: number;
+  pages_not_reviewed: number;
+  pages_skipped: number;
+  by_status: Partial<Record<PageReviewStatus, number>>;
+  edits: EditCounts;
+  by_category: Record<ReviewCategory, EditCounts>;
+  /** Characters changed by applied edits / characters of the reviewed pages. */
+  text_changed_share: number | null;
+  cost_usd: number;
+  cost_per_page_usd: number | null;
+  hand_edited_after_review: number;
+}
+
+export type ReviewBatchStage =
+  | "preparing"
+  | "processing"
+  | "ingesting"
+  | "applying"
+  | "done"
+  | "empty"
+  | "timed_out"
+  | "failed";
+
+export interface ReviewBatchJob {
+  instance_id: string;
+  batch_id: string | null;
+  stage: ReviewBatchStage;
+  /** The Workflow instance's coarse status, for in-flight batches only. */
+  instance_status: string | null;
+  pages: number;
+  /** Pages whose review has been recorded. */
+  reviewed: number;
+  created_at: number;
+  submitted_at: number | null;
+  last_checked_at: number | null;
+  next_check_at: number | null;
+  ended_at: number | null;
+  /** Anthropic's counts as of last_checked_at. */
+  request_counts: {
+    processing: number;
+    succeeded: number;
+    errored: number;
+    expired: number;
+    canceled: number;
+  };
+  edits_applied: number;
+  edits_failed: number;
+  /** Pages that ended without a review (failed or retried). */
+  errors: number;
+  cost_usd: number;
+  error: string | null;
+}
+
+export interface OcrBookJob {
+  book_id: string;
+  title: string;
+  paused: boolean;
+  queued: number;
+  processing: number;
+  rate_limited: number;
+  failed: number;
+  /** Null for paused books. */
+  oldest_queued_at: number | null;
+  done_last_hour: number;
+  /** Counts over the recent window (JobsResponse.ocr.recent_since). */
+  recent_runs: number;
+  fell_back: number;
+  retried: number;
+}
+
+export interface OcrProblemPage {
+  file_id: string;
+  book_id: string;
+  created_at: number;
+  status: string;
+  final_model: string | null;
+  fell_back: boolean;
+  fallback_reason: string | null;
+  delivery_attempt: number;
+  error_type: string | null;
+}
+
+/** GET /api/jobs: running work. Refresh on demand; don't poll. */
+export interface JobsResponse {
+  success: true;
+  now: number;
+  ocr: {
+    books: OcrBookJob[];
+    recent_since: number;
+    problem_pages: OcrProblemPage[];
+  };
+  review: {
+    in_flight: ReviewBatchJob[];
+    waiting: {
+      book_id: string;
+      title: string;
+      pages: number;
+      retrying: number;
+    }[];
+    /** The last 10 finished batches. */
+    recent: ReviewBatchJob[];
+  };
+}
+
 /** A tag (subject/genre), shared across works. */
 export interface Tag {
   id: string;

@@ -38,15 +38,18 @@ import { FileHighlight, fileHighlight } from "../endpoints/fileHighlight";
 import { FileImage, fileImage } from "../endpoints/fileImage";
 import { FileOcr, fileOcr } from "../endpoints/fileOcr";
 import { FileRecent, fileRecent } from "../endpoints/fileRecent";
+import { FileReviews, fileReviews } from "../endpoints/fileReviews";
 import { FileText, fileText } from "../endpoints/fileText";
 import { FileTextEdit, fileTextEdit } from "../endpoints/fileTextEdit";
 import { FileTextHistory, fileTextHistory } from "../endpoints/fileTextHistory";
 import { FileUpdate, fileUpdate } from "../endpoints/fileUpdate";
 import { FileUpload, fileUpload } from "../endpoints/fileUpload";
+import { Jobs, jobs } from "../endpoints/jobs";
 import {
   OcrRunsRecomputeMetrics,
   ocrRunsRecomputeMetrics,
 } from "../endpoints/ocrRunsRecomputeMetrics";
+import { ReviewSummary, reviewSummary } from "../endpoints/reviewSummary";
 import { scanSigned } from "../endpoints/scanSigned";
 import { SearchReindex, searchReindex } from "../endpoints/searchReindex";
 import { TagList, tagList } from "../endpoints/tagList";
@@ -103,6 +106,7 @@ export const Api = HttpApi.make("api")
       FileText,
       FileTextEdit,
       FileTextHistory,
+      FileReviews,
       FileImage,
       FileHighlight,
     ),
@@ -110,6 +114,8 @@ export const Api = HttpApi.make("api")
   // Search indexing (writes only; clients query Meilisearch directly with a
   // read-only key — see infra/meili). Reindex rebuilds the index from R2.
   .add(HttpApiGroup.make("Search").add(SearchReindex))
+  // Running work and the Opus review's usage (read-only views over D1).
+  .add(HttpApiGroup.make("Activity").add(Jobs, ReviewSummary))
   // Admin: recompute the OCR run metrics cache (lib/metrics.ts) in pages.
   .add(HttpApiGroup.make("Admin").add(OcrRunsRecomputeMetrics))
   .middleware(InputValidation)
@@ -155,12 +161,17 @@ const FilesLive = HttpApiBuilder.group(Api, "Files", (handlers) =>
     .handle("fileText", fileText)
     .handle("fileTextEdit", fileTextEdit)
     .handle("fileTextHistory", fileTextHistory)
+    .handle("fileReviews", fileReviews)
     .handle("fileImage", fileImage)
     .handle("fileHighlight", fileHighlight),
 );
 
 const SearchLive = HttpApiBuilder.group(Api, "Search", (handlers) =>
   handlers.handle("searchReindex", searchReindex),
+);
+
+const ActivityLive = HttpApiBuilder.group(Api, "Activity", (handlers) =>
+  handlers.handle("jobs", jobs).handle("reviewSummary", reviewSummary),
 );
 
 const AdminLive = HttpApiBuilder.group(Api, "Admin", (handlers) =>
@@ -191,7 +202,14 @@ const RouteEvent = HttpRouter.middleware((httpEffect) =>
 const ApiLive = HttpApiBuilder.layer(Api, {
   openapiPath: "/openapi.json",
 }).pipe(
-  Layer.provide([BooksLive, WorksLive, FilesLive, SearchLive, AdminLive]),
+  Layer.provide([
+    BooksLive,
+    WorksLive,
+    FilesLive,
+    SearchLive,
+    ActivityLive,
+    AdminLive,
+  ]),
   Layer.provide([AuthorizationLive, InputValidationLive]),
 );
 
