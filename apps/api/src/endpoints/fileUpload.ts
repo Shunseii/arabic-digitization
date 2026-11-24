@@ -1,113 +1,117 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, HttpApiSchema, OpenApi } from "effect/http-api";
+import { type RawEndpointHandler, WorkerContext } from "../http/context";
+import {
+  BadRequest,
+  badRequest,
+  NotFound,
+  notFound,
+  UnsupportedMediaType,
+} from "../http/errors";
+import { respond } from "../http/respond";
 import type { OcrMessage } from "../queue";
-import { type AppContext, FileRecord, UPLOAD_CONTENT_TYPES } from "../types";
+import { FileRecord, UPLOAD_CONTENT_TYPES } from "../types";
 
 // Upload one page fragment (image) into a book.
 //
 // Binding-through-Worker: the raw request body is streamed straight to R2, and
-// the same request inserts the files row (state='captured'). Bytes + bookkeeping
-// in one call. (Queue enqueue will be added here later to trigger OCR.)
+// the same request inserts the files row and enqueues it for OCR. Bytes +
+// bookkeeping in one call.
 //
-// The body is read raw from the request, so it is intentionally NOT declared in
-// the OpenAPI request schema (chanfana would otherwise try to parse it).
-export class FileUpload extends OpenAPIRoute {
-  schema = {
-    tags: ["Files"],
-    summary: "Upload a page fragment (raw image body) to a book",
-    description:
-      "Send the file bytes as the raw request body with a matching Content-Type " +
+// The handler is registered raw (handleRaw), so HttpApi never reads or decodes
+// the body; the payload schema below only documents it.
+export const FileUpload = HttpApiEndpoint.post(
+  "fileUpload",
+  "/api/books/:bookId/files",
+  {
+    params: { bookId: Schema.String },
+    query: {
+      page: Schema.optionalKey(
+        Schema.Int.check(Schema.isGreaterThan(0)).annotate({
+          description: "Printed page number, if known/hidden in the image",
+        }),
+      ),
+    },
+    payload: HttpApiSchema.StreamUint8Array({
+      contentType: [...UPLOAD_CONTENT_TYPES],
+    }),
+    success: Schema.Struct({ success: Schema.Boolean, file: FileRecord }).pipe(
+      HttpApiSchema.status(201),
+    ),
+    error: [BadRequest, NotFound, UnsupportedMediaType],
+  },
+)
+  .annotate(
+    OpenApi.Summary,
+    "Upload a page fragment (raw image body) to a book",
+  )
+  .annotate(
+    OpenApi.Description,
+    "Send the file bytes as the raw request body with a matching Content-Type " +
       "(image/jpeg, image/png, image/webp). Optionally pass ?page " +
       "when the printed page number is hidden in the shot.",
-    request: {
-      params: z.object({ bookId: z.string() }),
-      query: z.object({
-        page: z.coerce
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe("Printed page number, if known/hidden in the image"),
-      }),
-    },
-    responses: {
-      "201": {
-        description: "The created file record",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), file: FileRecord }),
-          },
-        },
-      },
-      "400": { description: "Missing request body" },
-      "404": { description: "No such book" },
-      "415": {
-        description: "Unsupported Content-Type (not an image, e.g. a PDF)",
-      },
-    },
-  };
+  );
 
-  async handle(c: AppContext) {
-    const { params, query } = await this.getValidatedData<typeof this.schema>();
+export const fileUpload: RawEndpointHandler<typeof FileUpload> = ({
+  params,
+  query,
+  request,
+}) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
 
     // Book must exist before we accept files for it.
-    const book = await c.env.DB.prepare("SELECT id FROM books WHERE id = ?")
-      .bind(params.bookId)
-      .first<{ id: string }>();
-    if (!book) {
-      return c.json(
-        { success: false, error: `Book '${params.bookId}' not found` },
-        404,
-      );
-    }
+    const book = yield* Effect.promise(() =>
+      env.DB.prepare("SELECT id FROM books WHERE id = ?")
+        .bind(params.bookId)
+        .first<{ id: string }>(),
+    );
+    if (!book) return yield* notFound(`Book '${params.bookId}' not found`);
 
     const contentType =
-      (c.req.header("content-type") ?? "").split(";")[0]?.trim() ?? "";
+      (request.headers["content-type"] ?? "").split(";")[0]?.trim() ?? "";
     if (!(UPLOAD_CONTENT_TYPES as readonly string[]).includes(contentType)) {
-      return c.json(
-        {
-          success: false,
-          error: `Unsupported Content-Type '${contentType}'. Upload a page image (${UPLOAD_CONTENT_TYPES.join(", ")}); PDFs aren't supported, export each page as an image first.`,
-        },
-        415,
-      );
+      return yield* new UnsupportedMediaType({
+        success: false,
+        error: `Unsupported Content-Type '${contentType}'. Upload a page image (${UPLOAD_CONTENT_TYPES.join(", ")}); PDFs aren't supported, export each page as an image first.`,
+      });
     }
 
-    const body = c.req.raw.body;
-    if (!body) {
-      return c.json({ success: false, error: "Missing request body" }, 400);
-    }
+    const body = (request.source as Request).body;
+    if (!body) return yield* badRequest("Missing request body");
 
     const fileId = crypto.randomUUID();
     const r2Key = `books/${params.bookId}/scans/${fileId}`;
-
-    await c.env.BUCKET.put(r2Key, body, {
-      httpMetadata: { contentType },
-    });
+    yield* Effect.promise(() =>
+      env.BUCKET.put(r2Key, body, { httpMetadata: { contentType } }),
+    );
 
     const now = Date.now();
     const pageNumber = query.page ?? null;
-    await c.env.DB.prepare(
-      `INSERT INTO files (file_id, book_id, r2_key, state, page_number, created_at, updated_at)
+    yield* Effect.promise(() =>
+      env.DB.prepare(
+        `INSERT INTO files (file_id, book_id, r2_key, state, page_number, created_at, updated_at)
 			 VALUES (?, ?, ?, 'queued', ?, ?, ?)`,
-    )
-      .bind(fileId, params.bookId, r2Key, pageNumber, now, now)
-      .run();
+      )
+        .bind(fileId, params.bookId, r2Key, pageNumber, now, now)
+        .run(),
+    );
 
     // Trigger OCR off the request path.
-    await c.env.OCR_Q.send({
-      fileId,
-      trigger: "upload",
-    } satisfies OcrMessage);
+    yield* Effect.promise(() =>
+      env.OCR_Q.send({ fileId, trigger: "upload" } satisfies OcrMessage),
+    );
 
-    return c.json(
-      {
+    return respond({
+      endpoint: FileUpload,
+      status: 201,
+      body: {
         success: true,
         file: {
           file_id: fileId,
           book_id: params.bookId,
           r2_key: r2Key,
-          state: "queued",
+          state: "queued" as const,
           text_key: null,
           page_number: pageNumber,
           role: null,
@@ -116,7 +120,5 @@ export class FileUpload extends OpenAPIRoute {
           updated_at: now,
         },
       },
-      201,
-    );
-  }
-}
+    });
+  });

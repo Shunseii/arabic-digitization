@@ -1,51 +1,35 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { NotFound, notFound } from "../http/errors";
+import { respond } from "../http/respond";
 import { reindexWork } from "../lib/reindex";
 import { getWorkTags, setWorkTags } from "../lib/tags";
-import { type AppContext, Work, WorkUpdateBody } from "../types";
+import { Work, WorkUpdateBody } from "../types";
 
-export class WorkUpdate extends OpenAPIRoute {
-  schema = {
-    tags: ["Works"],
-    summary: "Update a work (name, author, tags)",
-    request: {
-      params: z.object({ workId: z.string() }),
-      body: {
-        content: { "application/json": { schema: WorkUpdateBody } },
-      },
-    },
-    responses: {
-      "200": {
-        description: "The updated work",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), work: Work }),
-          },
-        },
-      },
-      "404": {
-        description: "No such work",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), error: z.string() }),
-          },
-        },
-      },
-    },
-  };
+export const WorkUpdate = HttpApiEndpoint.patch(
+  "workUpdate",
+  "/api/works/:workId",
+  {
+    params: { workId: Schema.String },
+    payload: WorkUpdateBody,
+    success: Schema.Struct({ success: Schema.Boolean, work: Work }),
+    error: NotFound,
+  },
+).annotate(OpenApi.Summary, "Update a work (name, author, tags)");
 
-  async handle(c: AppContext) {
-    const { params, body } = await this.getValidatedData<typeof this.schema>();
-
-    const exists = await c.env.DB.prepare("SELECT id FROM works WHERE id = ?")
-      .bind(params.workId)
-      .first<{ id: string }>();
-    if (!exists) {
-      return c.json(
-        { success: false, error: `Work '${params.workId}' not found` },
-        404,
-      );
-    }
+export const workUpdate: EndpointHandler<typeof WorkUpdate> = ({
+  params,
+  payload: body,
+}) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
+    const exists = yield* Effect.promise(() =>
+      env.DB.prepare("SELECT id FROM works WHERE id = ?")
+        .bind(params.workId)
+        .first<{ id: string }>(),
+    );
+    if (!exists) return yield* notFound(`Work '${params.workId}' not found`);
 
     const sets: string[] = [];
     const binds: (string | null)[] = [];
@@ -58,44 +42,55 @@ export class WorkUpdate extends OpenAPIRoute {
       binds.push(body.author); // null clears
     }
     if (sets.length > 0) {
-      await c.env.DB.prepare(`UPDATE works SET ${sets.join(", ")} WHERE id = ?`)
-        .bind(...binds, params.workId)
-        .run();
+      yield* Effect.promise(() =>
+        env.DB.prepare(`UPDATE works SET ${sets.join(", ")} WHERE id = ?`)
+          .bind(...binds, params.workId)
+          .run(),
+      );
     }
 
-    if (body.tags !== undefined) {
-      await setWorkTags({
-        env: c.env,
-        workId: params.workId,
-        names: body.tags,
-      });
+    const tags = body.tags;
+    if (tags !== undefined) {
+      yield* Effect.promise(() =>
+        setWorkTags({ env, workId: params.workId, names: [...tags] }),
+      );
     }
 
     // name/author/tags are all denormalized onto every chunk of this work's
     // copies — reindex them so search facets/hits reflect the edit. Best-effort:
     // staleness must not fail the write (POST /api/search/reindex is the backstop).
-    if (c.env.MEILI_URL && c.env.MEILI_KEY) {
-      try {
-        await reindexWork({ env: c.env, workId: params.workId });
-      } catch (err) {
-        console.error(
-          `search reindex failed for work ${params.workId}: ${err}`,
-        );
-      }
+    if (env.MEILI_URL && env.MEILI_KEY) {
+      yield* Effect.promise(async () => {
+        try {
+          await reindexWork({ env, workId: params.workId });
+        } catch (err) {
+          console.error(
+            `search reindex failed for work ${params.workId}: ${err}`,
+          );
+        }
+      });
     }
 
-    const row = await c.env.DB.prepare(
-      "SELECT id, name, author, created_at FROM works WHERE id = ?",
-    )
-      .bind(params.workId)
-      .first<{
-        id: string;
-        name: string;
-        author: string | null;
-        created_at: number;
-      }>();
-    const tags = await getWorkTags({ env: c.env, workId: params.workId });
+    const row = yield* Effect.promise(() =>
+      env.DB.prepare(
+        "SELECT id, name, author, created_at FROM works WHERE id = ?",
+      )
+        .bind(params.workId)
+        .first<{
+          id: string;
+          name: string;
+          author: string | null;
+          created_at: number;
+        }>(),
+    );
+    const workTags = yield* Effect.promise(() =>
+      getWorkTags({ env, workId: params.workId }),
+    );
 
-    return c.json({ success: true, work: { ...row, tags } });
-  }
-}
+    // The row was checked above; a concurrent delete is the only way it's gone.
+    if (!row) return yield* notFound(`Work '${params.workId}' not found`);
+    return respond({
+      endpoint: WorkUpdate,
+      body: { success: true, work: { ...row, tags: workTags } },
+    });
+  });

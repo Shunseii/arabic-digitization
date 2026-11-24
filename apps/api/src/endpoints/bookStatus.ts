@@ -1,84 +1,82 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { NotFound, notFound } from "../http/errors";
+import { respond } from "../http/respond";
 import { costUsd } from "../lib/cost";
-import { type AppContext, FileStatus } from "../types";
+import { FileStatus } from "../types";
+
+type FileStatusRow = Omit<typeof FileStatus.Type, "cost_usd"> & {
+  ocr_model: string | null;
+};
+
+const COLUMNS =
+  "file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, ocr_model";
 
 // Per-file status for a book (no transcription text). With `since`, returns only
 // files updated after that time; `files_total` lets the client detect deletions
 // (a merged list longer than `files_total` means it must refetch in full).
-export class BookStatus extends OpenAPIRoute {
-  schema = {
-    tags: ["Files"],
-    summary: "List a book's files with their states",
-    request: {
-      params: z.object({ bookId: z.string() }),
-      query: z.object({
-        since: z.coerce
-          .number()
-          .int()
-          .nonnegative()
-          .optional()
-          .describe(
+export const BookStatus = HttpApiEndpoint.get(
+  "bookStatus",
+  "/api/books/:bookId/status",
+  {
+    params: { bookId: Schema.String },
+    query: {
+      // An empty `since=` means 0, as it always has (Number("") is 0).
+      since: Schema.optionalKey(
+        Schema.Union([
+          Schema.Literal(""),
+          Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+        ]).annotate({
+          description:
             "Epoch ms; only return files with updated_at > since. Omit for all files.",
-          ),
-      }),
+        }),
+      ),
     },
-    responses: {
-      "200": {
-        description: "Files ordered by page number",
-        content: {
-          "application/json": {
-            schema: z.object({
-              success: z.boolean(),
-              files: FileStatus.array(),
-              files_total: z.number().int(),
-            }),
-          },
-        },
-      },
-      "404": { description: "No such book" },
-    },
-  };
+    success: Schema.Struct({
+      success: Schema.Boolean,
+      files: Schema.Array(FileStatus),
+      files_total: Schema.Int,
+    }),
+    error: NotFound,
+  },
+).annotate(OpenApi.Summary, "List a book's files with their states");
 
-  async handle(c: AppContext) {
-    const { params, query } = await this.getValidatedData<typeof this.schema>();
-
-    const book = await c.env.DB.prepare("SELECT id FROM books WHERE id = ?")
-      .bind(params.bookId)
-      .first<{ id: string }>();
-    if (!book) {
-      return c.json(
-        { success: false, error: `Book '${params.bookId}' not found` },
-        404,
-      );
-    }
-
-    const columns =
-      "file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, ocr_model";
+export const bookStatus: EndpointHandler<typeof BookStatus> = ({
+  params,
+  query,
+}) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
+    const since = query.since === "" ? 0 : query.since;
     const filesQuery =
-      query.since === undefined
-        ? c.env.DB.prepare(
-            `SELECT ${columns} FROM files WHERE book_id = ?
+      since === undefined
+        ? env.DB.prepare(
+            `SELECT ${COLUMNS} FROM files WHERE book_id = ?
 			 ORDER BY page_number IS NULL, page_number, order_hint`,
           ).bind(params.bookId)
-        : c.env.DB.prepare(
-            `SELECT ${columns} FROM files WHERE book_id = ? AND updated_at > ?
+        : env.DB.prepare(
+            `SELECT ${COLUMNS} FROM files WHERE book_id = ? AND updated_at > ?
 			 ORDER BY page_number IS NULL, page_number, order_hint`,
-          ).bind(params.bookId, query.since);
+          ).bind(params.bookId, since);
 
-    const total = await c.env.DB.prepare(
-      "SELECT COALESCE(SUM(n), 0) AS n FROM book_state_counts WHERE book_id = ?",
-    )
-      .bind(params.bookId)
-      .first<{ n: number }>();
+    // One round trip: the book check, the file count, and the files.
+    const [bookResult, totalResult, filesResult] = yield* Effect.promise(() =>
+      env.DB.batch<unknown>([
+        env.DB.prepare("SELECT id FROM books WHERE id = ?").bind(params.bookId),
+        env.DB.prepare(
+          "SELECT COALESCE(SUM(n), 0) AS n FROM book_state_counts WHERE book_id = ?",
+        ).bind(params.bookId),
+        filesQuery,
+      ]),
+    );
+    if (!bookResult?.results.length) {
+      return yield* notFound(`Book '${params.bookId}' not found`);
+    }
+    const total = totalResult?.results[0] as { n: number } | undefined;
+    const rows = (filesResult?.results ?? []) as FileStatusRow[];
 
-    const { results } = await filesQuery.all<
-      Omit<z.infer<typeof FileStatus>, "cost_usd"> & {
-        ocr_model: string | null;
-      }
-    >();
-
-    const files = results.map(({ ocr_model, ...f }) => ({
+    const files = rows.map(({ ocr_model, ...f }) => ({
       ...f,
       cost_usd: costUsd({
         model: ocr_model,
@@ -87,6 +85,8 @@ export class BookStatus extends OpenAPIRoute {
       }),
     }));
 
-    return c.json({ success: true, files, files_total: total?.n ?? 0 });
-  }
-}
+    return respond({
+      endpoint: BookStatus,
+      body: { success: true, files, files_total: total?.n ?? 0 },
+    });
+  });

@@ -1,66 +1,67 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { NotFound, notFound } from "../http/errors";
+import { respond } from "../http/respond";
 import { type OcrMessage, requeueTrigger } from "../queue";
-import { type AppContext, FileState } from "../types";
+import { FileState } from "../types";
 
-const RequeueBody = z.object({
-  // States to re-OCR; defaults to the ones worth retrying.
-  states: FileState.array().nonempty().optional(),
-});
+const DEFAULT_STATES = ["failed", "rate_limited"];
+
+// The body is optional (empty or null): that requeues the default states.
+const RequeueBody = [
+  Schema.Struct({
+    // States to re-OCR; defaults to the ones worth retrying.
+    states: Schema.optionalKey(
+      Schema.Array(FileState).check(Schema.isMinLength(1)),
+    ),
+  }),
+  Schema.Null,
+];
 
 // Bulk re-OCR: move every file in the given states back to 'queued' and drop
 // them on the OCR queue. Defaults to 'failed' + 'rate_limited'. Everything flows
 // through the throttled, auto-retrying consumer, so requeuing a whole book at
 // once is safe — no rate-limit storm. Also the way to re-apply changed
 // ocr_instructions or ocr_engine to already-done pages (pass states: ["done"]).
-export class BookRequeue extends OpenAPIRoute {
-  schema = {
-    tags: ["Books"],
-    summary: "Re-queue a book's files for OCR (bulk)",
-    request: {
-      params: z.object({ bookId: z.string() }),
-      body: {
-        content: { "application/json": { schema: RequeueBody } },
-      },
-    },
-    responses: {
-      "200": {
-        description: "Files re-queued",
-        content: {
-          "application/json": {
-            schema: z.object({
-              success: z.boolean(),
-              requeued: z.number().int(),
-              states: z.string().array(),
-            }),
-          },
-        },
-      },
-      "404": { description: "No such book" },
-    },
-  };
+export const BookRequeue = HttpApiEndpoint.post(
+  "bookRequeue",
+  "/api/books/:bookId/requeue",
+  {
+    params: { bookId: Schema.String },
+    payload: RequeueBody,
+    success: Schema.Struct({
+      success: Schema.Boolean,
+      requeued: Schema.Int,
+      states: Schema.Array(Schema.String),
+    }),
+    error: NotFound,
+  },
+).annotate(OpenApi.Summary, "Re-queue a book's files for OCR (bulk)");
 
-  async handle(c: AppContext) {
-    const { params, body } = await this.getValidatedData<typeof this.schema>();
+export const bookRequeue: EndpointHandler<typeof BookRequeue> = ({
+  params,
+  payload,
+}) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
+    const book = yield* Effect.promise(() =>
+      env.DB.prepare("SELECT id FROM books WHERE id = ?")
+        .bind(params.bookId)
+        .first<{ id: string }>(),
+    );
+    if (!book) return yield* notFound(`Book '${params.bookId}' not found`);
 
-    const book = await c.env.DB.prepare("SELECT id FROM books WHERE id = ?")
-      .bind(params.bookId)
-      .first<{ id: string }>();
-    if (!book) {
-      return c.json(
-        { success: false, error: `Book '${params.bookId}' not found` },
-        404,
-      );
-    }
-
-    const states = body?.states ?? ["failed", "rate_limited"];
+    const states = [...(payload?.states ?? DEFAULT_STATES)];
     const placeholders = states.map(() => "?").join(", ");
 
-    const { results } = await c.env.DB.prepare(
-      `SELECT file_id, state FROM files WHERE book_id = ? AND state IN (${placeholders})`,
-    )
-      .bind(params.bookId, ...states)
-      .all<{ file_id: string; state: string }>();
+    const { results } = yield* Effect.promise(() =>
+      env.DB.prepare(
+        `SELECT file_id, state FROM files WHERE book_id = ? AND state IN (${placeholders})`,
+      )
+        .bind(params.bookId, ...states)
+        .all<{ file_id: string; state: string }>(),
+    );
 
     const messages = results.map(
       (r): OcrMessage => ({
@@ -69,23 +70,30 @@ export class BookRequeue extends OpenAPIRoute {
       }),
     );
     if (messages.length === 0) {
-      return c.json({ success: true, requeued: 0, states });
+      return respond({
+        endpoint: BookRequeue,
+        body: { success: true, requeued: 0, states },
+      });
     }
 
-    const now = Date.now();
-    await c.env.DB.prepare(
-      `UPDATE files SET state = 'queued', error = NULL, updated_at = ? WHERE book_id = ? AND state IN (${placeholders})`,
-    )
-      .bind(now, params.bookId, ...states)
-      .run();
+    yield* Effect.promise(() =>
+      env.DB.prepare(
+        `UPDATE files SET state = 'queued', error = NULL, updated_at = ? WHERE book_id = ? AND state IN (${placeholders})`,
+      )
+        .bind(Date.now(), params.bookId, ...states)
+        .run(),
+    );
 
     // Cloudflare Queues cap a batch at 100 messages.
     for (let i = 0; i < messages.length; i += 100) {
-      await c.env.OCR_Q.sendBatch(
-        messages.slice(i, i + 100).map((body) => ({ body })),
+      const batch = messages.slice(i, i + 100);
+      yield* Effect.promise(() =>
+        env.OCR_Q.sendBatch(batch.map((body) => ({ body }))),
       );
     }
 
-    return c.json({ success: true, requeued: messages.length, states });
-  }
-}
+    return respond({
+      endpoint: BookRequeue,
+      body: { success: true, requeued: messages.length, states },
+    });
+  });

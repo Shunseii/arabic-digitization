@@ -1,6 +1,12 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
-import { type AppContext, BookWithStatus, type OcrEngine } from "../types";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { respond } from "../http/respond";
+import {
+  BookWithStatus,
+  type BookWithStatus as BookWithStatusType,
+  type OcrEngine,
+} from "../types";
 
 // Row shape returned by the aggregate query (one row per book).
 interface BookCountRow {
@@ -14,51 +20,47 @@ interface BookCountRow {
   state_count: number;
 }
 
-export class BookList extends OpenAPIRoute {
-  schema = {
-    tags: ["Books"],
-    summary: "List books with per-state file counts",
-    responses: {
-      "200": {
-        description: "All books, newest first",
-        content: {
-          "application/json": {
-            schema: z.object({
-              success: z.boolean(),
-              books: BookWithStatus.array(),
-            }),
-          },
-        },
-      },
-    },
-  };
+export const BookList = HttpApiEndpoint.get("bookList", "/api/books", {
+  success: Schema.Struct({
+    success: Schema.Boolean,
+    books: Schema.Array(BookWithStatus),
+  }),
+}).annotate(OpenApi.Summary, "List books with per-state file counts");
 
-  async handle(c: AppContext) {
+export const bookList: EndpointHandler<typeof BookList> = () =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
     // One row per (book, state) from the trigger-maintained counters; books
     // with no files yield a single row with NULL state.
-    const { results } = await c.env.DB.prepare(
-      `SELECT b.id, b.title, b.created_at, b.work_id, b.ocr_engine, b.paused,
+    const { results } = yield* Effect.promise(() =>
+      env.DB.prepare(
+        `SELECT b.id, b.title, b.created_at, b.work_id, b.ocr_engine, b.paused,
 			        s.state AS state, s.n AS state_count
 			 FROM books b
 			 LEFT JOIN book_state_counts s ON s.book_id = b.id AND s.n > 0
 			 ORDER BY b.created_at DESC`,
-    ).all<BookCountRow>();
+      ).all<BookCountRow>(),
+    );
 
-    const byId = new Map<string, z.infer<typeof BookWithStatus>>();
+    const byId = new Map<
+      string,
+      BookWithStatusType & {
+        files_total: number;
+        counts: Record<string, number>;
+      }
+    >();
     for (const row of results) {
       const existing = byId.get(row.id);
-      const book =
-        existing ??
-        ({
-          id: row.id,
-          title: row.title,
-          created_at: row.created_at,
-          work_id: row.work_id,
-          ocr_engine: row.ocr_engine,
-          paused: row.paused === 1,
-          files_total: 0,
-          counts: {},
-        } satisfies z.infer<typeof BookWithStatus>);
+      const book = existing ?? {
+        id: row.id,
+        title: row.title,
+        created_at: row.created_at,
+        work_id: row.work_id,
+        ocr_engine: row.ocr_engine,
+        paused: row.paused === 1,
+        files_total: 0,
+        counts: {},
+      };
       if (!existing) byId.set(row.id, book);
       if (row.state) {
         book.counts[row.state] = row.state_count;
@@ -66,6 +68,8 @@ export class BookList extends OpenAPIRoute {
       }
     }
 
-    return c.json({ success: true, books: [...byId.values()] });
-  }
-}
+    return respond({
+      endpoint: BookList,
+      body: { success: true, books: [...byId.values()] },
+    });
+  });

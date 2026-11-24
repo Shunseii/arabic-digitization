@@ -1,40 +1,34 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { NotFound, notFound } from "../http/errors";
+import { respond } from "../http/respond";
 import { reindexBook } from "../lib/reindex";
-import { type AppContext, Book, BookUpdateBody } from "../types";
+import { Book, BookUpdateBody, type OcrEngine } from "../types";
 
-export class BookUpdate extends OpenAPIRoute {
-  schema = {
-    tags: ["Books"],
-    summary: "Update a book (e.g. its OCR instructions or engine)",
-    request: {
-      params: z.object({ bookId: z.string() }),
-      body: {
-        content: { "application/json": { schema: BookUpdateBody } },
-      },
-    },
-    responses: {
-      "200": {
-        description: "The updated book",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), book: Book }),
-          },
-        },
-      },
-      "404": {
-        description: "No such book",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), error: z.string() }),
-          },
-        },
-      },
-    },
-  };
+export const BookUpdate = HttpApiEndpoint.patch(
+  "bookUpdate",
+  "/api/books/:bookId",
+  {
+    params: { bookId: Schema.String },
+    payload: BookUpdateBody,
+    success: Schema.Struct({
+      success: Schema.Boolean,
+      book: Schema.NullOr(Book),
+    }),
+    error: NotFound,
+  },
+).annotate(
+  OpenApi.Summary,
+  "Update a book (e.g. its OCR instructions or engine)",
+);
 
-  async handle(c: AppContext) {
-    const { params, body } = await this.getValidatedData<typeof this.schema>();
+export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
+  params,
+  payload: body,
+}) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
 
     // Build the SET clause from only the provided fields.
     const sets: string[] = [];
@@ -56,17 +50,13 @@ export class BookUpdate extends OpenAPIRoute {
       binds.push(body.work_id); // null unlinks (flat)
     }
 
-    const result = await c.env.DB.prepare(
-      `UPDATE books SET ${sets.join(", ")} WHERE id = ?`,
-    )
-      .bind(...binds, params.bookId)
-      .run();
-
+    const result = yield* Effect.promise(() =>
+      env.DB.prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = ?`)
+        .bind(...binds, params.bookId)
+        .run(),
+    );
     if (result.meta.changes === 0) {
-      return c.json(
-        { success: false, error: `Book '${params.bookId}' not found` },
-        404,
-      );
+      return yield* notFound(`Book '${params.bookId}' not found`);
     }
 
     // Both title (indexed as book_title) and work_id (drives work_name/author/
@@ -75,25 +65,39 @@ export class BookUpdate extends OpenAPIRoute {
     // backstop). Only when Meili is configured and a denormalized field moved.
     const denormChanged =
       body.title !== undefined || body.work_id !== undefined;
-    if (denormChanged && c.env.MEILI_URL && c.env.MEILI_KEY) {
-      try {
-        await reindexBook({ env: c.env, bookId: params.bookId });
-      } catch (err) {
-        console.error(
-          `search reindex failed for book ${params.bookId}: ${err}`,
-        );
-      }
+    if (denormChanged && env.MEILI_URL && env.MEILI_KEY) {
+      yield* Effect.promise(async () => {
+        try {
+          await reindexBook({ env, bookId: params.bookId });
+        } catch (err) {
+          console.error(
+            `search reindex failed for book ${params.bookId}: ${err}`,
+          );
+        }
+      });
     }
 
-    const book = await c.env.DB.prepare(
-      "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused FROM books WHERE id = ?",
-    )
-      .bind(params.bookId)
-      .first<{ paused: number }>();
+    const book = yield* Effect.promise(() =>
+      env.DB.prepare(
+        "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused FROM books WHERE id = ?",
+      )
+        .bind(params.bookId)
+        .first<{
+          id: string;
+          title: string;
+          created_at: number;
+          ocr_instructions: string | null;
+          ocr_engine: OcrEngine | null;
+          work_id: string | null;
+          paused: number;
+        }>(),
+    );
 
-    return c.json({
-      success: true,
-      book: book && { ...book, paused: book.paused === 1 },
+    return respond({
+      endpoint: BookUpdate,
+      body: {
+        success: true,
+        book: book && { ...book, paused: book.paused === 1 },
+      },
     });
-  }
-}
+  });

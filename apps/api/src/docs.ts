@@ -12,6 +12,8 @@ retrievable per-page or in bulk.
 Every /api/* request requires:
   Authorization: Bearer <MASTER_KEY>
 Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
+JSON request bodies need Content-Type: application/json; another type -> 415,
+malformed JSON -> 400.
 
 ## Concepts
 - A "book" is a collection of uploaded files. Books have an id (slug) and title.

@@ -1,57 +1,43 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { NotFound, notFound } from "../http/errors";
+import { respond } from "../http/respond";
 import { getWorkTags } from "../lib/tags";
-import { type AppContext, Work } from "../types";
+import { Work } from "../types";
 
-export class WorkFetch extends OpenAPIRoute {
-  schema = {
-    tags: ["Works"],
-    summary: "Fetch one work with its tags",
-    request: {
-      params: z.object({ workId: z.string() }),
-    },
-    responses: {
-      "200": {
-        description: "The work",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), work: Work }),
-          },
-        },
-      },
-      "404": {
-        description: "No such work",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), error: z.string() }),
-          },
-        },
-      },
-    },
-  };
+export const WorkFetch = HttpApiEndpoint.get(
+  "workFetch",
+  "/api/works/:workId",
+  {
+    params: { workId: Schema.String },
+    success: Schema.Struct({ success: Schema.Boolean, work: Work }),
+    error: NotFound,
+  },
+).annotate(OpenApi.Summary, "Fetch one work with its tags");
 
-  async handle(c: AppContext) {
-    const { params } = await this.getValidatedData<typeof this.schema>();
+export const workFetch: EndpointHandler<typeof WorkFetch> = ({ params }) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
+    const work = yield* Effect.promise(() =>
+      env.DB.prepare(
+        "SELECT id, name, author, created_at FROM works WHERE id = ?",
+      )
+        .bind(params.workId)
+        .first<{
+          id: string;
+          name: string;
+          author: string | null;
+          created_at: number;
+        }>(),
+    );
+    if (!work) return yield* notFound(`Work '${params.workId}' not found`);
 
-    const work = await c.env.DB.prepare(
-      "SELECT id, name, author, created_at FROM works WHERE id = ?",
-    )
-      .bind(params.workId)
-      .first<{
-        id: string;
-        name: string;
-        author: string | null;
-        created_at: number;
-      }>();
-
-    if (!work) {
-      return c.json(
-        { success: false, error: `Work '${params.workId}' not found` },
-        404,
-      );
-    }
-
-    const tags = await getWorkTags({ env: c.env, workId: params.workId });
-    return c.json({ success: true, work: { ...work, tags } });
-  }
-}
+    const tags = yield* Effect.promise(() =>
+      getWorkTags({ env, workId: params.workId }),
+    );
+    return respond({
+      endpoint: WorkFetch,
+      body: { success: true, work: { ...work, tags } },
+    });
+  });

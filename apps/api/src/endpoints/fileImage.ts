@@ -1,54 +1,41 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
-import type { AppContext } from "../types";
+import { Effect, Schema } from "effect";
+import { HttpServerResponse } from "effect/http";
+import { HttpApiEndpoint, HttpApiSchema, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { NotFound, notFound } from "../http/errors";
 
 // Stream the original scanned image bytes for a file (from R2). Gated behind
 // the master key like the rest of /api, so clients pass the Authorization
 // header (e.g. React Native's <Image source={{ uri, headers }}>).
-export class FileImage extends OpenAPIRoute {
-  schema = {
-    tags: ["Files"],
-    summary: "Get the original scanned image bytes",
-    request: {
-      params: z.object({ bookId: z.string(), fileId: z.string() }),
-    },
-    responses: {
-      "200": { description: "The scanned image bytes" },
-      "404": {
-        description: "No such file or scan object",
-        content: {
-          "application/json": {
-            schema: z.object({ success: z.boolean(), error: z.string() }),
-          },
-        },
-      },
-    },
-  };
+export const FileImage = HttpApiEndpoint.get(
+  "fileImage",
+  "/api/books/:bookId/files/:fileId/image",
+  {
+    params: { bookId: Schema.String, fileId: Schema.String },
+    success: HttpApiSchema.StreamUint8Array({
+      contentType: ["image/jpeg", "image/png", "image/webp"],
+    }),
+    error: NotFound,
+  },
+).annotate(OpenApi.Summary, "Get the original scanned image bytes");
 
-  async handle(c: AppContext) {
-    const { params } = await this.getValidatedData<typeof this.schema>();
+export const fileImage: EndpointHandler<typeof FileImage> = ({ params }) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
+    const row = yield* Effect.promise(() =>
+      env.DB.prepare(
+        "SELECT r2_key FROM files WHERE file_id = ? AND book_id = ?",
+      )
+        .bind(params.fileId, params.bookId)
+        .first<{ r2_key: string }>(),
+    );
+    if (!row) return yield* notFound(`File '${params.fileId}' not found`);
 
-    const row = await c.env.DB.prepare(
-      "SELECT r2_key FROM files WHERE file_id = ? AND book_id = ?",
-    )
-      .bind(params.fileId, params.bookId)
-      .first<{ r2_key: string }>();
-    if (!row) {
-      return c.json(
-        { success: false, error: `File '${params.fileId}' not found` },
-        404,
-      );
-    }
+    const obj = yield* Effect.promise(() => env.BUCKET.get(row.r2_key));
+    if (!obj) return yield* notFound("Scan object missing");
 
-    const obj = await c.env.BUCKET.get(row.r2_key);
-    if (!obj) {
-      return c.json({ success: false, error: "Scan object missing" }, 404);
-    }
-
-    return c.body(obj.body, 200, {
-      "content-type":
-        obj.httpMetadata?.contentType ?? "application/octet-stream",
-      "cache-control": "private, max-age=3600",
+    return HttpServerResponse.raw(obj.body, {
+      contentType: obj.httpMetadata?.contentType ?? "application/octet-stream",
+      headers: { "cache-control": "private, max-age=3600" },
     });
-  }
-}
+  });

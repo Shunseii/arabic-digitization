@@ -20,21 +20,12 @@ importers:
 
   apps/api:
     dependencies:
-      chanfana:
-        specifier: ^3.3.0
-        version: 3.3.0
       effect:
         specifier: 4.1.5
         version: 4.1.5
       evlog:
         specifier: 2.37.1
-        version: 2.37.1(effect@4.1.5)(hono@4.12.25)(vite@6.4.3(@types/node@25.9.3)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0))
-      hono:
-        specifier: ^4.12.12
-        version: 4.12.25
-      zod:
-        specifier: ^4.3.6
-        version: 4.4.3
+        version: 2.37.1(effect@4.1.5)(vite@6.4.3(@types/node@25.9.3)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0))
     devDependencies:
       '@types/node':
         specifier: ^25.9.3
@@ -326,11 +317,6 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
-
-  '@asteasolutions/zod-to-openapi@8.5.0':
-    resolution: {integrity: sha512-SABbKiObg5dLRiTFnqiW1WWwGcg1BJfmHtT2asIBnBHg6Smy/Ms2KHc650+JI4Hw7lSkdiNebEGXpwoxfben8Q==}
-    peerDependencies:
-      zod: ^4.0.0
 
   '@babel/code-frame@7.10.4':
     resolution: {integrity: sha512-vG6SvB6oYEhvgisZNFRmRCUkLz11c7rp+tbNTynGqc6mS1d5ATd/sGyV6W0KZZnXRKMTzZDRgQT3Ou9jhpAfUg==}
@@ -2822,11 +2808,6 @@ packages:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
 
-  chanfana@3.3.0:
-    resolution: {integrity: sha512-YKZkjymihSi9Wiwb4BbdMzXH7j9OxT4KS+5b9Y9ZUsj6Wthfodkw81cgoSEOMvgMTicCryohKhKZSIKCA6GFQA==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   chokidar@3.6.0:
     resolution: {integrity: sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==}
     engines: {node: '>= 8.10.0'}
@@ -3811,10 +3792,6 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.25:
-    resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
-    engines: {node: '>=16.9.0'}
-
   hosted-git-info@4.1.0:
     resolution: {integrity: sha512-kyCuEOWjJqZuDbRHzL8V93NzQhwIB71oFWSyzVo+KPZI+pnQPPxucdkrOZvkLRnrf5URsQM+IJ09Dw29cRALIA==}
     engines: {node: '>=10'}
@@ -4770,9 +4747,6 @@ packages:
   open@8.4.2:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
-
-  openapi3-ts@4.6.0:
-    resolution: {integrity: sha512-a4sfn6L2sIShhtzJqmjGrARvxAW/3F2BJDdyRVvNF9VhAsZSh5hSyI3a9TNvmzBxXmq66nY5LNT5bQcBxYAZZg==}
 
   ora@3.4.0:
     resolution: {integrity: sha512-eNwHudNbO1folBP3JsZ19v9azXWtQZjICdr3Q0TDPIaeBQ3mXLrh54wM+er0+hSp+dWKf+Z8KM58CYzEyIYxYg==}
@@ -6073,10 +6047,6 @@ packages:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
 
-  yargs-parser@22.0.0:
-    resolution: {integrity: sha512-rwu/ClNdSMpkSrUb+d6BRsSkLUq1fmfsY6TOpYzTwvwkg1/NRG85KBy3kq++A8LKQwX6lsu+aWad+2khvuXrqw==}
-    engines: {node: ^20.19.0 || ^22.12.0 || >=23}
-
   yargs@17.7.2:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
@@ -6097,9 +6067,6 @@ packages:
   zip-stream@4.1.1:
     resolution: {integrity: sha512-9qv4rlDiopXg4E69k+vMHjNN63YFMe9sZMrdlvKnCjlCRWeCBswPPMPUfx+ipsAWq1LXHe70RcbaHdJJpS6hyQ==}
     engines: {node: '>= 10'}
-
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -6194,11 +6161,6 @@ snapshots:
       '@algolia/client-common': 5.55.0
 
   '@alloc/quick-lru@5.2.0': {}
-
-  '@asteasolutions/zod-to-openapi@8.5.0(zod@4.4.3)':
-    dependencies:
-      openapi3-ts: 4.6.0
-      zod: 4.4.3
 
   '@babel/code-frame@7.10.4':
     dependencies:
@@ -8993,14 +8955,6 @@ snapshots:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
 
-  chanfana@3.3.0:
-    dependencies:
-      '@asteasolutions/zod-to-openapi': 8.5.0(zod@4.4.3)
-      js-yaml: 4.2.0
-      openapi3-ts: 4.6.0
-      yargs-parser: 22.0.0
-      zod: 4.4.3
-
   chokidar@3.6.0:
     dependencies:
       anymatch: 3.1.3
@@ -9536,10 +9490,9 @@ snapshots:
 
   event-target-shim@5.0.1: {}
 
-  evlog@2.37.1(effect@4.1.5)(hono@4.12.25)(vite@6.4.3(@types/node@25.9.3)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)):
+  evlog@2.37.1(effect@4.1.5)(vite@6.4.3(@types/node@25.9.3)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)):
     optionalDependencies:
       effect: 4.1.5
-      hono: 4.12.25
       vite: 6.4.3(@types/node@25.9.3)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.48.0)(yaml@2.9.0)
 
   expect-type@1.4.0: {}
@@ -10078,8 +10031,6 @@ snapshots:
   hoist-non-react-statics@3.3.2:
     dependencies:
       react-is: 16.13.1
-
-  hono@4.12.25: {}
 
   hosted-git-info@4.1.0:
     dependencies:
@@ -11234,10 +11185,6 @@ snapshots:
       define-lazy-prop: 2.0.0
       is-docker: 2.2.1
       is-wsl: 2.2.0
-
-  openapi3-ts@4.6.0:
-    dependencies:
-      yaml: 2.9.0
 
   ora@3.4.0:
     dependencies:
@@ -12532,8 +12479,6 @@ snapshots:
 
   yargs-parser@21.1.1: {}
 
-  yargs-parser@22.0.0: {}
-
   yargs@17.7.2:
     dependencies:
       cliui: 8.0.1
@@ -12569,5 +12514,3 @@ snapshots:
       archiver-utils: 3.0.4
       compress-commons: 4.1.2
       readable-stream: 3.6.2
-
-  zod@4.4.3: {}

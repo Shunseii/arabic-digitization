@@ -1,6 +1,9 @@
-import { OpenAPIRoute } from "chanfana";
-import { z } from "zod";
-import { type AppContext, ExportFile } from "../types";
+import { Effect, Schema } from "effect";
+import { HttpApiEndpoint, OpenApi } from "effect/http-api";
+import { type EndpointHandler, WorkerContext } from "../http/context";
+import { BadRequest, badRequest, NotFound, notFound } from "../http/errors";
+import { respond } from "../http/respond";
+import { ExportFile, type FileState } from "../types";
 
 const MAX_BATCH_LIMIT = 200;
 
@@ -17,20 +20,22 @@ const SORT_KEY_TERMS = [
 ] as const;
 const ORDER_BY = SORT_KEY_TERMS.join(", ");
 const SORT_KEY_ROW = `(${ORDER_BY})`;
+const COLUMNS = "file_id, page_number, role, order_hint, state, text_key";
 
-const ExportCursor = z.object({
-  page_number: z.number().int().nullable(),
-  order_hint: z.number().int().nullable(),
-  file_id: z.string(),
+const ExportCursor = Schema.Struct({
+  page_number: Schema.NullOr(Schema.Int),
+  order_hint: Schema.NullOr(Schema.Int),
+  file_id: Schema.String,
 });
-type ExportCursor = z.infer<typeof ExportCursor>;
+type ExportCursor = typeof ExportCursor.Type;
+const isExportCursor = Schema.is(ExportCursor);
 
 type ExportRow = {
   file_id: string;
   page_number: number | null;
   role: string | null;
   order_hint: number | null;
-  state: z.infer<typeof ExportFile>["state"];
+  state: FileState;
   text_key: string | null;
 };
 
@@ -47,10 +52,10 @@ function decodeCursor(raw: string): ExportCursor | null {
   try {
     const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
     const bytes = Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0));
-    const parsed = ExportCursor.safeParse(
-      JSON.parse(new TextDecoder().decode(bytes)),
-    );
-    return parsed.success ? parsed.data : null;
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!isExportCursor(parsed)) return null;
+    const { page_number, order_hint, file_id } = parsed;
+    return { page_number, order_hint, file_id };
   } catch {
     return null;
   }
@@ -70,122 +75,124 @@ function sortKeyParams(cursor: ExportCursor) {
 // (group by page_number, stitch into book.md in the vault). With `limit`, it
 // returns one batch at a time, keyed on the last row returned (not an offset),
 // so pages uploaded mid-import are neither skipped nor duplicated.
-export class BookExport extends OpenAPIRoute {
-  schema = {
-    tags: ["Books"],
-    summary: "Export a book's files with their transcription text",
-    request: {
-      params: z.object({ bookId: z.string() }),
-      query: z.object({
-        limit: z.coerce
-          .number()
-          .int()
-          .min(1)
-          .max(MAX_BATCH_LIMIT)
-          .optional()
-          .describe(
-            `Batch size (1-${MAX_BATCH_LIMIT}). Omit to get every file in one response.`,
-          ),
-        cursor: z
-          .string()
-          .optional()
-          .describe(
+export const BookExport = HttpApiEndpoint.get(
+  "bookExport",
+  "/api/books/:bookId/export",
+  {
+    params: { bookId: Schema.String },
+    query: {
+      limit: Schema.optionalKey(
+        Schema.Int.check(
+          Schema.isGreaterThanOrEqualTo(1),
+          Schema.isLessThanOrEqualTo(MAX_BATCH_LIMIT),
+        ).annotate({
+          description: `Batch size (1-${MAX_BATCH_LIMIT}). Omit to get every file in one response.`,
+        }),
+      ),
+      cursor: Schema.optionalKey(
+        Schema.String.annotate({
+          description:
             "Opaque next_cursor from the previous batch. Requires limit.",
-          ),
-      }),
+        }),
+      ),
     },
-    responses: {
-      "200": {
-        description: "Files with text, ordered by page number",
-        content: {
-          "application/json": {
-            schema: z.object({
-              success: z.boolean(),
-              book_id: z.string(),
-              files: ExportFile.array(),
-              files_total: z
-                .number()
-                .int()
-                .optional()
-                .describe("Every file in the book (batched requests only)"),
-              next_cursor: z
-                .string()
-                .nullable()
-                .optional()
-                .describe(
-                  "Pass as cursor for the next batch; null on the last batch (batched requests only)",
-                ),
-            }),
-          },
-        },
-      },
-      "400": { description: "Invalid limit or cursor" },
-      "404": { description: "No such book" },
-    },
-  };
+    success: Schema.Struct({
+      success: Schema.Boolean,
+      book_id: Schema.String,
+      files: Schema.Array(ExportFile),
+      files_total: Schema.optionalKey(
+        Schema.Int.annotate({
+          description: "Every file in the book (batched requests only)",
+        }),
+      ),
+      next_cursor: Schema.optionalKey(
+        Schema.NullOr(Schema.String).annotate({
+          description:
+            "Pass as cursor for the next batch; null on the last batch (batched requests only)",
+        }),
+      ),
+    }),
+    error: [BadRequest, NotFound],
+  },
+).annotate(
+  OpenApi.Summary,
+  "Export a book's files with their transcription text",
+);
 
-  async handle(c: AppContext) {
-    const { params, query } = await this.getValidatedData<typeof this.schema>();
-
+export const bookExport: EndpointHandler<typeof BookExport> = ({
+  params,
+  query,
+}) =>
+  Effect.gen(function* () {
+    const { env } = yield* WorkerContext;
     if (query.cursor !== undefined && query.limit === undefined) {
-      return c.json({ success: false, error: "cursor requires limit" }, 400);
+      return yield* badRequest("cursor requires limit");
     }
     const cursor =
       query.cursor === undefined ? undefined : decodeCursor(query.cursor);
     if (cursor === null) {
-      return c.json(
-        { success: false, error: "Malformed cursor; pass next_cursor as-is" },
-        400,
-      );
+      return yield* badRequest("Malformed cursor; pass next_cursor as-is");
     }
 
-    const book = await c.env.DB.prepare("SELECT id FROM books WHERE id = ?")
-      .bind(params.bookId)
-      .first<{ id: string }>();
-    if (!book) {
-      return c.json(
-        { success: false, error: `Book '${params.bookId}' not found` },
-        404,
-      );
-    }
-
-    const columns = "file_id, page_number, role, order_hint, state, text_key";
+    const bookQuery = env.DB.prepare("SELECT id FROM books WHERE id = ?").bind(
+      params.bookId,
+    );
 
     if (query.limit === undefined) {
-      const { results } = await c.env.DB.prepare(
-        `SELECT ${columns} FROM files WHERE book_id = ? ORDER BY ${ORDER_BY}`,
-      )
-        .bind(params.bookId)
-        .all<ExportRow>();
-      const files = await withText({ c, rows: results });
-      return c.json({ success: true, book_id: params.bookId, files });
+      // One round trip: the book check and every file.
+      const [book, files] = yield* Effect.promise(() =>
+        env.DB.batch<unknown>([
+          bookQuery,
+          env.DB.prepare(
+            `SELECT ${COLUMNS} FROM files WHERE book_id = ? ORDER BY ${ORDER_BY}`,
+          ).bind(params.bookId),
+        ]),
+      );
+      if (!book?.results.length) {
+        return yield* notFound(`Book '${params.bookId}' not found`);
+      }
+      const rows = (files?.results ?? []) as ExportRow[];
+      return respond({
+        endpoint: BookExport,
+        body: {
+          success: true,
+          book_id: params.bookId,
+          files: yield* Effect.promise(() => withText({ env, rows })),
+        },
+      });
     }
 
+    const limit = query.limit;
     // One extra row tells us whether another batch follows.
     const batchQuery = cursor
-      ? c.env.DB.prepare(
-          `SELECT ${columns} FROM files
+      ? env.DB.prepare(
+          `SELECT ${COLUMNS} FROM files
 			 WHERE book_id = ? AND ${SORT_KEY_ROW} > (?, ?, ?, ?, ?)
 			 ORDER BY ${ORDER_BY} LIMIT ?`,
-        ).bind(params.bookId, ...sortKeyParams(cursor), query.limit + 1)
-      : c.env.DB.prepare(
-          `SELECT ${columns} FROM files WHERE book_id = ?
+        ).bind(params.bookId, ...sortKeyParams(cursor), limit + 1)
+      : env.DB.prepare(
+          `SELECT ${COLUMNS} FROM files WHERE book_id = ?
 			 ORDER BY ${ORDER_BY} LIMIT ?`,
-        ).bind(params.bookId, query.limit + 1);
+        ).bind(params.bookId, limit + 1);
 
-    const [total, { results }] = await Promise.all([
-      c.env.DB.prepare(
-        "SELECT COALESCE(SUM(n), 0) AS n FROM book_state_counts WHERE book_id = ?",
-      )
-        .bind(params.bookId)
-        .first<{ n: number }>(),
-      batchQuery.all<ExportRow>(),
-    ]);
-
-    const batch = results.slice(0, query.limit);
+    // One round trip: the book check, the file count, and the batch.
+    const [book, total, batchResult] = yield* Effect.promise(() =>
+      env.DB.batch<unknown>([
+        bookQuery,
+        env.DB.prepare(
+          "SELECT COALESCE(SUM(n), 0) AS n FROM book_state_counts WHERE book_id = ?",
+        ).bind(params.bookId),
+        batchQuery,
+      ]),
+    );
+    if (!book?.results.length) {
+      return yield* notFound(`Book '${params.bookId}' not found`);
+    }
+    const results = (batchResult?.results ?? []) as ExportRow[];
+    const batch = results.slice(0, limit);
     const last = batch.at(-1);
     const next_cursor =
-      results.length > query.limit && last
+      results.length > limit && last
         ? encodeCursor({
             page_number: last.page_number,
             order_hint: last.order_hint,
@@ -193,23 +200,24 @@ export class BookExport extends OpenAPIRoute {
           })
         : null;
 
-    const files = await withText({ c, rows: batch });
-    return c.json({
-      success: true,
-      book_id: params.bookId,
-      files,
-      files_total: total?.n ?? 0,
-      next_cursor,
+    return respond({
+      endpoint: BookExport,
+      body: {
+        success: true,
+        book_id: params.bookId,
+        files: yield* Effect.promise(() => withText({ env, rows: batch })),
+        files_total: (total?.results[0] as { n: number } | undefined)?.n ?? 0,
+        next_cursor,
+      },
     });
-  }
-}
+  });
 
-async function withText({ c, rows }: { c: AppContext; rows: ExportRow[] }) {
+async function withText({ env, rows }: { env: Env; rows: ExportRow[] }) {
   return Promise.all(
     rows.map(async (r) => {
       let text: string | null = null;
       if (r.text_key) {
-        const obj = await c.env.BUCKET.get(r.text_key);
+        const obj = await env.BUCKET.get(r.text_key);
         if (obj) text = await obj.text();
       }
       return {

@@ -2,7 +2,7 @@
 
 A Cloudflare Worker that turns scanned pages of classical Arabic books into clean Markdown. You upload page images; they are OCR'd by Inkling, with Claude as the fallback (preserving tashkeel, section headings, footnotes, and interlinear glosses) and the text is retrievable per-page or in bulk for assembly into your notes.
 
-Built on [Hono](https://hono.dev) + [chanfana](https://chanfana.pages.dev) (OpenAPI). Single-user: the whole API is gated by one shared master key — there are no accounts.
+Built on [Effect](https://effect.website) HttpApi: the endpoints, their schemas and the OpenAPI spec (`/openapi.json`) come from one definition. Single-user: the whole API is gated by one shared master key — there are no accounts.
 
 ## How it works
 
@@ -185,10 +185,10 @@ CORS headers (above) must be deployed for it to connect. More detail:
 
 ## Layout
 
-- `src/index.ts` — router; exports `{ fetch, queue }` (HTTP + queue consumer).
-- `src/endpoints/` — one file per route.
+- `src/index.ts` — exports `{ fetch, queue }` (HTTP + queue consumer).
+- `src/http/` — the HttpApi definition (`app.ts`), auth and validation middleware, error responses.
+- `src/endpoints/` — one file per route: its endpoint definition (schemas) and handler.
 - `src/ocr.ts` — OCR core (`transcribe()`), the OCR prompt, the Inkling and Claude calls.
 - `src/queue.ts` — queue consumer.
-- `src/middleware/auth.ts` — master-key gate.
 - `src/docs.ts` — the `/llms.txt` API reference.
 - `migrations/` — D1 schema.

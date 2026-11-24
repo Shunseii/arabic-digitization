@@ -11,13 +11,10 @@
 
 import { Effect, type Layer } from "effect";
 import { type AuditableLogger, createError, type EvlogError } from "evlog";
-import { EvlogLogger, loggerLayer } from "evlog/effect";
+import { type EvlogLogger, loggerLayer } from "evlog/effect";
 import { createWorkersLogger, initWorkersLogger } from "evlog/workers";
-import type { MiddlewareHandler } from "hono";
-import { routePath } from "hono/route";
 import type { OcrError } from "./effect/errors";
 import { type AppServices, liveLayer } from "./effect/services";
-import type { AppContext, AppEnv } from "./types";
 
 export const SERVICE_NAME = "arabic-digitization";
 
@@ -35,21 +32,24 @@ export function initLogging(): void {
 
 export const effectLogger: Layer.Layer<never> = loggerLayer();
 
-// The request's logger, keyed by the Request object the fetch handler received
-// (Hono passes it through unchanged as c.req.raw).
-const requestLoggers = new WeakMap<Request, AuditableLogger>();
-
+// Wraps the Worker's fetch handler: creates the request's wide event, hands it
+// to the handler, and emits it with the response status once the handler is
+// done (or as a 500 if it throws).
 export function withRequestEvent<TEnv, TCtx extends ExecutionContext>(
-  handler: (request: Request, env: TEnv, ctx: TCtx) => Promise<Response>,
+  handler: (request: {
+    request: Request;
+    env: TEnv;
+    ctx: TCtx;
+    log: AuditableLogger;
+  }) => Promise<Response>,
 ): (request: Request, env: TEnv, ctx: TCtx) => Promise<Response> {
   return async (request, env, ctx) => {
     const log = createWorkersLogger(request, {
       executionCtx: ctx,
       headers: HEADER_ALLOWLIST,
     });
-    requestLoggers.set(request, log);
     try {
-      const response = await handler(request, env, ctx);
+      const response = await handler({ request, env, ctx, log });
       log.emit({ status: response.status });
       return response;
     } catch (error) {
@@ -62,31 +62,25 @@ export function withRequestEvent<TEnv, TCtx extends ExecutionContext>(
 
 const BOOK_AND_FILE = /^\/api\/books\/([^/]+)(?:\/files\/([^/]+))?/;
 
-// Hono middleware: exposes the request's logger as c.get("log") and, once the
-// route has run, records which route matched and the book/file it addressed.
-export const requestEvent: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const log =
-    requestLoggers.get(c.req.raw) ??
-    createWorkersLogger(c.req.raw, { headers: HEADER_ALLOWLIST });
-  c.set("log", log);
-  await next();
-  const [, bookId, fileId] = BOOK_AND_FILE.exec(c.req.path) ?? [];
+// Records which route handled the request (its template, e.g.
+// "GET /api/books/:bookId/status") and the book/file it addressed.
+export function recordRoute({
+  log,
+  method,
+  route,
+  path,
+}: {
+  log: AuditableLogger;
+  method: string;
+  route: string;
+  path: string;
+}): void {
+  const [, bookId, fileId] = BOOK_AND_FILE.exec(path) ?? [];
   log.set({
-    route: `${c.req.method} ${routePath(c, -1)}`,
+    route: `${method} ${route}`,
     ...(bookId ? { book_id: decodeURIComponent(bookId) } : {}),
     ...(fileId ? { file_id: decodeURIComponent(fileId) } : {}),
   });
-};
-
-// Replaces Hono's default error handler with the same response (a plain-text
-// 500), but records the error on the wide event instead of console.error.
-export function recordUnhandledError(error: Error, c: AppContext): Response {
-  if ("getResponse" in error && typeof error.getResponse === "function") {
-    const res: Response = error.getResponse();
-    return c.newResponse(res.body, res);
-  }
-  c.get("log").error(error);
-  return c.text("Internal Server Error", 500);
 }
 
 const RETRIED_BY_QUEUE =
@@ -167,20 +161,19 @@ export function toEvlogError(error: OcrError): EvlogError {
 }
 
 // Run an Effect program inside an HTTP handler, with the live services and the
-// request's wide event as its logger. Typed failures reject as evlog errors.
+// request's wide event as its logger. A typed failure becomes a defect carrying
+// its evlog error (why/fix), which the HTTP layer records and answers with 500.
 export function runInRequest<A>({
-  c,
+  env,
   effect,
 }: {
-  c: AppContext;
+  env: Env;
   effect: Effect.Effect<A, OcrError, AppServices>;
-}): Promise<A> {
-  return Effect.runPromise(
-    effect.pipe(
-      Effect.mapError(toEvlogError),
-      Effect.provide(liveLayer(c.env)),
-      Effect.provideService(EvlogLogger, c.get("log")),
-      Effect.provide(effectLogger),
-    ),
+}): Effect.Effect<A, never, EvlogLogger> {
+  return effect.pipe(
+    Effect.mapError(toEvlogError),
+    Effect.orDie,
+    Effect.provide(liveLayer(env)),
+    Effect.provide(effectLogger),
   );
 }
