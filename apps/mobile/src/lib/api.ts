@@ -1,14 +1,12 @@
 import type {
   Book,
   BookCreateBody,
-  BookExportResponse,
   BookStatusResponse,
   BookUpdateBody,
   CreateBookResponse,
   CreateWorkResponse,
   DeleteBookResponse,
   DeleteWorkResponse,
-  ExportFile,
   FetchBookResponse,
   FetchWorkResponse,
   FileDeleteResponse,
@@ -193,15 +191,6 @@ export const api = {
         { headers: authHeaders() },
       ),
     ),
-
-  exportBook: async (id: string): Promise<ExportFile[]> =>
-    (
-      await asJson<BookExportResponse>(
-        await fetch(`${base()}/api/books/${id}/export`, {
-          headers: authHeaders(),
-        }),
-      )
-    ).files,
 
   fileText: async ({
     bookId,
