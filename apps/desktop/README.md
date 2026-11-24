@@ -27,7 +27,7 @@ the packaged app's `node_modules` is empty.
 
 - **Camera scan → file upload.** Desktops have no document-scanner camera, so
   the `scan` screen is replaced by `upload` — a drag-and-drop / file-picker
-  page that uploads one or more image (or PDF) files as pages.
+  page that uploads one or more image files (JPEG, PNG, WebP) as pages.
 - **Bottom tab bar → left sidebar.** Same sections (Library / Activity /
   Settings), same icons and accent, laid out for a wide window.
 - **Reader swipe → side-by-side panes.** Transcription and scan show together;

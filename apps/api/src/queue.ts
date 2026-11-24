@@ -83,7 +83,7 @@ export async function enqueueOcr({
   await env.OCR_Q.send({ fileId });
 }
 
-// Honor Gemini's suggested retryDelay as a floor, layered with exponential
+// Honor the provider's retry-after hint as a floor, layered with exponential
 // backoff on the redelivery count, jittered to desync sibling messages, capped.
 function backoffSeconds(attempts: number, suggested: number | null): number {
   const expo = Math.min(2 ** attempts, 120);
@@ -93,7 +93,8 @@ function backoffSeconds(attempts: number, suggested: number | null): number {
 
 // Queue consumer: mark processing → transcribe (sets 'done') → ack.
 //
-// Transient Gemini errors (429 rate limit, 5xx) are not the page's fault: set
+// Transient provider errors (429 rate limit, 5xx, network failure or timeout,
+// after the fallback provider failed too) are not the page's fault: set
 // 'rate_limited' and re-queue with backoff instead of burning the page. The
 // message keeps coming back until it succeeds or Cloudflare exhausts max_retries
 // (wrangler.jsonc). Genuine failures set 'failed' and stop — retrying a missing

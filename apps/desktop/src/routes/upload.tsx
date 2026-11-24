@@ -15,10 +15,11 @@ interface QueueItem {
   error?: string;
 }
 
-const mimeFor = (file: File): UploadContentType => {
-  const t = file.type as UploadContentType;
-  return UPLOAD_CONTENT_TYPES.includes(t) ? t : "image/jpeg";
-};
+const isUploadable = (file: File): boolean =>
+  (UPLOAD_CONTENT_TYPES as readonly string[]).includes(file.type);
+
+const mimeFor = (file: File): UploadContentType =>
+  isUploadable(file) ? (file.type as UploadContentType) : "image/jpeg";
 
 export const UploadScreen = () => {
   const navigate = useNavigate();
@@ -52,11 +53,14 @@ export const UploadScreen = () => {
 
   const addFiles = (fileList: FileList | null) => {
     if (!fileList) return;
-    const next = Array.from(fileList).map<QueueItem>((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      state: "pending",
-    }));
+    // Dropped files skip the input's `accept` filter, so a PDF could get in.
+    const next = Array.from(fileList)
+      .filter(isUploadable)
+      .map<QueueItem>((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        state: "pending",
+      }));
     setItems((prev) => [...prev, ...next]);
   };
 

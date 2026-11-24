@@ -5,7 +5,7 @@
 export const LLMS_TXT = `# Arabic Digitization API
 
 Backend for digitizing scanned Arabic books: upload page images, they are OCR'd
-to Markdown by an AI model (Gemini or Claude, chosen per book), and the text is
+to Markdown by an AI model (Inkling or Claude, chosen per book), and the text is
 retrievable per-page or in bulk.
 
 ## Auth
@@ -22,11 +22,13 @@ Missing/wrong key -> 401. (GET /llms.txt and the docs UI at / are public.)
 - rate_limited is transient: an OCR provider 429/5xx auto-re-queues with backoff (no action needed).
   Only 'failed' needs a manual re-run (POST .../ocr).
 - A blank page is 'done' with empty text (and an empty preview), not 'failed'.
-- OCR engine: each book has ocr_engine "gemini" | "claude" | null (null = default,
-  gemini). That provider runs first; on a transient failure (429/5xx) the other one
-  transcribes the page instead (also when Gemini blocks a page for recitation).
+- OCR engine: each book has ocr_engine "inkling" | "claude" | null (null = default,
+  inkling). That provider runs first; on a transient failure (429/5xx, network
+  error or timeout) the other one transcribes the page instead (also when Inkling's
+  output is cut off at its length cap; a cut-off page is never stored).
   The model that produced each page's text is recorded on the page and in history.
-  Claude only reads images, so non-image files always start on Gemini.
+- Uploads are page images only (JPEG, PNG, WebP). PDFs are rejected with 415:
+  export each page as an image first.
 
 ## Hand edits and text history
 A page's text changes in two ways: OCR (upload, POST .../ocr, POST .../requeue)
@@ -61,10 +63,10 @@ one edit whose "old" is the full current text and "new" is the earlier text
 
 POST /api/books
   Body (JSON): { "title": string, "id"?: slug, "ocr_instructions"?: string,
-                "ocr_engine"?: "gemini"|"claude"|null }
+                "ocr_engine"?: "inkling"|"claude"|null }
   // id auto-generated if omitted; ocr_instructions are book-specific OCR notes
   // appended to the global system prompt at transcription time; ocr_engine picks
-  // the provider that runs first (omitted/null = default, gemini).
+  // the provider that runs first (omitted/null = default, inkling).
   201 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine } }
   409 if id exists.
 
@@ -79,9 +81,9 @@ GET /api/books/:bookId
 
 PATCH /api/books/:bookId
   Update a book. Body (JSON): any of { "title"?: string, "ocr_instructions"?: string|null,
-  "ocr_engine"?: "gemini"|"claude"|null }.
+  "ocr_engine"?: "inkling"|"claude"|null }.
   At least one field required; ocr_instructions=null clears them; ocr_engine=null
-  resets to the default engine (gemini). Changing ocr_instructions or ocr_engine
+  resets to the default engine (inkling). Changing ocr_instructions or ocr_engine
   does NOT re-OCR done pages — requeue them (POST .../requeue with states:["done"])
   to apply the change, which overwrites hand-edited pages too (see "Hand edits
   and text history").
@@ -146,7 +148,7 @@ POST /api/books/:bookId/resume
 
 POST /api/books/:bookId/files?page=<n>
   Upload one page. Body = raw image bytes. Content-Type must be one of:
-  image/jpeg, image/png, image/webp.
+  image/jpeg, image/png, image/webp. Anything else (e.g. application/pdf) -> 415.
   ?page is optional (printed page number, when not detectable from the image).
   Inserts state=queued and triggers OCR automatically.
   201 -> { success, file: { file_id, book_id, r2_key, state, page_number, ... } }

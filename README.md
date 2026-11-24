@@ -1,6 +1,6 @@
 # Arabic Book Digitization
 
-A Cloudflare Worker that turns scanned pages of classical Arabic books into clean Markdown. You upload page images; they are OCR'd by Gemini (preserving tashkeel, section headings, footnotes, and interlinear glosses) and the text is retrievable per-page or in bulk for assembly into your notes.
+A Cloudflare Worker that turns scanned pages of classical Arabic books into clean Markdown. You upload page images; they are OCR'd by Inkling, with Claude as the fallback (preserving tashkeel, section headings, footnotes, and interlinear glosses) and the text is retrievable per-page or in bulk for assembly into your notes.
 
 Built on [Hono](https://hono.dev) + [chanfana](https://chanfana.pages.dev) (OpenAPI). Single-user: the whole API is gated by one shared master key — there are no accounts.
 
@@ -8,7 +8,7 @@ Built on [Hono](https://hono.dev) + [chanfana](https://chanfana.pages.dev) (Open
 
 ```
 upload image ──▶ R2 (scan)         enqueue {fileId}
-                 D1 row (queued) ──────────────▶ Queue ──▶ consumer ──▶ Gemini OCR
+                 D1 row (queued) ──────────────▶ Queue ──▶ consumer ──▶ Inkling OCR
                                                                           │
                           text/<fileId>.md ◀── R2  ◀───────── writes ─────┘
                                                   D1 row → done
@@ -17,7 +17,7 @@ upload image ──▶ R2 (scan)         enqueue {fileId}
 - **R2** (`BUCKET`) stores both the uploaded scans (`books/<bookId>/scans/<fileId>`) and the transcribed Markdown (`books/<bookId>/text/<fileId>.md`). Each earlier version of a page's text, saved whenever a hand edit or re-OCR replaces it, is under `books/<bookId>/text-history/<fileId>/` and listed in D1's `text_revisions`.
 - **D1** (`DB`) stores metadata only: `books` and a flat `files` table. A "page" is **not** a stored entity — files carry a `page_number`, and you group/stitch them at assembly time (locally).
 - **Queue** (`OCR_Q`, `arabic-ocr`) decouples OCR from the upload request. Uploading a file enqueues it; the consumer (`src/queue.ts`) runs the transcription off the request path, with retries.
-- **OCR** (`src/ocr.ts`) calls Google AI Studio directly (`gemini-3.1-pro-preview`, thinking set to `low` since transcription needs little reasoning and high thinking is the main cost driver). The Worker holds only the Google API key.
+- **OCR** (`src/ocr.ts`) calls Inkling (`inkling-2-small`) directly on Ollama Cloud, with thinking set to `low`, the cheapest stable setting. Claude (`claude-sonnet-5-5`, through the Cloudflare AI Gateway) is the fallback when Inkling is rate-limited, down, or cuts a page off at its length cap; a book's `ocr_engine` can flip the order. Search highlighting (`src/lib/highlight.ts`) uses Claude Haiku (`claude-haiku-5-5`) through the same gateway. The Worker holds the Ollama key and the gateway token; the Anthropic key lives in the gateway.
 
 File state machine: `queued → processing → done` (or `failed` after retries; `needs_review` / `approved` reserved for a future review step).
 
@@ -42,7 +42,7 @@ Every `/api/*` request needs `Authorization: Bearer <MASTER_KEY>`. Full, always-
 | GET | `/api/books/:bookId` | Book + status summary |
 | GET | `/api/books/:bookId/status` | Per-file states (poll the pipeline) |
 | GET | `/api/books/:bookId/export` | All files + transcription text, for local assembly; `?limit=<1-200>[&cursor=<next_cursor>]` returns one batch with `files_total` and `next_cursor` (null on the last batch) |
-| POST | `/api/books/:bookId/files?page=<n>` | Upload a page (raw image/PDF body); auto-enqueues OCR |
+| POST | `/api/books/:bookId/files?page=<n>` | Upload a page (raw image body); auto-enqueues OCR |
 | POST | `/api/books/:bookId/files/:fileId/ocr` | Re-run OCR on one file (synchronous) |
 | GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`); `?rev=<id>` for an earlier version |
 | PATCH | `/api/books/:bookId/files/:fileId/text` | Hand-edit a transcription with exact find-and-replace edits (`{edits: [{old, new}], note?}`) |
@@ -55,7 +55,7 @@ Search *queries* don't go through the Worker — clients query Meilisearch
 directly with a read-only key (see `infra/meili`). The Worker only *writes* to
 the index (auto-index on OCR + the reindex above).
 
-Upload accepts `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. `?page` is optional — supply it when the printed page number isn't legible in the shot.
+Upload accepts `image/jpeg`, `image/png`, `image/webp`. Anything else, including PDF, gets a 415: neither OCR provider reads PDFs, so export each page as an image first. `?page` is optional — supply it when the printed page number isn't legible in the shot.
 
 ## Setup
 
@@ -78,7 +78,8 @@ pnpm wrangler queues create arabic-ocr
 Secrets, never committed:
 
 - `MASTER_KEY` — the bearer token gating the API. Generate with `openssl rand -hex 32`.
-- `GOOGLE_API_KEY` — Google AI Studio key for Gemini.
+- `OLLAMA_API_KEY` — Ollama Cloud key for Inkling OCR.
+- `CF_AIG_TOKEN` — Cloudflare AI Gateway token (`cf-aig-authorization`) for Claude: the OCR fallback and search highlighting. The Anthropic key itself is stored in the gateway.
 - `MEILI_KEY` — Meilisearch **write** key (`documents.add`) for the Worker's indexing (only needed once search is set up; see `infra/meili`). Not the master key. Clients use a separate **read-only** search key, which never touches the Worker.
 
 `MEILI_URL` is a non-secret var in `wrangler.jsonc` (the Meilisearch instance URL).
@@ -96,7 +97,7 @@ pnpm typecheck    # tsc --noEmit
 pnpm check        # Biome lint + format (write)
 ```
 
-Local `wrangler dev` simulates R2/D1/Queue in `.wrangler/state` — uploads and OCR run end-to-end locally (only the Gemini call leaves your machine).
+Local `wrangler dev` simulates R2/D1/Queue in `.wrangler/state` — uploads and OCR run end-to-end locally (only the OCR and highlight calls leave your machine).
 
 ## Deploy
 
@@ -186,7 +187,7 @@ CORS headers (above) must be deployed for it to connect. More detail:
 
 - `src/index.ts` — router; exports `{ fetch, queue }` (HTTP + queue consumer).
 - `src/endpoints/` — one file per route.
-- `src/ocr.ts` — OCR core (`transcribe()`), the OCR prompt, the Gemini call.
+- `src/ocr.ts` — OCR core (`transcribe()`), the OCR prompt, the Inkling and Claude calls.
 - `src/queue.ts` — queue consumer.
 - `src/middleware/auth.ts` — master-key gate.
 - `src/docs.ts` — the `/llms.txt` API reference.

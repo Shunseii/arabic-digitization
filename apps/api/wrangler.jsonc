@@ -27,7 +27,7 @@
     }
   ],
   // Caches search-highlight results keyed by (fileId, query). The result is
-  // deterministic and pages rarely change, so a hit avoids a Gemini call.
+  // deterministic and pages rarely change, so a hit avoids a Claude call.
   "kv_namespaces": [
     {
       "binding": "HIGHLIGHT_CACHE",
@@ -35,8 +35,8 @@
     }
   ],
   // max_concurrency caps parallel consumer invocations. Left unset, Cloudflare
-  // autoscales to many parallel invocations that each fire a Gemini call, which
-  // blows past the model's requests-per-minute quota (the 429 storm). Capped at
+  // autoscales to many parallel invocations that each fire an OCR call, which
+  // blows past the provider's requests-per-minute quota (the 429 storm). Capped at
   // 2, with the per-message backoff-and-requeue in queue.ts, OCR stays under
   // quota. max_retries is generous so a page can ride out sustained throttling.
   "queues": {
@@ -54,10 +54,14 @@
   // Meilisearch (hosted on Fly, see infra/meili). MEILI_KEY is a secret:
   // `wrangler secret put MEILI_KEY` (a Meili API key with search + documents.add).
   //
-  // CF_AIG_* target the Cloudflare AI Gateway used for the Claude OCR fallback
-  // (see ocr.ts). CF_AIG_TOKEN is a secret (the gateway's cf-aig-authorization
-  // token): `wrangler secret put CF_AIG_TOKEN`. The Anthropic key itself is
-  // stored in the gateway (BYOK), not here.
+  // CF_AIG_* target the Cloudflare AI Gateway used for Claude: the OCR fallback
+  // (see ocr.ts) and search highlighting (see lib/highlight.ts). CF_AIG_TOKEN is
+  // a secret (the gateway's cf-aig-authorization token):
+  // `wrangler secret put CF_AIG_TOKEN`. The Anthropic key itself is stored in
+  // the gateway (BYOK), not here.
+  //
+  // OLLAMA_API_KEY (Ollama Cloud, for Inkling OCR) is a secret too:
+  // `wrangler secret put OLLAMA_API_KEY` (locally: .dev.vars).
   "vars": {
     "MEILI_URL": "https://arabic-digitization-search.fly.dev",
     "CF_AIG_ACCOUNT_ID": "9759ed7a233a1a22e2f01031de0f160a",

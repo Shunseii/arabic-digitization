@@ -43,10 +43,10 @@ File states: `captured → queued → processing → done`, or `rate_limited` (t
 **Watch progress** — `corpus show <book>` gives counts and OCR cost cheaply. Use it for repeated checks while OCR runs; `corpus status` reads every page of the book from D1, and the free plan allows 5M row reads a day (a 1,150-page book is 1,150 reads per call).
 
 **Status of a book** — `corpus status <book>`. Summarize counts per state; call out `failed` pages with their reason, and pages with no page number (`p?`, report the `file_id`).
-- Blank pages come back as `done` with empty text (shown as "Blank page"). `no text (STOP)` is an empty reply Gemini gave without saying the page is blank; a re-run (`corpus ocr`) usually settles it.
-- `no text (RECITATION)` is Gemini's copyright filter, often on Qur'an-heavy pages. A retry often passes (Tafsir as-Sa'di: 9 of 13 failed pages recovered on one retry); for pages that keep failing, the book's OCR instructions are the next lever.
+- Blank pages come back as `done` with empty text (shown as "Blank page").
+- Failed pages show the provider and HTTP status (e.g. `Claude 400`), or the start of the error. Rate limits and outages don't fail a page: it waits as `rate_limited` and re-queues itself, and the other provider takes it if one is down. A page that keeps failing usually needs the book's OCR instructions adjusted.
 
-**Re-run failed OCR** — check `corpus status <book> --state failed` first. Re-running costs a Gemini call per page (roughly $0.02–0.04 for dense pages), so confirm the count with the user before re-queuing many. Then `corpus retry <book>`. It's asynchronous: wait with `corpus show <book>` until nothing is queued or processing, then `corpus status <book> --state failed` once. One retry pass, then report what is still broken — don't loop.
+**Re-run failed OCR** — check `corpus status <book> --state failed` first. Re-running costs an OCR call per page (Inkling, roughly $0.004 for a dense page; more if it falls back to Claude), so confirm the count with the user before re-queuing many. Then `corpus retry <book>`. It's asynchronous: wait with `corpus show <book>` until nothing is queued or processing, then `corpus status <book> --state failed` once. One retry pass, then report what is still broken — don't loop.
 
 **Pause / resume** — `corpus pause <book>` stops spending on that book immediately (the page in flight finishes). `corpus resume <book>` re-queues everything waiting; confirm with the user first when many pages are waiting, since it restarts the spend.
 

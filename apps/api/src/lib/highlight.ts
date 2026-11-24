@@ -1,14 +1,14 @@
 // Search-result highlighting. Given a page's OCR text and a search query (any
-// language, keyword or phrase), ask Gemini for the relevant passages, then
-// locate each verbatim in the page so the client can wrap it.
+// language, keyword or phrase), ask Claude Haiku for the relevant passages,
+// then locate each verbatim in the page so the client can wrap it.
 //
 // Why this is more than indexOf: hybrid search matches cross-lingually and
 // semantically, so the relevant passage shares no token with the query — only
 // an LLM can pick it. And the model returns the *right* text but often minus an
 // OCR artifact (an inline footnote marker like (١), a diacritic, a line break),
 // so a raw substring match misses it. We locate against a normalized skeleton
-// (diacritics, footnote markers, alef/ta-marbuta variants, and whitespace runs
-// folded out) and map back to real offsets — recovering those near-misses.
+// (diacritics, footnote and list markers, alef/ta-marbuta variants, and
+// whitespace runs folded out) and map back to real offsets — recovering those near-misses.
 
 // Mirrors @qiraa/shared HighlightSpan; redefined locally so the Worker doesn't
 // take a dependency on the shared package.
@@ -17,7 +17,7 @@ interface HighlightSpan {
   ranges: [number, number][];
 }
 
-const MODEL = "gemini-3.5-flash";
+const MODEL = "claude-haiku-5-5";
 const MAX_TOKENS = 2048;
 
 const SYSTEM_PROMPT = `You are given the full text of a scanned Arabic book page and a search query (English or Arabic, keyword or natural-language phrase). Identify the passages on the page that are most relevant to the query and worth highlighting for a reader. Return them as a list of spans, each copied EXACTLY as it appears on the page (verbatim characters, including diacritics). Include ONLY genuinely relevant passages and order them most-relevant first; prefer the few best spans over many weak ones (at most ~6). Each span should be a focused phrase or sentence, not the whole page. Return an empty list if nothing on the page is relevant.`;
@@ -50,15 +50,18 @@ const LETTER_SUB: Record<string, string> = {
 };
 
 // Normalized skeleton + a map from each normalized char back to its raw index.
-// Dropped: diacritics/tatweel, footnote markers `(` `)` and Arabic-indic digits,
-// and collapsed whitespace runs (folded to a single space at the run's start).
+// Dropped: diacritics/tatweel, footnote and list markers (`(` `)` `[` `]` and
+// Arabic-indic digits), and collapsed whitespace runs (folded to a single space
+// at the run's start).
+const MARKER_CHARS = new Set(["(", ")", "[", "]"]);
+
 function normalize(s: string): { norm: string; idx: number[] } {
   const out: string[] = [];
   const idx: number[] = [];
   let i = 0;
   while (i < s.length) {
     const c = s[i] as string;
-    if (DIACRITIC.test(c) || c === "(" || c === ")" || (c >= "٠" && c <= "٩")) {
+    if (DIACRITIC.test(c) || MARKER_CHARS.has(c) || (c >= "٠" && c <= "٩")) {
       i++;
       continue;
     }
@@ -91,46 +94,63 @@ function locateAll(span: string, page: string): [number, number][] {
   return ranges;
 }
 
-async function extractSpans(
-  env: Env,
-  query: string,
-  pageText: string,
-): Promise<string[]> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Claude via the Cloudflare AI Gateway Anthropic endpoint, as in ocr.ts: the
+// Anthropic key is stored in the gateway (BYOK), so we send only the gateway
+// token. Structured output pins the reply to {spans: string[]}. No temperature:
+// Haiku 5.5 rejects it.
+async function extractSpans({
+  env,
+  query,
+  pageText,
+}: {
+  env: Env;
+  query: string;
+  pageText: string;
+}): Promise<string[]> {
+  const url = `https://gateway.ai.cloudflare.com/v1/${env.CF_AIG_ACCOUNT_ID}/${env.CF_AIG_GATEWAY}/anthropic/v1/messages`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      "x-goog-api-key": env.GOOGLE_API_KEY,
+      "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
+      "anthropic-version": "2023-06-01",
       "content-type": "application/json",
+      // A UA-less request can trip the edge's bot-signature block (403/1010).
+      "user-agent": "arabic-digitization-worker",
     },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents: [
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: SYSTEM_PROMPT,
+      messages: [
         {
           role: "user",
-          parts: [{ text: `QUERY: ${query}\n\nPAGE TEXT:\n${pageText}` }],
+          content: `QUERY: ${query}\n\nPAGE TEXT:\n${pageText}`,
         },
       ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: { spans: { type: "array", items: { type: "string" } } },
-          required: ["spans"],
+      output_config: {
+        format: {
+          type: "json_schema",
+          schema: {
+            type: "object",
+            properties: {
+              spans: { type: "array", items: { type: "string" } },
+            },
+            required: ["spans"],
+            additionalProperties: false,
+          },
         },
-        temperature: 0,
-        maxOutputTokens: MAX_TOKENS,
       },
     }),
   });
   if (!res.ok) {
-    throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+    throw new Error(`Claude ${res.status}: ${await res.text()}`);
   }
   const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    content?: Array<{ type: string; text?: string }>;
   };
-  const raw = (data.candidates?.[0]?.content?.parts ?? [])
-    .map((p) => p.text ?? "")
+  const raw = (data.content ?? [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text ?? "")
     .join("");
   if (!raw) return [];
   const parsed = JSON.parse(raw) as { spans?: unknown };
@@ -158,7 +178,7 @@ export async function hashQuery(query: string): Promise<string> {
     .slice(0, 32);
 }
 
-// Orchestrate: clean the page, ask Gemini for relevant spans, locate each.
+// Orchestrate: clean the page, ask Claude for relevant spans, locate each.
 // Spans that don't locate verbatim are dropped — every returned range is
 // guaranteed to slice cleanly out of `text`.
 export async function buildHighlight({
@@ -171,7 +191,7 @@ export async function buildHighlight({
   pageMarkdown: string;
 }): Promise<HighlightResult> {
   const text = cleanText(pageMarkdown);
-  const rawSpans = await extractSpans(env, query, text);
+  const rawSpans = await extractSpans({ env, query, pageText: text });
   const spans: HighlightSpan[] = [];
   for (const s of rawSpans) {
     const ranges = locateAll(s, text);

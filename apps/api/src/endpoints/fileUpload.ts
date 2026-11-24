@@ -40,7 +40,9 @@ export class FileUpload extends OpenAPIRoute {
       },
       "400": { description: "Missing request body" },
       "404": { description: "No such book" },
-      "415": { description: "Unsupported Content-Type" },
+      "415": {
+        description: "Unsupported Content-Type (not an image, e.g. a PDF)",
+      },
     },
   };
 
@@ -64,7 +66,7 @@ export class FileUpload extends OpenAPIRoute {
       return c.json(
         {
           success: false,
-          error: `Unsupported Content-Type '${contentType}'. Allowed: ${UPLOAD_CONTENT_TYPES.join(", ")}`,
+          error: `Unsupported Content-Type '${contentType}'. Upload a page image (${UPLOAD_CONTENT_TYPES.join(", ")}); PDFs aren't supported, export each page as an image first.`,
         },
         415,
       );

@@ -4,8 +4,8 @@ import { z } from "zod";
 export type AppContext = Context<{ Bindings: Env }>;
 
 // Which provider transcribes a book's pages first; the other is the fallback on
-// a transient failure. A book with no engine set uses Gemini.
-export const OcrEngine = z.enum(["gemini", "claude"]);
+// a transient failure. A book with no engine set uses Inkling.
+export const OcrEngine = z.enum(["inkling", "claude"]);
 export type OcrEngine = z.infer<typeof OcrEngine>;
 
 // A book: top-level collection of scanned files. Pages are derived at assembly
@@ -29,7 +29,7 @@ export const Book = z.object({
   ocr_engine: OcrEngine.nullable()
     .optional()
     .describe(
-      "Provider that OCRs this book first (the other is the fallback); null = default (gemini)",
+      "Provider that OCRs this book first (the other is the fallback); null = default (inkling)",
     ),
   paused: z
     .boolean()
@@ -55,7 +55,7 @@ export const BookCreateBody = z.object({
   ocr_engine: OcrEngine.nullable()
     .optional()
     .describe(
-      "Provider that OCRs this book first (the other is the fallback); omitted or null = default (gemini)",
+      "Provider that OCRs this book first (the other is the fallback); omitted or null = default (inkling)",
     ),
   work_id: z
     .string()
@@ -82,7 +82,7 @@ export const BookUpdateBody = z
         "Book-specific OCR notes appended to the global system prompt; null clears them",
       ),
     ocr_engine: OcrEngine.nullable().describe(
-      "Provider that OCRs this book first; null resets to the default (gemini). Does not re-OCR existing pages",
+      "Provider that OCRs this book first; null resets to the default (inkling). Does not re-OCR existing pages",
     ),
     work_id: z
       .string()
@@ -124,7 +124,8 @@ export const BookWithStatus = Book.extend({
     .optional(),
 });
 
-// Content types we accept for an uploaded page fragment.
+// Content types we accept for an uploaded page fragment. Raster images only:
+// neither OCR provider reads PDFs (see ocr.ts).
 export const UPLOAD_CONTENT_TYPES = [
   "image/jpeg",
   "image/png",

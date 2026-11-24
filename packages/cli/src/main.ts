@@ -35,10 +35,10 @@ Books
   corpus books                    list books with per-state page counts
   corpus show <book>              one book: counts, OCR cost, paused, engine, instructions
   corpus create --title <t> [--id <slug>] [--instructions <text>] [--work <id>]
-                [--engine gemini|claude]
-  corpus engine <book> <gemini|claude|default>
+                [--engine inkling|claude]
+  corpus engine <book> <inkling|claude|default>
                                   OCR provider tried first (the other is the fallback);
-                                  default = gemini. Does not re-OCR existing pages:
+                                  default = inkling. Does not re-OCR existing pages:
                                   run corpus retry <book> --states done for that
   corpus delete <book> --yes      delete a book and all its pages (irreversible)
   corpus pause <book>             stop OCR for this book only
@@ -137,7 +137,7 @@ const need = (value: string | undefined, what: string): string => {
   return value;
 };
 
-const OCR_ENGINES: readonly OcrEngine[] = ["gemini", "claude"];
+const OCR_ENGINES: readonly OcrEngine[] = ["inkling", "claude"];
 
 const parseEngine = (value: string): OcrEngine => {
   const engine = OCR_ENGINES.find((e) => e === value);
@@ -150,7 +150,7 @@ const parseEngine = (value: string): OcrEngine => {
 };
 
 const engineLabel = (engine: OcrEngine | null | undefined): string =>
-  engine ?? "gemini (default)";
+  engine ?? "inkling (default)";
 
 const countsLine = (counts: Record<string, number>): string =>
   Object.entries(counts)
@@ -191,11 +191,10 @@ interface SearchHit {
   _formatted?: { text?: string };
 }
 
-// Gemini errors embed the whole response JSON; the finish reason is the useful bit.
-const shortError = (error: string): string => {
-  const reason = /"finishReason":\s*"([A-Z_]+)"/.exec(error)?.[1];
-  return reason ? `no text (${reason})` : error.slice(0, 120);
-};
+// Provider errors ("Claude 529: {...}") embed the whole response body; the
+// provider and status are the useful bit.
+const shortError = (error: string): string =>
+  /^(Inkling|Claude) \d{3}\b/.exec(error)?.[0] ?? error.slice(0, 120);
 
 const cleanSnippet = (text: string): string =>
   text
@@ -302,7 +301,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 
   async engine([ref, value]) {
     const book = await resolveBook(need(ref, "<book>"));
-    const choice = need(value, "<gemini|claude|default>");
+    const choice = need(value, "<inkling|claude|default>");
     const ocr_engine = choice === "default" ? null : parseEngine(choice);
     const { book: updated } = await request<UpdateBookResponse>({
       service: "api",

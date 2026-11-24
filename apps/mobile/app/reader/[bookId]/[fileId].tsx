@@ -38,9 +38,10 @@ type Pane = "text" | "scan";
 
 const PANES: Pane[] = ["text", "scan"];
 
-// Gemini errors embed the whole response JSON; the finish reason is the useful bit.
+// Provider errors ("Claude 529: {...}") embed the whole response body; the
+// provider and status are the useful bit.
 const failureReason = (error: string | null | undefined): string | null =>
-  error ? (/"finishReason":\s*"([A-Z_]+)"/.exec(error)?.[1] ?? null) : null;
+  error ? (/^(Inkling|Claude) \d{3}\b/.exec(error)?.[0] ?? null) : null;
 const PANE_OPTIONS: { value: Pane; label: string }[] = [
   { value: "text", label: "Text" },
   { value: "scan", label: "Scan" },

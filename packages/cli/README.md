@@ -67,8 +67,8 @@ corpus auth login | status | logout
 
 corpus books                                  list books with per-state page counts
 corpus show <book>                            counts, OCR cost, paused, OCR engine, OCR instructions
-corpus create --title <t> [--id <slug>] [--instructions <text>] [--work <id>] [--engine gemini|claude]
-corpus engine <book> <gemini|claude|default>  set which OCR provider runs first
+corpus create --title <t> [--id <slug>] [--instructions <text>] [--work <id>] [--engine inkling|claude]
+corpus engine <book> <inkling|claude|default>  set which OCR provider runs first
 corpus delete <book> --yes                    irreversible; refuses without --yes
 corpus pause <book>                           stop OCR for this book only
 corpus resume <book>                          resume and re-queue its waiting pages
@@ -89,7 +89,7 @@ corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]
 
 Editing: each `old` must occur exactly once in the page (add surrounding words to pick one of several), and nothing is applied if any edit fails. Every change to a page's text, by hand or by re-OCR, first saves the text it replaces: `corpus history` lists the changes and `corpus text --rev <id>` shows the text just before one. **Re-OCR overwrites hand edits** (`corpus ocr`, `corpus retry --states done`); check for `(edited)` pages in `corpus status` first. To restore a version, replace the whole page with it via `--edits` (one edit whose `old` is the full current text).
 
-OCR engine: each book OCRs with Gemini by default, falling back to Claude when Gemini is rate-limited or down. `--engine claude` (on `create`) or `corpus engine <book> claude` flips the order: Claude first, Gemini as the fallback. `default` resets it to Gemini. Changing the engine only affects pages OCR'd from then on; to re-OCR finished pages run `corpus retry <book> --states done` (this overwrites hand edits, see above). `corpus books` tags each book that has an engine set.
+OCR engine: each book OCRs with Inkling by default, falling back to Claude when Inkling is rate-limited, down, or cuts a page off at its length cap. `--engine claude` (on `create`) or `corpus engine <book> claude` flips the order: Claude first, Inkling as the fallback. `default` resets it to Inkling. Changing the engine only affects pages OCR'd from then on; to re-OCR finished pages run `corpus retry <book> --states done` (this overwrites hand edits, see above). `corpus books` tags each book that has an engine set.
 
 Search is hybrid: `--ratio 0` is keyword-only, `1` is semantic-only, default `0.5`. Concrete phrases work better than category words ("rules of ablution", not "fiqh").
 

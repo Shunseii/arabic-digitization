@@ -7,7 +7,7 @@ const RESUMABLE_STATES = ["queued", "rate_limited"] as const;
 const bookParams = z.object({ bookId: z.string() });
 
 // Pause OCR for one book. The queue consumer checks the flag and drops this
-// book's messages without calling Gemini, leaving the pages 'queued'. Other
+// book's messages without calling an OCR provider, leaving the pages 'queued'. Other
 // books on the shared queue are unaffected. Pages uploaded while paused wait too.
 export class BookPause extends OpenAPIRoute {
   schema = {

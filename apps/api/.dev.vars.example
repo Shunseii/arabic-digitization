@@ -1,9 +1,10 @@
 # Copy to .dev.vars (gitignored) and fill in.
 MASTER_KEY=change-me
-# Google AI Studio API key:
-GOOGLE_API_KEY=...
+# Ollama Cloud API key, for Inkling OCR:
+OLLAMA_API_KEY=...
 # Meilisearch (infra/meili). For local dev point at a local Meili or the Fly URL.
 MEILI_URL=http://localhost:7700
 MEILI_KEY=change-me
-# Cloudflare AI Gateway auth token (cf-aig-authorization) for the Claude OCR fallback.
+# Cloudflare AI Gateway auth token (cf-aig-authorization) for Claude (OCR fallback
+# and search highlighting).
 CF_AIG_TOKEN=change-me
