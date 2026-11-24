@@ -72,9 +72,12 @@ export const bookStatus: EndpointHandler<typeof BookStatus> = ({
           ).bind(params.bookId)
         : // Pinned to the updated_at index: with table stats the planner may
           // prefer walking the page-order index to skip the sort, which reads
-          // every file in the book to return the few that changed.
+          // every file in the book to return the few that changed. The index
+          // spans all books, so this also reads other books' recent changes;
+          // that's a few rows, and a per-book index would cost a write per
+          // page update.
           env.DB.prepare(
-            `SELECT ${FILE_STATUS_COLUMNS} FROM files INDEXED BY idx_files_book_updated
+            `SELECT ${FILE_STATUS_COLUMNS} FROM files INDEXED BY idx_files_updated
 			 WHERE book_id = ? AND updated_at > ? ORDER BY ${ORDER_BY}`,
           ).bind(params.bookId, since);
 
