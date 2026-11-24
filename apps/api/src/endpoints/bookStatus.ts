@@ -6,12 +6,28 @@ import { respond } from "../http/respond";
 import { costUsd } from "../lib/cost";
 import { FileStatus } from "../types";
 
-type FileStatusRow = Omit<typeof FileStatus.Type, "cost_usd"> & {
+export type FileStatusRow = Omit<typeof FileStatus.Type, "cost_usd"> & {
   ocr_model: string | null;
 };
 
-const COLUMNS =
+export const FILE_STATUS_COLUMNS =
   "file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, ocr_model";
+
+export const toFileStatus = ({
+  ocr_model,
+  ...f
+}: FileStatusRow): typeof FileStatus.Type => ({
+  ...f,
+  cost_usd: costUsd({
+    model: ocr_model,
+    inputTokens: f.input_tokens,
+    outputTokens: f.output_tokens,
+  }),
+});
+
+// Page order: unnumbered pages last, a missing order_hint first (the
+// generated columns of migration 0010, walked by idx_files_book_order).
+const ORDER_BY = "sort_page, sort_hint, file_id";
 
 // Per-file status for a book (no transcription text). With `since`, returns only
 // files updated after that time; `files_total` lets the client detect deletions
@@ -52,12 +68,14 @@ export const bookStatus: EndpointHandler<typeof BookStatus> = ({
     const filesQuery =
       since === undefined
         ? env.DB.prepare(
-            `SELECT ${COLUMNS} FROM files WHERE book_id = ?
-			 ORDER BY page_number IS NULL, page_number, order_hint`,
+            `SELECT ${FILE_STATUS_COLUMNS} FROM files WHERE book_id = ? ORDER BY ${ORDER_BY}`,
           ).bind(params.bookId)
-        : env.DB.prepare(
-            `SELECT ${COLUMNS} FROM files WHERE book_id = ? AND updated_at > ?
-			 ORDER BY page_number IS NULL, page_number, order_hint`,
+        : // Pinned to the updated_at index: with table stats the planner may
+          // prefer walking the page-order index to skip the sort, which reads
+          // every file in the book to return the few that changed.
+          env.DB.prepare(
+            `SELECT ${FILE_STATUS_COLUMNS} FROM files INDEXED BY idx_files_book_updated
+			 WHERE book_id = ? AND updated_at > ? ORDER BY ${ORDER_BY}`,
           ).bind(params.bookId, since);
 
     // One round trip: the book check, the file count, and the files.
@@ -76,14 +94,7 @@ export const bookStatus: EndpointHandler<typeof BookStatus> = ({
     const total = totalResult?.results[0] as { n: number } | undefined;
     const rows = (filesResult?.results ?? []) as FileStatusRow[];
 
-    const files = rows.map(({ ocr_model, ...f }) => ({
-      ...f,
-      cost_usd: costUsd({
-        model: ocr_model,
-        inputTokens: f.input_tokens,
-        outputTokens: f.output_tokens,
-      }),
-    }));
+    const files = rows.map(toFileStatus);
 
     return respond({
       endpoint: BookStatus,

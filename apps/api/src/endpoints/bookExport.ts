@@ -7,19 +7,16 @@ import { ExportFile, type FileState } from "../types";
 
 const MAX_BATCH_LIMIT = 200;
 
-// Same order as "page_number IS NULL, page_number, order_hint, file_id", but
-// with NULLs folded into flags so every term is non-null and the whole key can
-// be compared as one row value. COALESCE(x, 0) is only reached when its flag
-// already separates the NULL rows, so the 0 never collides with a real value.
-const SORT_KEY_TERMS = [
-  "page_number IS NULL",
-  "COALESCE(page_number, 0)",
-  "order_hint IS NOT NULL",
-  "COALESCE(order_hint, 0)",
-  "file_id",
-] as const;
-const ORDER_BY = SORT_KEY_TERMS.join(", ");
-const SORT_KEY_ROW = `(${ORDER_BY})`;
+// "page_number IS NULL, page_number, order_hint, file_id" (unnumbered pages
+// last, a missing order_hint first), as the generated columns of migration
+// 0010. idx_files_book_order walks this order, and a batch seeks straight to
+// the row after the cursor instead of reading and sorting the whole book.
+const ORDER_BY = "sort_page, sort_hint, file_id";
+// The cursor carries the raw page_number/order_hint (so cursors issued before
+// the sort columns existed still work); SQL maps NULLs to the same sentinels
+// the columns use, which a JS number can't hold exactly.
+const AFTER_CURSOR = `(sort_page, sort_hint, file_id) >
+  (COALESCE(?, 9223372036854775807), COALESCE(?, -9223372036854775808), ?)`;
 const COLUMNS = "file_id, page_number, role, order_hint, state, text_key";
 
 const ExportCursor = Schema.Struct({
@@ -59,16 +56,6 @@ function decodeCursor(raw: string): ExportCursor | null {
   } catch {
     return null;
   }
-}
-
-function sortKeyParams(cursor: ExportCursor) {
-  return [
-    cursor.page_number === null ? 1 : 0,
-    cursor.page_number ?? 0,
-    cursor.order_hint === null ? 0 : 1,
-    cursor.order_hint ?? 0,
-    cursor.file_id,
-  ];
 }
 
 // Bulk pull: every file's metadata + transcription text, for local assembly
@@ -167,9 +154,15 @@ export const bookExport: EndpointHandler<typeof BookExport> = ({
     const batchQuery = cursor
       ? env.DB.prepare(
           `SELECT ${COLUMNS} FROM files
-			 WHERE book_id = ? AND ${SORT_KEY_ROW} > (?, ?, ?, ?, ?)
+			 WHERE book_id = ? AND ${AFTER_CURSOR}
 			 ORDER BY ${ORDER_BY} LIMIT ?`,
-        ).bind(params.bookId, ...sortKeyParams(cursor), limit + 1)
+        ).bind(
+          params.bookId,
+          cursor.page_number,
+          cursor.order_hint,
+          cursor.file_id,
+          limit + 1,
+        )
       : env.DB.prepare(
           `SELECT ${COLUMNS} FROM files WHERE book_id = ?
 			 ORDER BY ${ORDER_BY} LIMIT ?`,

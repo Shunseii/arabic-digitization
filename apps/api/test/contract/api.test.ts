@@ -196,6 +196,7 @@ describe("public routes", () => {
         "PATCH /api/books/{bookId}",
         "DELETE /api/books/{bookId}",
         "GET /api/books/{bookId}/status",
+        "GET /api/files/recent",
         "GET /api/books/{bookId}/export",
         "POST /api/books/{bookId}/requeue",
         "POST /api/books/{bookId}/pause",
@@ -746,6 +747,16 @@ describe("book status", () => {
     ]);
   });
 
+  it("reads only the changed files for a delta", async () => {
+    const { counts } = await measured({
+      h,
+      request: () =>
+        h.api(`/api/books/status-1/status?since=${1_000 + FILE_COUNT - 3}`),
+    });
+    // The book lookup, the counters, and the two changed files.
+    expect(counts.d1RowsRead).toBeLessThanOrEqual(15);
+  });
+
   it("validates since and 404s a missing book", async () => {
     for (const since of ["abc", "-1", "1.5"]) {
       await expectValidationError({
@@ -770,6 +781,108 @@ describe("book status", () => {
       status: 404,
       error: "Book 'status-missing' not found",
     });
+  });
+});
+
+describe("recent files", () => {
+  // Newer than anything else seeded, so these are the newest files overall.
+  const BASE = 9_000_000_000_000;
+
+  beforeAll(async () => {
+    await seedBook({ h, id: "recent-a", title: "كتاب أ" });
+    await seedBook({ h, id: "recent-b", title: "كتاب ب" });
+    await seedFiles({
+      h,
+      bookId: "recent-a",
+      files: Array.from({ length: 60 }, (_, i) => ({
+        fileId: `ra-${String(i).padStart(3, "0")}`,
+        page: i + 1,
+        updatedAt: BASE + 2 * i,
+        state: "done",
+        inputTokens: 100,
+        outputTokens: 50,
+        ocrModel: "inkling-2-small",
+      })),
+    });
+    await seedFiles({
+      h,
+      bookId: "recent-b",
+      files: [
+        {
+          fileId: "rb-new",
+          page: null,
+          updatedAt: BASE + 1_000,
+          state: "failed",
+          error: "boom",
+        },
+        { fileId: "rb-old", page: 3, updatedAt: BASE + 1, state: "queued" },
+      ],
+    });
+  });
+
+  it("lists the newest files across books with their book", async () => {
+    const { response, counts } = await measured({
+      h,
+      request: () => h.api("/api/files/recent?limit=3"),
+    });
+    expect(response.status).toBe(200);
+    // One query: an index walk over three files plus their books' rows,
+    // not a scan of every file.
+    expect(counts).toMatchObject({ d1Queries: 1, r2Reads: 0 });
+    expect(counts.d1RowsRead).toBeLessThanOrEqual(12);
+
+    const body = (await (await h.api("/api/files/recent?limit=3")).json()) as {
+      success: boolean;
+      files: Record<string, unknown>[];
+    };
+    expect(body.success).toBe(true);
+    expect(body.files.map((f) => f.file_id)).toEqual([
+      "rb-new",
+      "ra-059",
+      "ra-058",
+    ]);
+    expect(body.files[0]).toEqual({
+      file_id: "rb-new",
+      page_number: null,
+      state: "failed",
+      role: null,
+      order_hint: null,
+      preview: null,
+      error: "boom",
+      updated_at: BASE + 1_000,
+      text_edited_at: null,
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
+      book_id: "recent-b",
+      book_title: "كتاب ب",
+    });
+    expect(body.files[1]).toMatchObject({
+      book_id: "recent-a",
+      book_title: "كتاب أ",
+      page_number: 60,
+      cost_usd: costUsd({
+        model: "inkling-2-small",
+        inputTokens: 100,
+        outputTokens: 50,
+      }),
+    });
+  });
+
+  it("returns 25 files by default and validates limit", async () => {
+    const body = (await (await h.api("/api/files/recent")).json()) as {
+      files: { updated_at: number }[];
+    };
+    expect(body.files).toHaveLength(25);
+    const times = body.files.map((f) => f.updated_at);
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+
+    for (const limit of ["0", "101", "x"]) {
+      await expectValidationError({
+        response: await h.api(`/api/files/recent?limit=${limit}`),
+        paths: [["query", "limit"]],
+      });
+    }
   });
 });
 
@@ -906,6 +1019,59 @@ describe("book export", () => {
         },
       ],
     });
+  });
+
+  it("seeks to the cursor instead of reading the whole book", async () => {
+    await seedBook({ h, id: "exp-big" });
+    await seedFiles({
+      h,
+      bookId: "exp-big",
+      files: Array.from({ length: 300 }, (_, i) => ({
+        fileId: `eb-${String(i).padStart(3, "0")}`,
+        page: i % 50 === 0 ? null : Math.floor(i / 2),
+        orderHint: i % 3 === 0 ? null : i % 2,
+        state: "queued",
+      })),
+    });
+    const ids: string[] = [];
+    let cursor: string | null = null;
+    let maxRowsRead = 0;
+    do {
+      const path: string = `/api/books/exp-big/export?limit=10${
+        cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""
+      }`;
+      const { response, counts } = await measured({
+        h,
+        request: () => h.api(path),
+      });
+      expect(response.status).toBe(200);
+      maxRowsRead = Math.max(maxRowsRead, counts.d1RowsRead);
+      const body = (await (await h.api(path)).json()) as {
+        files: { file_id: string }[];
+        next_cursor: string | null;
+      };
+      ids.push(...body.files.map((f) => f.file_id));
+      cursor = body.next_cursor;
+    } while (cursor);
+
+    const all = (await (await h.api("/api/books/exp-big/export")).json()) as {
+      files: { file_id: string }[];
+    };
+    expect(ids).toHaveLength(300);
+    expect(ids).toEqual(all.files.map((f) => f.file_id));
+    // Each batch: the book, its counters, and about two rows per file for the
+    // eleven it fetches; never all 300 files of the book.
+    expect(maxRowsRead).toBeLessThanOrEqual(40);
+  });
+
+  it("accepts a cursor issued before the sort columns existed", async () => {
+    const cursor = btoa(
+      JSON.stringify({ page_number: 2, order_hint: 0, file_id: "e-b" }),
+    ).replace(/=+$/, "");
+    const body = (await (
+      await h.api(`/api/books/exp-1/export?limit=2&cursor=${cursor}`)
+    ).json()) as { files: { file_id: string }[] };
+    expect(body.files.map((f) => f.file_id)).toEqual(["e-c", "e-d"]);
   });
 
   it("rejects a bad limit or cursor", async () => {
@@ -2165,7 +2331,7 @@ describe("every API operation", () => {
         path: path.replace(/\{[^}]+\}/g, "x"),
       })),
     );
-    expect(operations.length).toBe(27);
+    expect(operations.length).toBe(28);
     for (const { method, path } of operations) {
       for (const headers of [{}, { Authorization: "Bearer wrong" }] as Record<
         string,

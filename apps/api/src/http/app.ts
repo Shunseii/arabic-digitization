@@ -36,6 +36,7 @@ import { FileDelete, fileDelete } from "../endpoints/fileDelete";
 import { FileHighlight, fileHighlight } from "../endpoints/fileHighlight";
 import { FileImage, fileImage } from "../endpoints/fileImage";
 import { FileOcr, fileOcr } from "../endpoints/fileOcr";
+import { FileRecent, fileRecent } from "../endpoints/fileRecent";
 import { FileText, fileText } from "../endpoints/fileText";
 import { FileTextEdit, fileTextEdit } from "../endpoints/fileTextEdit";
 import { FileTextHistory, fileTextHistory } from "../endpoints/fileTextHistory";
@@ -92,6 +93,7 @@ export const Api = HttpApi.make("api")
   .add(
     HttpApiGroup.make("Files").add(
       BookStatus,
+      FileRecent,
       FileUpload,
       FileUpdate,
       FileDelete,
@@ -142,6 +144,7 @@ const WorksLive = HttpApiBuilder.group(Api, "Works", (handlers) =>
 const FilesLive = HttpApiBuilder.group(Api, "Files", (handlers) =>
   handlers
     .handle("bookStatus", bookStatus)
+    .handle("fileRecent", fileRecent)
     .handleRaw("fileUpload", fileUpload)
     .handle("fileUpdate", fileUpdate)
     .handle("fileDelete", fileDelete)

@@ -140,6 +140,13 @@ export const FileStatus = Schema.Struct({
 });
 export type FileStatus = typeof FileStatus.Type;
 
+// A file in the cross-book recent list: its status plus the book it's in.
+export const RecentFile = Schema.Struct({
+  ...FileStatus.fields,
+  book_id: Schema.String,
+  book_title: Schema.String,
+});
+
 // One file in a bulk export: metadata + the transcribed text (null if none yet).
 export const ExportFile = Schema.Struct({
   file_id: Schema.String,

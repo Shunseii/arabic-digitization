@@ -201,6 +201,18 @@ export interface BookStatusResponse {
   files_total: number;
 }
 
+/** A file in the cross-book recent list: its status plus the book it's in. */
+export interface RecentFile extends FileStatus {
+  book_id: string;
+  book_title: string;
+}
+
+/** GET /api/files/recent: newest updated_at first. */
+export interface RecentFilesResponse {
+  success: true;
+  files: RecentFile[];
+}
+
 export interface BookExportResponse {
   success: true;
   book_id: string;

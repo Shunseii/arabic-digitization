@@ -110,6 +110,13 @@ GET /api/books/:bookId/status[?since=<epoch ms>]
   // input_tokens/output_tokens/cost_usd are null for pages OCR'd before usage
   // tracking (or not done yet); cost_usd is null if the model has no known price.
 
+GET /api/files/recent[?limit=<1-100>]
+  The most recently updated files across every book, newest first (default 25).
+  Each has the same fields as a status file, plus its book_id and book_title.
+  200 -> { success, files: [ { file_id, ..., cost_usd, book_id, book_title } ] }
+  // For an activity feed: one cheap call instead of every book's status.
+  400 if limit is not an integer 1-100.
+
 GET /api/books/:bookId/export[?limit=<1-200>[&cursor=<next_cursor>]]
   All files + their transcription text in one payload (for local assembly).
   200 -> { success, book_id, files: [ { file_id, page_number, role, order_hint, state, text } ] }
