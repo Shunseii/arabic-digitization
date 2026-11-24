@@ -20,6 +20,7 @@ import { FileTextEdit } from "./endpoints/fileTextEdit";
 import { FileTextHistory } from "./endpoints/fileTextHistory";
 import { FileUpdate } from "./endpoints/fileUpdate";
 import { FileUpload } from "./endpoints/fileUpload";
+import { OcrRunsRecomputeMetrics } from "./endpoints/ocrRunsRecomputeMetrics";
 import { SearchReindex } from "./endpoints/searchReindex";
 import { TagList } from "./endpoints/tagList";
 import { WorkCreate } from "./endpoints/workCreate";
@@ -27,10 +28,23 @@ import { WorkDelete } from "./endpoints/workDelete";
 import { WorkFetch } from "./endpoints/workFetch";
 import { WorkList } from "./endpoints/workList";
 import { WorkUpdate } from "./endpoints/workUpdate";
+import {
+  initLogging,
+  recordUnhandledError,
+  requestEvent,
+  withRequestEvent,
+} from "./logging";
 import { requireMasterKey } from "./middleware/auth";
 import { handleOcrQueue, type QueueMessage } from "./queue";
+import type { AppEnv } from "./types";
 
-const app = new Hono<{ Bindings: Env }>();
+initLogging();
+
+const app = new Hono<AppEnv>();
+
+// One wide event per request (see logging.ts). First, so every route has it.
+app.use("*", requestEvent);
+app.onError(recordUnhandledError);
 
 // Public LLM-oriented API reference (for a local skill). Before the gate.
 app.get("/llms.txt", (c) =>
@@ -94,8 +108,13 @@ openapi.post("/api/books/:bookId/files/:fileId/highlight", FileHighlight);
 // read-only key — see infra/meili). Reindex rebuilds the index from R2.
 openapi.post("/api/search/reindex", SearchReindex);
 
+// Admin: recompute the OCR run metrics cache (lib/metrics.ts) in pages.
+openapi.post("/api/admin/ocr-runs/recompute-metrics", OcrRunsRecomputeMetrics);
+
 // HTTP via Hono; queue consumer transcribes uploaded files.
 export default {
-  fetch: app.fetch,
+  fetch: withRequestEvent(async (request, env: Env, ctx: ExecutionContext) =>
+    app.fetch(request, env, ctx),
+  ),
   queue: handleOcrQueue,
 } satisfies ExportedHandler<Env, QueueMessage>;

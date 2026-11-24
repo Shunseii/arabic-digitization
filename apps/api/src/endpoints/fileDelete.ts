@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { runTextPrefix } from "../lib/ocrRuns";
 import { historyPrefix } from "../lib/pageText";
 import type { AppContext } from "../types";
 
@@ -56,10 +57,16 @@ export class FileDelete extends OpenAPIRoute {
     const history = await c.env.BUCKET.list({
       prefix: historyPrefix({ bookId: params.bookId, fileId: params.fileId }),
     });
+    // The text each OCR run produced. Its ocr_runs rows stay: they are the
+    // permanent run history.
+    const runTexts = await c.env.BUCKET.list({
+      prefix: runTextPrefix({ bookId: params.bookId, fileId: params.fileId }),
+    });
     const keys = [
       file.r2_key,
       ...(file.text_key ? [file.text_key] : []),
       ...history.objects.map((o) => o.key),
+      ...runTexts.objects.map((o) => o.key),
     ];
     await c.env.BUCKET.delete(keys);
     await c.env.DB.prepare("DELETE FROM text_revisions WHERE file_id = ?")

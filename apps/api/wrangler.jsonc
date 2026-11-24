@@ -7,8 +7,15 @@
   "name": "arabic-digitization",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-14",
+  // Workers Logs. The app writes one evlog wide event per request and per queue
+  // message (see src/logging.ts). Invocation logs stay on: they carry
+  // $workers.cpuTimeMs, which the wide events can't measure.
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
   },
   "upload_source_maps": true,
   "compatibility_flags": ["nodejs_compat"],

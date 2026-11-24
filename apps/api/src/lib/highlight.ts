@@ -10,14 +10,25 @@
 // (diacritics, footnote and list markers, alef/ta-marbuta variants, and
 // whitespace runs folded out) and map back to real offsets — recovering those near-misses.
 
+import { Effect } from "effect";
+import { BadResponse } from "../effect/errors";
+import {
+  AnthropicGateway,
+  isRecord,
+  readAnthropicMessage,
+  type TransportError,
+  WallClock,
+} from "../effect/services";
+import { costUsd } from "./cost";
+
 // Mirrors @qiraa/shared HighlightSpan; redefined locally so the Worker doesn't
 // take a dependency on the shared package.
-interface HighlightSpan {
+export interface HighlightSpan {
   text: string;
   ranges: [number, number][];
 }
 
-const MODEL = "claude-haiku-5-5";
+export const HIGHLIGHT_MODEL = "claude-haiku-5-5";
 const MAX_TOKENS = 2048;
 
 const SYSTEM_PROMPT = `You are given the full text of a scanned Arabic book page and a search query (English or Arabic, keyword or natural-language phrase). Identify the passages on the page that are most relevant to the query and worth highlighting for a reader. Return them as a list of spans, each copied EXACTLY as it appears on the page (verbatim characters, including diacritics). Include ONLY genuinely relevant passages and order them most-relevant first; prefer the few best spans over many weak ones (at most ~6). Each span should be a focused phrase or sentence, not the whole page. Return an empty list if nothing on the page is relevant.`;
@@ -94,70 +105,74 @@ function locateAll(span: string, page: string): [number, number][] {
   return ranges;
 }
 
-// Claude via the Cloudflare AI Gateway Anthropic endpoint, as in ocr.ts: the
-// Anthropic key is stored in the gateway (BYOK), so we send only the gateway
-// token. Structured output pins the reply to {spans: string[]}. No temperature:
-// Haiku 5.5 rejects it.
-async function extractSpans({
-  env,
+// Claude Haiku via the AI Gateway (the AnthropicGateway service). Structured
+// output pins the reply to {spans: string[]}. No temperature: Haiku 5.5
+// rejects it. Records the call's model, tokens, cost and latency on the wide
+// event.
+function extractSpans({
   query,
   pageText,
 }: {
-  env: Env;
   query: string;
   pageText: string;
-}): Promise<string[]> {
-  const url = `https://gateway.ai.cloudflare.com/v1/${env.CF_AIG_ACCOUNT_ID}/${env.CF_AIG_GATEWAY}/anthropic/v1/messages`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-      // A UA-less request can trip the edge's bot-signature block (403/1010).
-      "user-agent": "arabic-digitization-worker",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `QUERY: ${query}\n\nPAGE TEXT:\n${pageText}`,
-        },
-      ],
-      output_config: {
-        format: {
-          type: "json_schema",
-          schema: {
-            type: "object",
-            properties: {
-              spans: { type: "array", items: { type: "string" } },
+}): Effect.Effect<string[], TransportError, AnthropicGateway | WallClock> {
+  return Effect.gen(function* () {
+    const gateway = yield* AnthropicGateway;
+    const clock = yield* WallClock;
+    const startedAt = clock.now();
+    const raw = yield* gateway.messages({
+      body: {
+        model: HIGHLIGHT_MODEL,
+        max_tokens: MAX_TOKENS,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `QUERY: ${query}\n\nPAGE TEXT:\n${pageText}`,
+          },
+        ],
+        output_config: {
+          format: {
+            type: "json_schema",
+            schema: {
+              type: "object",
+              properties: {
+                spans: { type: "array", items: { type: "string" } },
+              },
+              required: ["spans"],
+              additionalProperties: false,
             },
-            required: ["spans"],
-            additionalProperties: false,
           },
         },
       },
-    }),
+    });
+    const { text, usage } = readAnthropicMessage(raw);
+    yield* Effect.logInfo("highlight spans extracted").pipe(
+      Effect.annotateLogs({
+        highlight: {
+          model: HIGHLIGHT_MODEL,
+          tokens: { input: usage.inputTokens, output: usage.outputTokens },
+          cost_usd: costUsd({ model: HIGHLIGHT_MODEL, ...usage }),
+          latency_ms: clock.now() - startedAt,
+        },
+      }),
+    );
+    if (!text) return [];
+    const parsed = yield* Effect.try({
+      try: (): unknown => JSON.parse(text),
+      catch: () =>
+        new BadResponse({
+          provider: "claude",
+          detail: `structured output was not JSON (${text.length} chars)`,
+          usage,
+        }),
+    });
+    const spans = isRecord(parsed) ? parsed.spans : undefined;
+    if (!Array.isArray(spans)) return [];
+    return spans.filter(
+      (span): span is string => typeof span === "string" && span.trim() !== "",
+    );
   });
-  if (!res.ok) {
-    throw new Error(`Claude ${res.status}: ${await res.text()}`);
-  }
-  const data = (await res.json()) as {
-    content?: Array<{ type: string; text?: string }>;
-  };
-  const raw = (data.content ?? [])
-    .filter((b) => b.type === "text")
-    .map((b) => b.text ?? "")
-    .join("");
-  if (!raw) return [];
-  const parsed = JSON.parse(raw) as { spans?: unknown };
-  if (!Array.isArray(parsed.spans)) return [];
-  return parsed.spans.filter(
-    (s): s is string => typeof s === "string" && s.trim() !== "",
-  );
 }
 
 export interface HighlightResult {
@@ -181,21 +196,37 @@ export async function hashQuery(query: string): Promise<string> {
 // Orchestrate: clean the page, ask Claude for relevant spans, locate each.
 // Spans that don't locate verbatim are dropped — every returned range is
 // guaranteed to slice cleanly out of `text`.
-export async function buildHighlight({
-  env,
+export function buildHighlight({
   query,
   pageMarkdown,
 }: {
-  env: Env;
   query: string;
   pageMarkdown: string;
-}): Promise<HighlightResult> {
+}): Effect.Effect<
+  HighlightResult,
+  TransportError,
+  AnthropicGateway | WallClock
+> {
   const text = cleanText(pageMarkdown);
-  const rawSpans = await extractSpans({ env, query, pageText: text });
+  return extractSpans({ query, pageText: text }).pipe(
+    Effect.map((rawSpans) => ({
+      text,
+      spans: locateSpans({ rawSpans, text }),
+    })),
+  );
+}
+
+export function locateSpans({
+  rawSpans,
+  text,
+}: {
+  rawSpans: readonly string[];
+  text: string;
+}): HighlightSpan[] {
   const spans: HighlightSpan[] = [];
   for (const s of rawSpans) {
     const ranges = locateAll(s, text);
     if (ranges.length > 0) spans.push({ text: cleanText(s).trim(), ranges });
   }
-  return { text, spans };
+  return spans;
 }

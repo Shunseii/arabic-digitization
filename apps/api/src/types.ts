@@ -1,7 +1,10 @@
+import type { AuditableLogger } from "evlog";
 import type { Context } from "hono";
 import { z } from "zod";
 
-export type AppContext = Context<{ Bindings: Env }>;
+// `log` is the request's wide event (see logging.ts).
+export type AppEnv = { Bindings: Env; Variables: { log: AuditableLogger } };
+export type AppContext = Context<AppEnv>;
 
 // Which provider transcribes a book's pages first; the other is the fallback on
 // a transient failure. A book with no engine set uses Inkling.

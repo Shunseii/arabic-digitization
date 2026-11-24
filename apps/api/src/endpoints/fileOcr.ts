@@ -45,7 +45,7 @@ export class FileOcr extends OpenAPIRoute {
       );
     }
 
-    await enqueueOcr({ env: c.env, fileId: params.fileId });
+    await enqueueOcr({ env: c.env, fileId: params.fileId, trigger: "manual" });
     return c.json(
       { success: true, file_id: params.fileId, state: "queued" },
       202,

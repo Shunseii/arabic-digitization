@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import type { OcrMessage } from "../queue";
 import { type AppContext, FileRecord, UPLOAD_CONTENT_TYPES } from "../types";
 
 // Upload one page fragment (image) into a book.
@@ -94,7 +95,10 @@ export class FileUpload extends OpenAPIRoute {
       .run();
 
     // Trigger OCR off the request path.
-    await c.env.OCR_Q.send({ fileId });
+    await c.env.OCR_Q.send({
+      fileId,
+      trigger: "upload",
+    } satisfies OcrMessage);
 
     return c.json(
       {

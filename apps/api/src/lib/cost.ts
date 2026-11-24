@@ -8,6 +8,8 @@
 // inkling-2-small is the default OCR engine: $0.30 in / $1.00 out (ollama.com
 // pricing, checked 2026-11-23).
 // claude-sonnet-5-5 is the OCR fallback (see ocr.ts), $2 in / $10 out.
+// claude-haiku-5-5 runs search highlighting (see lib/highlight.ts), $0.10 in /
+// $0.50 out (the <=100k-prompt tier; a page plus a query stays far below it).
 // The rest are no longer called but stay so older pages still get a cost:
 // claude-sonnet-5 was the fallback before Sonnet 5.5, and
 // gemini-3.1-pro-preview was the default OCR engine before Inkling (its
@@ -16,6 +18,7 @@
 const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
   "inkling-2-small": { inputPer1M: 0.3, outputPer1M: 1.0 },
   "claude-sonnet-5-5": { inputPer1M: 2.0, outputPer1M: 10.0 },
+  "claude-haiku-5-5": { inputPer1M: 0.1, outputPer1M: 0.5 },
   "claude-sonnet-5": { inputPer1M: 3.0, outputPer1M: 15.0 },
   "gemini-3.1-pro-preview": { inputPer1M: 2.0, outputPer1M: 12.0 },
 };

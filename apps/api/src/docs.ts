@@ -185,6 +185,24 @@ GET /api/books/:bookId/files/:fileId/text/history
   before history existed (2026-11-21) are not listed.
   200 -> { success, file_id, text_edited_at, revisions: [ { id, change: "edit"|"ocr", model, note, created_at } ] }
 
+## OCR run history (admin)
+Every OCR run of a page (primary engine plus any fallback) is recorded in D1
+(table ocr_runs, never overwritten) with its trigger, outcome, engine and final
+model, every provider call with tokens/cost/latency, the prompt versions used,
+and neutral page metrics (word/char counts, header and footnote format, Qur'an
+spans, Uthmani marks, glosses, footnote marker counts). The text each run
+produced is kept in R2. There is no read endpoint yet; query D1 directly.
+
+POST /api/admin/ocr-runs/recompute-metrics
+  Recompute the metrics cache of runs computed by an older metrics version
+  (after a metrics definition change). Paged: one call handles up to "limit"
+  runs, reading each run's text from R2.
+  Body (optional): { "after"?: <run id, default 0>, "limit"?: 1-25 (default 10) }
+  200 -> { success, metrics_version, updated, missing, next_after }
+  Call again with after = next_after until next_after is null. "missing" counts
+  runs whose text is gone (book or page deleted); they are skipped.
+  If a call fails with error 1102 (CPU limit exceeded), lower "limit".
+
 ## Output Markdown conventions (what the OCR produces)
 - First line = the running page header (topic + page number), then a blank line,
   then "---", then a blank line, then the body.

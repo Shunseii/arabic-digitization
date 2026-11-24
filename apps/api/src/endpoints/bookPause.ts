@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import type { OcrMessage } from "../queue";
 import type { AppContext } from "../types";
 
 const RESUMABLE_STATES = ["queued", "rate_limited"] as const;
@@ -99,7 +100,9 @@ export class BookResume extends OpenAPIRoute {
     // Cloudflare Queues cap a batch at 100 messages.
     for (let i = 0; i < fileIds.length; i += 100) {
       await c.env.OCR_Q.sendBatch(
-        fileIds.slice(i, i + 100).map((fileId) => ({ body: { fileId } })),
+        fileIds.slice(i, i + 100).map((fileId) => ({
+          body: { fileId, trigger: "requeue" } satisfies OcrMessage,
+        })),
       );
     }
 

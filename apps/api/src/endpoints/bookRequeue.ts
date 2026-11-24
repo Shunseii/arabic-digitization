@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { type OcrMessage, requeueTrigger } from "../queue";
 import { type AppContext, FileState } from "../types";
 
 const RequeueBody = z.object({
@@ -56,13 +57,18 @@ export class BookRequeue extends OpenAPIRoute {
     const placeholders = states.map(() => "?").join(", ");
 
     const { results } = await c.env.DB.prepare(
-      `SELECT file_id FROM files WHERE book_id = ? AND state IN (${placeholders})`,
+      `SELECT file_id, state FROM files WHERE book_id = ? AND state IN (${placeholders})`,
     )
       .bind(params.bookId, ...states)
-      .all<{ file_id: string }>();
+      .all<{ file_id: string; state: string }>();
 
-    const fileIds = results.map((r) => r.file_id);
-    if (fileIds.length === 0) {
+    const messages = results.map(
+      (r): OcrMessage => ({
+        fileId: r.file_id,
+        trigger: requeueTrigger(r.state),
+      }),
+    );
+    if (messages.length === 0) {
       return c.json({ success: true, requeued: 0, states });
     }
 
@@ -74,12 +80,12 @@ export class BookRequeue extends OpenAPIRoute {
       .run();
 
     // Cloudflare Queues cap a batch at 100 messages.
-    for (let i = 0; i < fileIds.length; i += 100) {
+    for (let i = 0; i < messages.length; i += 100) {
       await c.env.OCR_Q.sendBatch(
-        fileIds.slice(i, i + 100).map((fileId) => ({ body: { fileId } })),
+        messages.slice(i, i + 100).map((body) => ({ body })),
       );
     }
 
-    return c.json({ success: true, requeued: fileIds.length, states });
+    return c.json({ success: true, requeued: messages.length, states });
   }
 }

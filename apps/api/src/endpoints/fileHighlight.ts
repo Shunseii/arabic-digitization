@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { buildHighlight, hashQuery } from "../lib/highlight";
+import { runInRequest } from "../logging";
 import type { AppContext } from "../types";
 
 // Cached highlight results live 30 days; the cache key includes the file's
@@ -74,6 +75,7 @@ export class FileHighlight extends OpenAPIRoute {
       text: string;
       spans: { text: string; ranges: [number, number][] }[];
     }>(cacheKey, "json");
+    c.get("log").set({ highlight: { cache: cached ? "hit" : "miss" } });
     if (cached) {
       return c.json({ success: true, ...cached }, 200);
     }
@@ -83,10 +85,12 @@ export class FileHighlight extends OpenAPIRoute {
       return c.json({ success: false, error: "Transcription missing" }, 404);
     }
 
-    const { text, spans } = await buildHighlight({
-      env: c.env,
-      query: body.query,
-      pageMarkdown: await obj.text(),
+    const { text, spans } = await runInRequest({
+      c,
+      effect: buildHighlight({
+        query: body.query,
+        pageMarkdown: await obj.text(),
+      }),
     });
     // Best-effort cache write; a KV hiccup shouldn't fail the request.
     c.executionCtx.waitUntil(

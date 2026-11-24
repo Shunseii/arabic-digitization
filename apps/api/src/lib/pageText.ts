@@ -7,7 +7,7 @@ export type TextChange = "edit" | "ocr";
 
 // R2 key for a saved earlier version. Lives under the book's prefix so
 // deleting the book clears its history too.
-const historyKey = ({
+export const historyKey = ({
   bookId,
   fileId,
   at,
@@ -94,59 +94,72 @@ export async function indexPage({
   fileId: string;
   text: string;
 }): Promise<void> {
-  if (!env.MEILI_URL || !env.MEILI_KEY) return;
   try {
-    const row = await env.DB.prepare(
-      `SELECT f.book_id, f.page_number, f.role, b.title AS book_title, b.work_id,
-              w.name AS work_name, w.author
-         FROM files f
-         JOIN books b ON b.id = f.book_id
-         LEFT JOIN works w ON w.id = b.work_id
-        WHERE f.file_id = ?`,
-    )
-      .bind(fileId)
-      .first<{
-        book_id: string;
-        page_number: number | null;
-        role: string | null;
-        book_title: string;
-        work_id: string | null;
-        work_name: string | null;
-        author: string | null;
-      }>();
-    if (!row) return;
-
-    // Tag names live on the work (denormalized onto every chunk for faceting).
-    let tags: string[] = [];
-    if (row.work_id) {
-      const { results } = await env.DB.prepare(
-        `SELECT t.name FROM work_tags wt JOIN tags t ON wt.tag_id = t.id
-          WHERE wt.work_id = ?`,
-      )
-        .bind(row.work_id)
-        .all<{ name: string }>();
-      tags = results.map((r) => r.name);
-    }
-
-    // Clear this page's prior chunks first — new text can produce a different
-    // chunk count, so upsert alone would leave stale `file_id#N` docs behind.
-    await deleteDocsByFile({ env, fileId });
-    await upsertDocs({
-      env,
-      docs: buildPageDocs({
-        file_id: fileId,
-        book_id: row.book_id,
-        book_title: row.book_title,
-        work_id: row.work_id,
-        work_name: row.work_name,
-        author: row.author,
-        tags,
-        page_number: row.page_number,
-        role: row.role,
-        text,
-      }),
-    });
+    await indexPageOrThrow({ env, fileId, text });
   } catch (err) {
     console.error(`search index update failed for ${fileId}: ${err}`);
   }
+}
+
+// indexPage without the catch, for callers that report the failure themselves.
+export async function indexPageOrThrow({
+  env,
+  fileId,
+  text,
+}: {
+  env: Env;
+  fileId: string;
+  text: string;
+}): Promise<void> {
+  if (!env.MEILI_URL || !env.MEILI_KEY) return;
+  const row = await env.DB.prepare(
+    `SELECT f.book_id, f.page_number, f.role, b.title AS book_title, b.work_id,
+            w.name AS work_name, w.author
+       FROM files f
+       JOIN books b ON b.id = f.book_id
+       LEFT JOIN works w ON w.id = b.work_id
+      WHERE f.file_id = ?`,
+  )
+    .bind(fileId)
+    .first<{
+      book_id: string;
+      page_number: number | null;
+      role: string | null;
+      book_title: string;
+      work_id: string | null;
+      work_name: string | null;
+      author: string | null;
+    }>();
+  if (!row) return;
+
+  // Tag names live on the work (denormalized onto every chunk for faceting).
+  let tags: string[] = [];
+  if (row.work_id) {
+    const { results } = await env.DB.prepare(
+      `SELECT t.name FROM work_tags wt JOIN tags t ON wt.tag_id = t.id
+        WHERE wt.work_id = ?`,
+    )
+      .bind(row.work_id)
+      .all<{ name: string }>();
+    tags = results.map((r) => r.name);
+  }
+
+  // Clear this page's prior chunks first — new text can produce a different
+  // chunk count, so upsert alone would leave stale `file_id#N` docs behind.
+  await deleteDocsByFile({ env, fileId });
+  await upsertDocs({
+    env,
+    docs: buildPageDocs({
+      file_id: fileId,
+      book_id: row.book_id,
+      book_title: row.book_title,
+      work_id: row.work_id,
+      work_name: row.work_name,
+      author: row.author,
+      tags,
+      page_number: row.page_number,
+      role: row.role,
+      text,
+    }),
+  });
 }

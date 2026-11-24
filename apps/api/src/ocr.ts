@@ -1,28 +1,70 @@
-// OCR core. Single source of truth for transcription — the manual endpoint and
-// the queue consumer both call transcribe().
+// OCR core: transcribe one page and record the run. The queue consumer is the
+// only caller; upload, manual re-run and bulk requeue all go through the queue.
 //
 // Two providers, Inkling and Claude. A book's ocr_engine picks which runs first
 // (default Inkling); the other is the fallback, used when the first fails for a
 // transient reason (rate limit, 5xx, network failure or timeout) or, for
 // Inkling, when the page hits the output cap.
-//   - Inkling — direct to Ollama Cloud with env.OLLAMA_API_KEY.
-//   - Claude — via the Cloudflare AI Gateway.
-//
-// Claude routes through the gateway's Anthropic endpoint. The Anthropic key is
-// stored in the gateway (BYOK) — we send only the gateway auth token, never the
-// provider key.
+//   - Inkling — direct to Ollama Cloud (the Ollama service).
+//   - Claude — via the Cloudflare AI Gateway (the AnthropicGateway service).
 //
 // Both providers take raster images only, which is why uploads are limited to
 // UPLOAD_CONTENT_TYPES (see types.ts).
+//
+// Every run ends in one D1 batch: the page's new state, the revision it
+// replaced, the prompt versions it used, and its ocr_runs row.
 
-import { indexPage, saveRevision } from "./lib/pageText";
+import { Effect } from "effect";
+import {
+  BadResponse,
+  FileNotFound,
+  fallbackReason,
+  InklingCutOff,
+  isTransient,
+  NotAnImage,
+  ObjectMissing,
+  type OcrError,
+  type ProviderError,
+  type StorageError,
+  type TransientError,
+  type Usage,
+  usageOf,
+} from "./effect/errors";
+import {
+  AnthropicGateway,
+  Bucket,
+  Database,
+  isRecord,
+  numberOrNull,
+  Ollama,
+  PageIndexer,
+  readAnthropicMessage,
+  type Statement,
+  statement,
+  WallClock,
+} from "./effect/services";
+import { measurePage } from "./lib/metrics";
+import {
+  type CallRecord,
+  callCost,
+  fallbackReasonOf,
+  insertOcrRun,
+  insertPromptVersion,
+  type OcrTrigger,
+  type PromptVersion,
+  type RunStatus,
+  runTextKey,
+  runTotals,
+  sha256Hex,
+} from "./lib/ocrRuns";
+import { historyKey } from "./lib/pageText";
 import type { OcrEngine } from "./types";
 
 // What the model outputs for a page with no text (see SYSTEM_PROMPT). Stored as
 // an empty transcription, so a blank page is 'done' rather than 'failed'.
 const BLANK_MARKER = "[blank]";
 
-const SYSTEM_PROMPT = `You transcribe scanned pages of classical Arabic printed books into clean Markdown.
+export const SYSTEM_PROMPT = `You transcribe scanned pages of classical Arabic printed books into clean Markdown.
 
 Rules:
 - Transcribe the Arabic text faithfully, preserving the tashkeel (diacritics) exactly as printed.
@@ -36,37 +78,21 @@ Rules:
 - If the page has no text to transcribe at all (a blank page, or only an image or ornament), output exactly ${BLANK_MARKER} and nothing else.
 - Output ONLY the transcription as Markdown (HTML ruby tags allowed). No preamble, no commentary, no code fences.`;
 
-const INKLING_MODEL = "inkling-2-small";
-const CLAUDE_MODEL = "claude-sonnet-5-5";
+export const INKLING_MODEL = "inkling-2-small";
+export const CLAUDE_MODEL = "claude-sonnet-5-5";
 const USER_PROMPT = "Transcribe this page.";
 const CLAUDE_MAX_TOKENS = 16000;
 // Inkling counts its thinking against this cap too. A dense page fits well
-// under it; reaching it means the output was cut off (see InklingCutOffError).
-const INKLING_MAX_TOKENS = 12000;
+// under it; reaching it means the output was cut off (see InklingCutOff).
+export const INKLING_MAX_TOKENS = 12000;
 // A provider call that hangs this long is treated like a 5xx: fall back or
 // re-queue rather than hold the queue consumer.
-const PROVIDER_TIMEOUT_MS = 5 * 60 * 1000;
-// The providers sit behind Cloudflare's edge; a UA-less request can trip a
-// bot-signature block (403/1010), which is terminal in our error model.
-const USER_AGENT = "arabic-digitization-worker";
+export const PROVIDER_TIMEOUT_MS = 5 * 60 * 1000;
 
-export interface TranscribeOpts {
-  env: Env;
-  fileId: string;
-}
-
-export interface Usage {
-  inputTokens: number | null;
-  outputTokens: number | null;
-}
-
-export interface TranscribeResult {
-  file_id: string;
-  model: string;
-  text: string;
-  text_key: string;
-  usage: Usage;
-}
+const MODEL_OF: Record<OcrEngine, string> = {
+  inkling: INKLING_MODEL,
+  claude: CLAUDE_MODEL,
+};
 
 interface FileRow {
   file_id: string;
@@ -75,99 +101,6 @@ interface FileRow {
   text_key: string | null;
   ocr_instructions: string | null;
   ocr_engine: OcrEngine | null;
-}
-
-// Global rules plus any book-specific notes, layered as a labeled supplement so
-// the model treats them as additions rather than contradictions to the base.
-function buildSystemPrompt(ocrInstructions: string | null): string {
-  if (!ocrInstructions?.trim()) return SYSTEM_PROMPT;
-  return `${SYSTEM_PROMPT}
-
-## Book-specific notes
-The following notes apply to this particular book. Follow them in addition to the rules above:
-${ocrInstructions.trim()}`;
-}
-
-export async function transcribe({
-  env,
-  fileId,
-}: TranscribeOpts): Promise<TranscribeResult> {
-  const row = await env.DB.prepare(
-    `SELECT f.file_id, f.book_id, f.r2_key, f.text_key, b.ocr_instructions, b.ocr_engine
-       FROM files f
-       JOIN books b ON b.id = f.book_id
-      WHERE f.file_id = ?`,
-  )
-    .bind(fileId)
-    .first<FileRow>();
-  if (!row) throw new Error(`file '${fileId}' not found`);
-
-  const obj = await env.BUCKET.get(row.r2_key);
-  if (!obj) throw new Error(`R2 object '${row.r2_key}' missing`);
-
-  const mimeType = obj.httpMetadata?.contentType ?? "image/jpeg";
-  if (!mimeType.startsWith("image/")) {
-    throw new Error(`OCR needs an image, got '${mimeType}'`);
-  }
-  const base64 = toBase64(new Uint8Array(await obj.arrayBuffer()));
-
-  const primary = row.ocr_engine ?? "inkling";
-  const {
-    text: output,
-    usage,
-    model: ranModel,
-  } = await runWithFallback({
-    env,
-    primary,
-    secondary: primary === "inkling" ? "claude" : "inkling",
-    page: {
-      mimeType,
-      base64,
-      systemPrompt: buildSystemPrompt(row.ocr_instructions),
-    },
-  });
-
-  const text = output.trim() === BLANK_MARKER ? "" : output;
-
-  // Keep the text this run replaces (a re-OCR), so it can be read back.
-  if (row.text_key) {
-    const prev = await env.BUCKET.get(row.text_key);
-    if (prev) {
-      await saveRevision({
-        env,
-        bookId: row.book_id,
-        fileId,
-        previous: await prev.text(),
-        next: text,
-        change: "ocr",
-        model: ranModel,
-      });
-    }
-  }
-
-  const textKey = `books/${row.book_id}/text/${fileId}.md`;
-  await env.BUCKET.put(textKey, text, {
-    httpMetadata: { contentType: "text/markdown; charset=utf-8" },
-  });
-
-  const now = Date.now();
-  await env.DB.prepare(
-    "UPDATE files SET state = 'done', text_key = ?, preview = ?, input_tokens = ?, output_tokens = ?, ocr_model = ?, error = NULL, text_edited_at = NULL, updated_at = ? WHERE file_id = ?",
-  )
-    .bind(
-      textKey,
-      text.slice(0, 120),
-      usage.inputTokens,
-      usage.outputTokens,
-      ranModel,
-      now,
-      fileId,
-    )
-    .run();
-
-  await indexPage({ env, fileId, text });
-
-  return { file_id: fileId, model: ranModel, text, text_key: textKey, usage };
 }
 
 interface PageInput {
@@ -179,315 +112,245 @@ interface PageInput {
 interface EngineOutput {
   text: string;
   usage: Usage;
+}
+
+interface EngineSuccess extends EngineOutput {
   model: string;
 }
 
-async function runEngine({
-  env,
+// Global rules plus any book-specific notes, layered as a labeled supplement so
+// the model treats them as additions rather than contradictions to the base.
+function buildSystemPrompt(bookInstructions: string | null): string {
+  if (!bookInstructions) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}
+
+## Book-specific notes
+The following notes apply to this particular book. Follow them in addition to the rules above:
+${bookInstructions}`;
+}
+
+let systemPromptHash: Promise<string> | undefined;
+
+function promptVersions(bookInstructions: string | null): Effect.Effect<{
+  system: PromptVersion;
+  book: PromptVersion | null;
+}> {
+  return Effect.promise(async () => {
+    systemPromptHash ??= sha256Hex(SYSTEM_PROMPT);
+    return {
+      system: {
+        hash: await systemPromptHash,
+        kind: "system",
+        text: SYSTEM_PROMPT,
+      },
+      book: bookInstructions
+        ? {
+            hash: await sha256Hex(bookInstructions),
+            kind: "book_instructions",
+            text: bookInstructions,
+          }
+        : null,
+    };
+  });
+}
+
+// Ollama Cloud chat call. Inkling ignores `think: false`; "low" is the
+// cheapest setting that stays stable.
+function runInkling(
+  page: PageInput,
+): Effect.Effect<EngineOutput, ProviderError, Ollama> {
+  return Effect.gen(function* () {
+    const ollama = yield* Ollama;
+    const raw = yield* ollama.chat({
+      timeoutMs: PROVIDER_TIMEOUT_MS,
+      body: {
+        model: INKLING_MODEL,
+        stream: false,
+        think: "low",
+        options: { num_predict: INKLING_MAX_TOKENS },
+        messages: [
+          { role: "system", content: page.systemPrompt },
+          { role: "user", content: USER_PROMPT, images: [page.base64] },
+        ],
+      },
+    });
+    const data = isRecord(raw) ? raw : {};
+    // Output = visible text + thinking tokens, which bill at the output rate.
+    const usage: Usage = {
+      inputTokens: numberOrNull(data.prompt_eval_count),
+      outputTokens: numberOrNull(data.eval_count),
+    };
+    // A cut-off stop can come with partial text; never keep a cut-off page.
+    if (data.done_reason === "length") {
+      return yield* new InklingCutOff({
+        maxTokens: INKLING_MAX_TOKENS,
+        usage,
+      });
+    }
+    const content = isRecord(data.message) ? data.message.content : undefined;
+    if (typeof content !== "string" || content === "") {
+      // Structure only: the body may hold page text or thinking.
+      return yield* new BadResponse({
+        provider: "inkling",
+        detail: `done_reason=${String(data.done_reason)}, fields=${Object.keys(data).join(",")}`,
+        usage,
+      });
+    }
+    return { text: content, usage };
+  });
+}
+
+function runClaude(
+  page: PageInput,
+): Effect.Effect<EngineOutput, ProviderError, AnthropicGateway> {
+  return Effect.gen(function* () {
+    const gateway = yield* AnthropicGateway;
+    const raw = yield* gateway.messages({
+      timeoutMs: PROVIDER_TIMEOUT_MS,
+      body: {
+        model: CLAUDE_MODEL,
+        max_tokens: CLAUDE_MAX_TOKENS,
+        system: page.systemPrompt,
+        // Transcription, not reasoning — no thinking tokens to pay for. Sonnet
+        // 5.5 turns thinking off with "between_tools" and rejects "disabled".
+        thinking: { type: "between_tools" },
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: page.mimeType,
+                  data: page.base64,
+                },
+              },
+              { type: "text", text: USER_PROMPT },
+            ],
+          },
+        ],
+      },
+    });
+    const { text, usage } = readAnthropicMessage(raw);
+    if (!text) {
+      // Structure only: the body may hold page text.
+      const data = isRecord(raw) ? raw : {};
+      const blocks = Array.isArray(data.content) ? data.content : [];
+      return yield* new BadResponse({
+        provider: "claude",
+        detail: `stop_reason=${String(data.stop_reason)}, content=[${blocks.map((b) => (isRecord(b) ? String(b.type) : typeof b)).join(",")}]`,
+        usage,
+      });
+    }
+    return { text, usage };
+  });
+}
+
+// One provider call, recorded in `calls` whether it succeeds or fails.
+function runCall({
   engine,
   page,
+  calls,
 }: {
-  env: Env;
   engine: OcrEngine;
   page: PageInput;
-}): Promise<EngineOutput> {
-  if (engine === "inkling") {
-    const r = await runInkling({ env, ...page });
-    return { ...r, model: INKLING_MODEL };
-  }
-  const r = await runClaude({ env, ...page });
-  return { ...r, model: CLAUDE_MODEL };
+  calls: CallRecord[];
+}): Effect.Effect<
+  EngineSuccess,
+  ProviderError,
+  Ollama | AnthropicGateway | WallClock
+> {
+  return Effect.gen(function* () {
+    const clock = yield* WallClock;
+    const model = MODEL_OF[engine];
+    const startedAt = clock.now();
+    const record = ({
+      usage,
+      errorType,
+    }: {
+      usage: Usage | null;
+      errorType: string | null;
+    }) => {
+      calls.push({
+        engine,
+        model,
+        status: errorType ? "error" : "ok",
+        ms: clock.now() - startedAt,
+        input_tokens: usage?.inputTokens ?? null,
+        output_tokens: usage?.outputTokens ?? null,
+        cost_usd: callCost({
+          model,
+          inputTokens: usage?.inputTokens ?? null,
+          outputTokens: usage?.outputTokens ?? null,
+        }),
+        error_type: errorType,
+      });
+    };
+    const call: Effect.Effect<
+      EngineOutput,
+      ProviderError,
+      Ollama | AnthropicGateway
+    > = engine === "inkling" ? runInkling(page) : runClaude(page);
+    const output = yield* call.pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() =>
+          record({ usage: usageOf(error), errorType: error._tag }),
+        ),
+      ),
+    );
+    record({ usage: output.usage, errorType: null });
+    return { ...output, model };
+  });
 }
 
-function shouldFallBack({
+// The failure that sends a page to the other engine: a transient error, or
+// Inkling's cut-off when Inkling ran first. Terminal errors (a bad request, an
+// empty response) don't fall back: the other provider wouldn't fare better and
+// the masking would hide a real bug.
+function fallbackTrigger({
   primary,
-  err,
+  error,
 }: {
   primary: OcrEngine;
-  err: unknown;
-}): boolean {
-  if (primary === "inkling" && err instanceof InklingCutOffError) return true;
-  return err instanceof OcrError && err.isTransient;
+  error: ProviderError;
+}): TransientError | InklingCutOff | null {
+  if (primary === "inkling" && error._tag === "InklingCutOff") return error;
+  return isTransient(error) ? error : null;
 }
 
-// Run the primary engine; on a transient failure (rate limit, 5xx, network
-// failure or timeout) — or a cut-off page when Inkling is the one that failed —
-// run the secondary instead. Terminal errors (a bad request, an empty response)
-// rethrow without falling back — the other provider wouldn't fare better and
-// the masking would hide a real bug. Returns the model that actually produced
-// the text, so cost/UI attribute the page correctly.
-async function runWithFallback({
-  env,
+export function runWithFallback({
   primary,
-  secondary,
   page,
+  calls,
 }: {
-  env: Env;
   primary: OcrEngine;
-  secondary: OcrEngine;
   page: PageInput;
-}): Promise<EngineOutput> {
-  try {
-    return await runEngine({ env, engine: primary, page });
-  } catch (err) {
-    if (!shouldFallBack({ primary, err })) throw err;
-    const reason = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `${primary} failed, falling back to ${secondary}: ${reason.slice(0, 160)}`,
-    );
-    try {
-      return await runEngine({ env, engine: secondary, page });
-    } catch (fallbackErr) {
-      // A cut-off page can't be kept, but the primary failed transiently, so
-      // re-queue on that error rather than fail the page.
-      if (fallbackErr instanceof InklingCutOffError) throw err;
-      throw fallbackErr;
-    }
-  }
-}
-
-// Status used for a request that got no HTTP response at all.
-const NO_RESPONSE_STATUS = 0;
-
-// Raised when an OCR provider call fails: a non-2xx (with its HTTP status), or
-// no response at all (NO_RESPONSE_STATUS). Carries the provider's retry-after
-// hint, when it sends one, so the queue consumer can back off precisely.
-export class OcrError extends Error {
-  readonly status: number;
-  readonly retryAfterSeconds: number | null;
-
-  constructor({
-    name,
-    status,
-    message,
-    retryAfterSeconds,
-  }: {
-    name: string;
-    status: number;
-    message: string;
-    retryAfterSeconds: number | null;
-  }) {
-    super(message);
-    this.name = name;
-    this.status = status;
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
-
-  // Conditions worth re-queuing rather than burning the page: rate limits
-  // (429), transient server errors (5xx), and network failures or timeouts.
-  // Client errors (4xx bar 429) are terminal.
-  get isTransient(): boolean {
-    return (
-      this.status === NO_RESPONSE_STATUS ||
-      this.status === 429 ||
-      this.status >= 500
-    );
-  }
-}
-
-interface ProviderErrorInit {
-  status: number;
-  body: string;
-  retryAfterSeconds?: number | null;
-}
-
-export class InklingError extends OcrError {
-  constructor({ status, body, retryAfterSeconds = null }: ProviderErrorInit) {
-    super({
-      name: "InklingError",
-      status,
-      message: `Inkling ${status}: ${body}`,
-      retryAfterSeconds,
-    });
-  }
-}
-
-// Inkling stopped at INKLING_MAX_TOKENS (done_reason "length"), so the page is
-// incomplete. Retrying Inkling gives the same result; Claude takes it instead.
-export class InklingCutOffError extends Error {
-  constructor(outputTokens: number | null) {
-    super(
-      `Inkling output cut off at the ${INKLING_MAX_TOKENS}-token cap (${outputTokens ?? "?"} tokens)`,
-    );
-    this.name = "InklingCutOffError";
-  }
-}
-
-export class ClaudeError extends OcrError {
-  constructor({ status, body, retryAfterSeconds = null }: ProviderErrorInit) {
-    super({
-      name: "ClaudeError",
-      status,
-      message: `Claude ${status}: ${body}`,
-      retryAfterSeconds,
-    });
-  }
-}
-
-// A Retry-After header in its delta-seconds form; the HTTP-date form is rare
-// from these APIs and the queue's exponential backoff covers it.
-function parseRetryAfter(header: string | null): number | null {
-  const seconds = Number(header);
-  return header && Number.isFinite(seconds) && seconds >= 0
-    ? Math.ceil(seconds)
-    : null;
-}
-
-// POST JSON to a provider. A network failure or timeout becomes a transient
-// provider error and a non-2xx carries its status and retry hint, so callers
-// see one error type either way.
-async function postProvider({
-  url,
-  headers,
-  body,
-  toError,
-}: {
-  url: string;
-  headers: Record<string, string>;
-  body: unknown;
-  toError: (init: ProviderErrorInit) => OcrError;
-}): Promise<Response> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        ...headers,
-        "content-type": "application/json",
-        "user-agent": USER_AGENT,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-    });
-  } catch (err) {
-    throw toError({
-      status: NO_RESPONSE_STATUS,
-      body: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
-    });
-  }
-  if (!res.ok) {
-    throw toError({
-      status: res.status,
-      body: await res.text(),
-      retryAfterSeconds: parseRetryAfter(res.headers.get("retry-after")),
-    });
-  }
-  return res;
-}
-
-// Ollama Cloud chat call (env.OLLAMA_API_KEY). Inkling ignores `think: false`;
-// "low" is the cheapest setting that stays stable.
-async function runInkling({
-  env,
-  base64,
-  systemPrompt,
-}: {
-  env: Env;
-  base64: string;
-  systemPrompt: string;
-}): Promise<{ text: string; usage: Usage }> {
-  const res = await postProvider({
-    url: "https://ollama.com/api/chat",
-    headers: { authorization: `Bearer ${env.OLLAMA_API_KEY}` },
-    body: {
-      model: INKLING_MODEL,
-      stream: false,
-      think: "low",
-      options: { num_predict: INKLING_MAX_TOKENS },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: USER_PROMPT, images: [base64] },
-      ],
-    },
-    toError: (init) => new InklingError(init),
-  });
-
-  const data = (await res.json()) as {
-    message?: { content?: string };
-    done_reason?: string;
-    prompt_eval_count?: number;
-    eval_count?: number;
-  };
-  // Output = visible text + thinking tokens, which bill at the output rate.
-  const usage: Usage = {
-    inputTokens: data.prompt_eval_count ?? null,
-    outputTokens: data.eval_count ?? null,
-  };
-  // A cut-off stop can come with partial text; never keep a cut-off page.
-  if (data.done_reason === "length") {
-    throw new InklingCutOffError(usage.outputTokens);
-  }
-  const text = data.message?.content ?? "";
-  if (!text) {
-    throw new Error(
-      `no text in Inkling response: ${JSON.stringify(data).slice(0, 400)}`,
-    );
-  }
-  return { text, usage };
-}
-
-// Claude via the Cloudflare AI Gateway Anthropic endpoint. The Anthropic key is
-// stored in the gateway (BYOK), so we authenticate the gateway itself with
-// CF_AIG_TOKEN and send no provider key.
-async function runClaude({
-  env,
-  mimeType,
-  base64,
-  systemPrompt,
-}: {
-  env: Env;
-  mimeType: string;
-  base64: string;
-  systemPrompt: string;
-}): Promise<{ text: string; usage: Usage }> {
-  const res = await postProvider({
-    url: `https://gateway.ai.cloudflare.com/v1/${env.CF_AIG_ACCOUNT_ID}/${env.CF_AIG_GATEWAY}/anthropic/v1/messages`,
-    headers: {
-      "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
-      "anthropic-version": "2023-06-01",
-    },
-    body: {
-      model: CLAUDE_MODEL,
-      max_tokens: CLAUDE_MAX_TOKENS,
-      system: systemPrompt,
-      // Transcription, not reasoning — no thinking tokens to pay for. Sonnet 5.5
-      // turns thinking off with "between_tools" and rejects "disabled".
-      thinking: { type: "between_tools" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mimeType, data: base64 },
-            },
-            { type: "text", text: USER_PROMPT },
-          ],
-        },
-      ],
-    },
-    toError: (init) => new ClaudeError(init),
-  });
-
-  const data = (await res.json()) as {
-    content?: Array<{ type: string; text?: string }>;
-    usage?: { input_tokens?: number; output_tokens?: number };
-  };
-  const text = (data.content ?? [])
-    .filter((b) => b.type === "text")
-    .map((b) => b.text ?? "")
-    .join("");
-  if (!text) {
-    throw new Error(
-      `no text in Claude response: ${JSON.stringify(data).slice(0, 400)}`,
-    );
-  }
-
-  const usage: Usage = {
-    inputTokens: data.usage?.input_tokens ?? null,
-    outputTokens: data.usage?.output_tokens ?? null,
-  };
-  return { text, usage };
+  calls: CallRecord[];
+}): Effect.Effect<
+  EngineSuccess,
+  ProviderError,
+  Ollama | AnthropicGateway | WallClock
+> {
+  const secondary: OcrEngine = primary === "inkling" ? "claude" : "inkling";
+  return runCall({ engine: primary, page, calls }).pipe(
+    Effect.catch((error) => {
+      const trigger = fallbackTrigger({ primary, error });
+      if (!trigger) return Effect.fail(error);
+      const reason = fallbackReason(trigger);
+      return Effect.logWarning(
+        `${primary} failed, falling back to ${secondary}`,
+      ).pipe(
+        Effect.annotateLogs({ fallback_reason: reason }),
+        Effect.andThen(runCall({ engine: secondary, page, calls })),
+        // A cut-off page can't be kept, but the primary failed transiently, so
+        // re-queue on that error rather than fail the page.
+        Effect.mapError((fallbackError) =>
+          fallbackError._tag === "InklingCutOff" ? error : fallbackError,
+        ),
+      );
+    }),
+  );
 }
 
 // Chunked base64 — avoids call-stack blowups on large images that a single
@@ -499,4 +362,279 @@ function toBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
   return btoa(binary);
+}
+
+export interface TranscribeJob {
+  fileId: string;
+  trigger: OcrTrigger | null;
+  deliveryAttempt: number;
+}
+
+export interface RunOutcome {
+  status: RunStatus;
+  error: OcrError | null;
+}
+
+type Attempt =
+  | { ok: true; output: EngineSuccess }
+  | { ok: false; error: OcrError };
+
+// Transcribe the page and record the run. Never fails on a provider or page
+// problem: those come back as the outcome ('failed', or 'requeued' for a
+// transient error) with the page and run already written. Fails only when D1
+// or R2 can't record the outcome.
+export function transcribe(
+  job: TranscribeJob,
+): Effect.Effect<
+  RunOutcome,
+  StorageError,
+  Database | Bucket | Ollama | AnthropicGateway | WallClock | PageIndexer
+> {
+  return Effect.gen(function* () {
+    const db = yield* Database;
+    const bucket = yield* Bucket;
+    const clock = yield* WallClock;
+    const startedAt = clock.now();
+
+    const row = yield* db.first<FileRow>(
+      statement(
+        `SELECT f.file_id, f.book_id, f.r2_key, f.text_key, b.ocr_instructions, b.ocr_engine
+           FROM files f
+           JOIN books b ON b.id = f.book_id
+          WHERE f.file_id = ?`,
+        [job.fileId],
+      ),
+    );
+    if (!row) {
+      return {
+        status: "failed",
+        error: new FileNotFound({ fileId: job.fileId }),
+      };
+    }
+
+    const bookInstructions = row.ocr_instructions?.trim() || null;
+    const prompts = yield* promptVersions(bookInstructions);
+    const primary = row.ocr_engine ?? "inkling";
+    const calls: CallRecord[] = [];
+
+    const attempt: Attempt = yield* Effect.gen(function* () {
+      const scan = yield* bucket.getBytes(row.r2_key);
+      if (!scan) return yield* new ObjectMissing({ key: row.r2_key });
+      const mimeType = scan.contentType ?? "image/jpeg";
+      if (!mimeType.startsWith("image/")) {
+        return yield* new NotAnImage({ contentType: mimeType });
+      }
+      return yield* runWithFallback({
+        primary,
+        calls,
+        page: {
+          mimeType,
+          base64: toBase64(scan.bytes),
+          systemPrompt: buildSystemPrompt(bookInstructions),
+        },
+      });
+    }).pipe(
+      Effect.map((output): Attempt => ({ ok: true, output })),
+      Effect.catch((error: OcrError) =>
+        Effect.succeed<Attempt>({ ok: false, error }),
+      ),
+    );
+
+    const run = {
+      fileId: job.fileId,
+      bookId: row.book_id,
+      createdAt: startedAt,
+      trigger: job.trigger,
+      primaryEngine: primary,
+      deliveryAttempt: job.deliveryAttempt,
+      calls,
+      systemPromptHash: prompts.system.hash,
+      bookInstructionsHash: prompts.book?.hash ?? null,
+    };
+    const promptInserts = [prompts.system, prompts.book]
+      .filter((p): p is PromptVersion => p !== null)
+      .map((prompt) => insertPromptVersion({ prompt, seenAt: startedAt }));
+
+    const outcome: RunOutcome & { finalModel: string | null } = attempt.ok
+      ? yield* storeTranscription({
+          row,
+          output: attempt.output,
+          promptInserts,
+          run,
+        })
+      : yield* storeFailure({ row, error: attempt.error, promptInserts, run });
+
+    const totals = runTotals(calls);
+    const fellBackFor = fallbackReasonOf(calls);
+    yield* Effect.logInfo(`ocr run ${outcome.status}`).pipe(
+      Effect.annotateLogs({
+        book_id: row.book_id,
+        ocr: {
+          status: outcome.status,
+          engine: primary,
+          final_model: outcome.finalModel,
+          fell_back: fellBackFor !== null,
+          fallback_reason: fellBackFor,
+          calls: calls.length,
+          tokens: { input: totals.inputTokens, output: totals.outputTokens },
+          cost_usd: totals.costUsd,
+          wasted_cost_usd: totals.wastedCostUsd,
+          latency_ms: totals.latencyMs,
+          error_type: outcome.error?._tag ?? null,
+        },
+      }),
+    );
+    return { status: outcome.status, error: outcome.error };
+  });
+}
+
+interface RunBase {
+  fileId: string;
+  bookId: string;
+  createdAt: number;
+  trigger: OcrTrigger | null;
+  primaryEngine: OcrEngine;
+  deliveryAttempt: number;
+  calls: CallRecord[];
+  systemPromptHash: string;
+  bookInstructionsHash: string | null;
+}
+
+function storeTranscription({
+  row,
+  output,
+  promptInserts,
+  run,
+}: {
+  row: FileRow;
+  output: EngineSuccess;
+  promptInserts: Statement[];
+  run: RunBase;
+}) {
+  return Effect.gen(function* () {
+    const db = yield* Database;
+    const bucket = yield* Bucket;
+    const clock = yield* WallClock;
+    const indexer = yield* PageIndexer;
+
+    const text = output.text.trim() === BLANK_MARKER ? "" : output.text;
+    const statements: Statement[] = [];
+
+    // Keep the text this run replaces (a re-OCR), so it can be read back.
+    if (row.text_key) {
+      const previous = yield* bucket.getText(row.text_key);
+      if (previous !== null && previous !== text) {
+        const at = clock.now();
+        const prevKey = historyKey({
+          bookId: row.book_id,
+          fileId: row.file_id,
+          at,
+        });
+        yield* bucket.putText({ key: prevKey, text: previous });
+        statements.push(
+          statement(
+            `INSERT INTO text_revisions (file_id, book_id, change, model, note, prev_key, created_at)
+             VALUES (?, ?, 'ocr', ?, NULL, ?, ?)`,
+            [row.file_id, row.book_id, output.model, prevKey, at],
+          ),
+        );
+      }
+    }
+
+    const textKey = `books/${row.book_id}/text/${row.file_id}.md`;
+    const runKey = runTextKey({
+      bookId: row.book_id,
+      fileId: row.file_id,
+      at: run.createdAt,
+    });
+    // The run copy is new and the revision copy is extra, so both are safe to
+    // write before the batch. The page's own text is overwritten only after
+    // the batch commits: if the batch fails, the page keeps its current text
+    // and history (a hand edit is never replaced without its revision row).
+    yield* bucket.putText({ key: runKey, text });
+
+    statements.push(
+      statement(
+        "UPDATE files SET state = 'done', text_key = ?, preview = ?, input_tokens = ?, output_tokens = ?, ocr_model = ?, error = NULL, text_edited_at = NULL, updated_at = ? WHERE file_id = ?",
+        [
+          textKey,
+          text.slice(0, 120),
+          output.usage.inputTokens,
+          output.usage.outputTokens,
+          output.model,
+          clock.now(),
+          row.file_id,
+        ],
+      ),
+      ...promptInserts,
+      insertOcrRun({
+        ...run,
+        status: "done",
+        errorType: null,
+        errorMessage: null,
+        finalModel: output.model,
+        textKey: runKey,
+        measurement: measurePage(text),
+      }),
+    );
+    yield* db.batch(statements);
+    yield* bucket.putText({ key: textKey, text });
+    yield* indexer.index({ fileId: row.file_id, text });
+
+    return {
+      status: "done" as const,
+      error: null,
+      finalModel: output.model,
+    };
+  });
+}
+
+// Transient errors are not the page's fault: set 'rate_limited' and let the
+// queue re-deliver with backoff. Anything else fails the page for good; re-run
+// it via POST .../ocr.
+//
+// A transient failure on the last delivery Cloudflare allows (max_retries in
+// wrangler.jsonc) is still recorded as 'requeued', although the message is
+// then dropped and the page stays 'rate_limited' (as before this history
+// existed). The consumer can't see max_retries, so it can't tell the last
+// delivery apart.
+function storeFailure({
+  row,
+  error,
+  promptInserts,
+  run,
+}: {
+  row: FileRow;
+  error: OcrError;
+  promptInserts: Statement[];
+  run: RunBase;
+}) {
+  return Effect.gen(function* () {
+    const db = yield* Database;
+    const clock = yield* WallClock;
+    const status: RunStatus = isTransient(error) ? "requeued" : "failed";
+    const message = error.message;
+    yield* db.batch([
+      status === "requeued"
+        ? statement(
+            "UPDATE files SET state = 'rate_limited', error = ?, updated_at = ? WHERE file_id = ?",
+            [message.slice(0, 500), clock.now(), row.file_id],
+          )
+        : statement(
+            "UPDATE files SET state = 'failed', error = ?, updated_at = ? WHERE file_id = ?",
+            [message, clock.now(), row.file_id],
+          ),
+      ...promptInserts,
+      insertOcrRun({
+        ...run,
+        status,
+        errorType: error._tag,
+        errorMessage: message,
+        finalModel: null,
+        textKey: null,
+        measurement: null,
+      }),
+    ]);
+    return { status, error, finalModel: null };
+  });
 }
