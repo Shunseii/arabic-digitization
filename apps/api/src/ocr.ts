@@ -60,6 +60,7 @@ import {
   sha256Hex,
 } from "./lib/ocrRuns";
 import { historyKey } from "./lib/pageText";
+import { enqueueReview } from "./review/pending";
 import type { OcrEngine } from "./types";
 
 // What the model outputs for a page with no text (see SYSTEM_PROMPT). Stored as
@@ -589,6 +590,16 @@ function storeTranscription({
         ],
       ),
       ...promptInserts,
+      // A page with text, in an opted-in book, waits for the Opus review.
+      ...(text
+        ? [
+            enqueueReview({
+              fileId: row.file_id,
+              bookId: row.book_id,
+              at: clock.now(),
+            }),
+          ]
+        : []),
       insertOcrRun({
         ...run,
         status: "done",

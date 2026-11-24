@@ -6,7 +6,7 @@ import { respond } from "../http/respond";
 
 const Revision = Schema.Struct({
   id: Schema.Int,
-  change: Schema.Literals(["edit", "ocr"]),
+  change: Schema.Literals(["edit", "ocr", "review"]),
   model: Schema.NullOr(Schema.String),
   note: Schema.NullOr(Schema.String),
   created_at: Schema.Int,

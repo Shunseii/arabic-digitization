@@ -23,6 +23,37 @@ const PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
   "gemini-3.1-pro-preview": { inputPer1M: 2.0, outputPer1M: 12.0 },
 };
 
+// The Opus review (see review/) runs through the Message Batches API, which
+// bills every token at half the standard rate. Its shared prompt is cached
+// with the 1-hour TTL: cache writes cost 2x the input rate, cache reads 0.05x
+// on Opus 5.5 ($0.20/MTok standard). Checked 2026-11-24.
+export const REVIEW_MODEL = "claude-opus-5-5";
+const REVIEW_PRICE = {
+  inputPer1M: 4.0,
+  outputPer1M: 20.0,
+  cacheReadPer1M: 0.2,
+};
+const BATCH_DISCOUNT = 0.5;
+const CACHE_WRITE_1H_MULTIPLIER = 2;
+
+export interface ReviewUsage {
+  inputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+  outputTokens: number;
+}
+
+export function reviewCostUsd(usage: ReviewUsage): number {
+  const perToken = (per1M: number) => (per1M / 1_000_000) * BATCH_DISCOUNT;
+  return (
+    usage.inputTokens * perToken(REVIEW_PRICE.inputPer1M) +
+    usage.cacheCreationInputTokens *
+      perToken(REVIEW_PRICE.inputPer1M * CACHE_WRITE_1H_MULTIPLIER) +
+    usage.cacheReadInputTokens * perToken(REVIEW_PRICE.cacheReadPer1M) +
+    usage.outputTokens * perToken(REVIEW_PRICE.outputPer1M)
+  );
+}
+
 // Cost in USD for a file's usage, or null if the model has no known price (so
 // callers/UI can hide cost rather than show a wrong or zero number).
 export function costUsd({

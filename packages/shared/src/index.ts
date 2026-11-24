@@ -43,6 +43,39 @@ export interface Book {
   ocr_engine?: OcrEngine | null;
   /** OCR paused for this book: its pages wait in 'queued' until resumed. */
   paused?: boolean;
+  /** Opus review on: pages are proofread against the scan after OCR (costs money). */
+  review_enabled?: boolean;
+  /** Opus effort for reviews; null/undefined = default (low). */
+  review_effort?: ReviewEffort | null;
+}
+
+/** Opus review effort level. */
+export type ReviewEffort = "low" | "medium" | "high";
+
+/** Category of an Opus review edit, as stored in page_reviews.categories. */
+export type ReviewCategory =
+  | "tashkeel"
+  | "spelling"
+  | "quran"
+  | "footnotes"
+  | "punctuation"
+  | "layout";
+
+/** Display labels for review categories (the usage dashboard's names). */
+export const REVIEW_CATEGORY_LABELS: Record<ReviewCategory, string> = {
+  tashkeel: "Tashkeel",
+  spelling: "Spelling",
+  quran: "Qur'an text",
+  footnotes: "Footnotes",
+  punctuation: "Punctuation",
+  layout: "Layout",
+};
+
+/** POST /api/books/:bookId/review */
+export interface QueueReviewResponse {
+  success: true;
+  /** Pages newly added to the review queue. */
+  queued: number;
 }
 
 /** A tag (subject/genre), shared across works. */
@@ -150,6 +183,10 @@ export interface BookUpdateBody {
   ocr_engine?: OcrEngine | null;
   /** Reassign to a work; null unlinks (flat). */
   work_id?: string | null;
+  /** Turn the Opus review on/off for pages that finish OCR from now on. */
+  review_enabled?: boolean;
+  /** null resets to the default effort (low). */
+  review_effort?: ReviewEffort | null;
 }
 
 export interface WorkCreateBody {
@@ -285,7 +322,8 @@ export interface EditTextResponse {
 /** One change to a page's text; GET .../text?rev=<id> is the text before it. */
 export interface TextRevision {
   id: number;
-  change: "edit" | "ocr";
+  /** "review": an applied Opus review (model set). */
+  change: "edit" | "ocr" | "review";
   model: string | null;
   note: string | null;
   created_at: number;

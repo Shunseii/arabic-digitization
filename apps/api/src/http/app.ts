@@ -30,6 +30,7 @@ import {
   bookResume,
 } from "../endpoints/bookPause";
 import { BookRequeue, bookRequeue } from "../endpoints/bookRequeue";
+import { BookReview, bookReview } from "../endpoints/bookReview";
 import { BookStatus, bookStatus } from "../endpoints/bookStatus";
 import { BookUpdate, bookUpdate } from "../endpoints/bookUpdate";
 import { FileDelete, fileDelete } from "../endpoints/fileDelete";
@@ -77,6 +78,7 @@ export const Api = HttpApi.make("api")
       BookRequeue,
       BookPause,
       BookResume,
+      BookReview,
     ),
   )
   .add(
@@ -128,7 +130,8 @@ const BooksLive = HttpApiBuilder.group(Api, "Books", (handlers) =>
     .handle("bookExport", bookExport)
     .handle("bookRequeue", bookRequeue)
     .handle("bookPause", bookPause)
-    .handle("bookResume", bookResume),
+    .handle("bookResume", bookResume)
+    .handle("bookReview", bookReview),
 );
 
 const WorksLive = HttpApiBuilder.group(Api, "Works", (handlers) =>

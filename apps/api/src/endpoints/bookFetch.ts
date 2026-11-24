@@ -4,6 +4,7 @@ import { type EndpointHandler, WorkerContext } from "../http/context";
 import { NotFound, notFound } from "../http/errors";
 import { respond } from "../http/respond";
 import { costUsd } from "../lib/cost";
+import type { ReviewEffort } from "../review/message";
 import { BookWithStatus, type OcrEngine } from "../types";
 
 export const BookFetch = HttpApiEndpoint.get(
@@ -49,7 +50,7 @@ export const bookFetch: EndpointHandler<typeof BookFetch> = ({ params }) =>
     const { env } = yield* WorkerContext;
     const book = yield* Effect.promise(() =>
       env.DB.prepare(
-        "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused FROM books WHERE id = ?",
+        "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused, review_enabled, review_effort FROM books WHERE id = ?",
       )
         .bind(params.bookId)
         .first<{
@@ -60,6 +61,8 @@ export const bookFetch: EndpointHandler<typeof BookFetch> = ({ params }) =>
           ocr_engine: OcrEngine | null;
           work_id: string | null;
           paused: number;
+          review_enabled: number;
+          review_effort: ReviewEffort | null;
         }>(),
     );
     if (!book) return yield* notFound(`Book '${params.bookId}' not found`);
@@ -94,6 +97,7 @@ export const bookFetch: EndpointHandler<typeof BookFetch> = ({ params }) =>
         book: {
           ...book,
           paused: book.paused === 1,
+          review_enabled: book.review_enabled === 1,
           files_total,
           counts,
           usage: totalUsage(usageRows),

@@ -33,9 +33,9 @@ malformed JSON -> 400.
   export each page as an image first.
 
 ## Hand edits and text history
-A page's text changes in two ways: OCR (upload, POST .../ocr, POST .../requeue)
-and hand edits (PATCH .../files/:fileId/text). Every change keeps the text it
-replaced, so nothing is ever lost, but:
+A page's text changes in three ways: OCR (upload, POST .../ocr, POST .../requeue),
+hand edits (PATCH .../files/:fileId/text) and the Opus review (see below).
+Every change keeps the text it replaced, so nothing is ever lost, but:
 
 - Re-OCR OVERWRITES hand edits. Nothing is skipped or protected: re-running a
   single page, or requeueing a book with states:["done"] (e.g. after changing
@@ -49,7 +49,8 @@ replaced, so nothing is ever lost, but:
 Checking a page's history (agents: do this before overwriting or restoring):
   GET .../files/:fileId/text/history   -> revisions, newest first
     Each revision is one change: change ("edit" by hand | "ocr" re-run, with
-    model), note (why/who, for edits), created_at (epoch ms). Its id addresses
+    model | "review" an applied Opus review, with model), note (why/who, for
+    edits; the batch and edit counts, for reviews), created_at (epoch ms). Its id addresses
     the text as it was just BEFORE that change:
   GET .../files/:fileId/text?rev=<id>  -> that earlier text
   The current text is GET .../files/:fileId/text (no rev).
@@ -60,6 +61,29 @@ Checking a page's history (agents: do this before overwriting or restoring):
 Restoring an earlier version: read it with ?rev=<id>, then PATCH the page with
 one edit whose "old" is the full current text and "new" is the earlier text
 (note e.g. "restore rev 12"). The restore is itself recorded in history.
+To undo an Opus review, restore the text of its "review" revision this way.
+
+## Opus review (per book, off by default)
+A book with review_enabled = true gets each page proofread by Claude Opus
+after OCR: Opus compares the stored text with the scan and returns exact
+find-and-replace edits, each with a category (tashkeel, spelling, quran,
+footnotes, punctuation, layout). It runs through the Anthropic Message
+Batches API (half price, results within 24 hours), not inline:
+- A page of an opted-in book that reaches 'done' (with text) waits for review.
+  Turning review on does not queue pages already done: POST .../review does.
+- Every 3 hours, if pages are waiting, one batch of up to 100 is submitted.
+  Results are applied page by page as they come back.
+- Edits are applied like a hand edit: each "find" must match exactly once,
+  in order; one that doesn't is counted as failed to apply and skipped. The
+  applied change is one "review" revision in the page's history (undoable).
+- Pages edited by hand (text_edited_at != null) are never reviewed or
+  changed, nor is a page whose text changed while it was in review (it is
+  queued again). A review does not set text_edited_at.
+- review_effort (low | medium | high, default low) trades cost for depth.
+  Rough cost per page at batch prices: $0.02-0.06.
+- Each review is recorded in D1 (table page_reviews): status, edits proposed
+  / applied / failed to apply by category, tokens and cost, model, batch id.
+  No read endpoint yet; query D1 directly.
 
 ## Endpoints
 
@@ -76,21 +100,33 @@ GET /api/books
   200 -> { success, books: [ { id, title, created_at, ocr_engine, files_total, counts: {state: n} } ] }
 
 GET /api/books/:bookId
-  200 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine, files_total, counts,
+  200 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine, paused,
+           review_enabled, review_effort, files_total, counts,
            usage: { input_tokens, output_tokens, cost_usd } | null } }
   // usage aggregates the book's done pages; null if none tracked yet.
   404 if missing.
 
 PATCH /api/books/:bookId
   Update a book. Body (JSON): any of { "title"?: string, "ocr_instructions"?: string|null,
-  "ocr_engine"?: "inkling"|"claude"|null }.
+  "ocr_engine"?: "inkling"|"claude"|null, "review_enabled"?: boolean,
+  "review_effort"?: "low"|"medium"|"high"|null }.
+  review_enabled turns the Opus review on or off (it costs money; see "Opus
+  review"); review_effort=null resets to the default (low).
   At least one field required; ocr_instructions=null clears them; ocr_engine=null
   resets to the default engine (inkling). Changing ocr_instructions or ocr_engine
   does NOT re-OCR done pages — requeue them (POST .../requeue with states:["done"])
   to apply the change, which overwrites hand-edited pages too (see "Hand edits
   and text history").
-  200 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine } }
+  200 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine, work_id,
+           paused, review_enabled, review_effort } }
   404 if missing.
+
+POST /api/books/:bookId/review
+  Queue the book's pages that are already done for the Opus review (pages that
+  finish OCR later are queued automatically). Leaves out hand-edited and blank
+  pages. They are reviewed over the next runs, up to 100 pages per batch.
+  200 -> { success, queued: <n newly queued> }
+  404 if book missing, 409 if review_enabled is false.
 
 DELETE /api/books/:bookId
   Delete a book and everything under it: its R2 objects (scans + text) and
@@ -192,7 +228,7 @@ GET /api/books/:bookId/files/:fileId/text/history
   Every change to the page's text, newest first. Hand edits and re-OCRs both
   save the text they replace; GET .../text?rev=<id> reads it back. Changes made
   before history existed (2026-11-21) are not listed.
-  200 -> { success, file_id, text_edited_at, revisions: [ { id, change: "edit"|"ocr", model, note, created_at } ] }
+  200 -> { success, file_id, text_edited_at, revisions: [ { id, change: "edit"|"ocr"|"review", model, note, created_at } ] }
 
 ## OCR run history (admin)
 Every OCR run of a page (primary engine plus any fallback) is recorded in D1

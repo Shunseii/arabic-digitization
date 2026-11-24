@@ -4,6 +4,7 @@
 import { Context, Duration, Effect, Layer } from "effect";
 import { indexPageOrThrow } from "../lib/pageText";
 import { signScanUrl } from "../lib/scanUrl";
+import type { ReviewApplyMessage } from "../review/message";
 import {
   BadResponse,
   NetworkError,
@@ -103,11 +104,34 @@ export interface BucketShape {
     key: string;
     text: string;
   }) => Effect.Effect<void, StorageError>;
+  // A byte range of an object (null if the object is missing).
+  readonly getRange: (range: {
+    key: string;
+    offset: number;
+    length: number;
+  }) => Effect.Effect<Uint8Array | null, StorageError>;
+  // Text plus its etag, for a later putTextIfMatch.
+  readonly getVersionedText: (
+    key: string,
+  ) => Effect.Effect<{ text: string; etag: string } | null, StorageError>;
+  // Writes only if the object still has `etag`; false if it changed.
+  readonly putTextIfMatch: (object: {
+    key: string;
+    text: string;
+    etag: string;
+  }) => Effect.Effect<boolean, StorageError>;
+  readonly putBytes: (object: {
+    key: string;
+    bytes: Uint8Array;
+    contentType: string;
+  }) => Effect.Effect<void, StorageError>;
 }
 
 export class Bucket extends Context.Service<Bucket, BucketShape>()(
   "app/Bucket",
 ) {}
+
+const MARKDOWN_METADATA = { contentType: "text/markdown; charset=utf-8" };
 
 export function makeR2Bucket(bucket: R2Bucket): BucketShape {
   return {
@@ -127,9 +151,29 @@ export function makeR2Bucket(bucket: R2Bucket): BucketShape {
       }),
     putText: ({ key, text }) =>
       storage("R2 put", () =>
-        bucket.put(key, text, {
-          httpMetadata: { contentType: "text/markdown; charset=utf-8" },
-        }),
+        bucket.put(key, text, { httpMetadata: MARKDOWN_METADATA }),
+      ).pipe(Effect.asVoid),
+    getRange: ({ key, offset, length }) =>
+      storage("R2 get", async () => {
+        const obj = await bucket.get(key, { range: { offset, length } });
+        return obj ? new Uint8Array(await obj.arrayBuffer()) : null;
+      }),
+    getVersionedText: (key) =>
+      storage("R2 get", async () => {
+        const obj = await bucket.get(key);
+        return obj ? { text: await obj.text(), etag: obj.etag } : null;
+      }),
+    putTextIfMatch: ({ key, text, etag }) =>
+      storage("R2 put", async () => {
+        const written = await bucket.put(key, text, {
+          httpMetadata: MARKDOWN_METADATA,
+          onlyIf: { etagMatches: etag },
+        });
+        return written !== null;
+      }),
+    putBytes: ({ key, bytes, contentType }) =>
+      storage("R2 put", () =>
+        bucket.put(key, bytes, { httpMetadata: { contentType } }),
       ).pipe(Effect.asVoid),
   };
 }
@@ -332,6 +376,184 @@ export function makeAnthropicGateway(env: Env): AnthropicGatewayShape {
   };
 }
 
+// Claude Message Batches, for the Opus review (see review/). Through the AI
+// Gateway like every other Claude call (the key is stored there), unless an
+// ANTHROPIC_API_KEY secret is set, which goes to the Anthropic API directly.
+export interface BatchCounts {
+  processing: number;
+  succeeded: number;
+  errored: number;
+  canceled: number;
+  expired: number;
+}
+
+export interface BatchStatus {
+  processingStatus: string;
+  counts: BatchCounts;
+}
+
+export interface AnthropicBatchesShape {
+  // `body` is the request JSON as text: built from stored parts and sent
+  // without being parsed again.
+  readonly create: (body: string) => Effect.Effect<string, TransportError>;
+  readonly retrieve: (
+    batchId: string,
+  ) => Effect.Effect<BatchStatus, TransportError>;
+  // The raw results JSONL, unparsed.
+  readonly results: (
+    batchId: string,
+  ) => Effect.Effect<Uint8Array, TransportError>;
+}
+
+export class AnthropicBatches extends Context.Service<
+  AnthropicBatches,
+  AnthropicBatchesShape
+>()("app/AnthropicBatches") {}
+
+function batchEndpoint(env: Env): {
+  base: string;
+  headers: Record<string, string>;
+} {
+  const common = {
+    "anthropic-version": "2023-06-01",
+    "user-agent": USER_AGENT,
+  };
+  if (env.ANTHROPIC_API_KEY) {
+    return {
+      base: "https://api.anthropic.com/v1/messages/batches",
+      headers: { ...common, "x-api-key": env.ANTHROPIC_API_KEY },
+    };
+  }
+  return {
+    base: `https://gateway.ai.cloudflare.com/v1/${env.CF_AIG_ACCOUNT_ID}/${env.CF_AIG_GATEWAY}/anthropic/v1/messages/batches`,
+    headers: {
+      ...common,
+      "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
+    },
+  };
+}
+
+function exchange({
+  url,
+  init,
+}: {
+  url: string;
+  init: RequestInit;
+}): Effect.Effect<Response, TransportError> {
+  const provider = "claude";
+  return Effect.gen(function* () {
+    const res = yield* Effect.tryPromise({
+      try: (signal) => fetch(url, { ...init, signal }),
+      catch: (cause) => new NetworkError({ provider, detail: describe(cause) }),
+    });
+    if (res.ok) return res;
+    const text = yield* Effect.tryPromise({
+      try: () => res.text(),
+      catch: (cause) => new NetworkError({ provider, detail: describe(cause) }),
+    });
+    return yield* httpFailure({
+      provider,
+      status: res.status,
+      detail: text.slice(0, ERROR_BODY_MAX),
+      retryAfterSeconds: parseRetryAfter(res.headers.get("retry-after")),
+    });
+  });
+}
+
+const notJson = (detail: string) =>
+  new BadResponse({ provider: "claude", detail, usage: NO_USAGE });
+
+function readJson(res: Response): Effect.Effect<unknown, TransportError> {
+  return Effect.tryPromise({
+    try: (): Promise<unknown> => res.json(),
+    catch: () => notJson("2xx body was not JSON"),
+  });
+}
+
+export function readBatchStatus(raw: unknown): BatchStatus {
+  const data = isRecord(raw) ? raw : {};
+  const counts = isRecord(data.request_counts) ? data.request_counts : {};
+  const count = (name: string) => numberOrNull(counts[name]) ?? 0;
+  return {
+    processingStatus: String(data.processing_status),
+    counts: {
+      processing: count("processing"),
+      succeeded: count("succeeded"),
+      errored: count("errored"),
+      canceled: count("canceled"),
+      expired: count("expired"),
+    },
+  };
+}
+
+export function makeAnthropicBatches(env: Env): AnthropicBatchesShape {
+  const { base, headers } = batchEndpoint(env);
+  const batchUrl = (batchId: string) =>
+    `${base}/${encodeURIComponent(batchId)}`;
+  return {
+    create: (body) =>
+      exchange({
+        url: base,
+        init: {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body,
+        },
+      }).pipe(
+        Effect.flatMap(readJson),
+        Effect.flatMap((raw) => {
+          const id = isRecord(raw) ? raw.id : undefined;
+          return typeof id === "string"
+            ? Effect.succeed(id)
+            : Effect.fail(notJson("batch create returned no id"));
+        }),
+      ),
+    retrieve: (batchId) =>
+      exchange({ url: batchUrl(batchId), init: { headers } }).pipe(
+        Effect.flatMap(readJson),
+        Effect.map(readBatchStatus),
+      ),
+    results: (batchId) =>
+      exchange({ url: `${batchUrl(batchId)}/results`, init: { headers } }).pipe(
+        Effect.flatMap((res) =>
+          Effect.tryPromise({
+            try: async () => new Uint8Array(await res.arrayBuffer()),
+            catch: (cause) =>
+              new NetworkError({ provider: "claude", detail: describe(cause) }),
+          }),
+        ),
+      ),
+  };
+}
+
+// Hands each reviewed page to the OCR queue's consumer, which applies it.
+export interface ReviewQueueShape {
+  readonly send: (
+    messages: readonly ReviewApplyMessage[],
+  ) => Effect.Effect<void, StorageError>;
+}
+
+export class ReviewQueue extends Context.Service<
+  ReviewQueue,
+  ReviewQueueShape
+>()("app/ReviewQueue") {}
+
+// Cloudflare Queues take at most 100 messages per sendBatch.
+const QUEUE_BATCH_MAX = 100;
+
+export function makeReviewQueue(queue: Queue): ReviewQueueShape {
+  return {
+    send: (messages) =>
+      storage("Queue send", async () => {
+        for (let i = 0; i < messages.length; i += QUEUE_BATCH_MAX) {
+          await queue.sendBatch(
+            messages.slice(i, i + QUEUE_BATCH_MAX).map((body) => ({ body })),
+          );
+        }
+      }),
+  };
+}
+
 // ---- Clock and search index ------------------------------------------------
 
 export interface WallClockShape {
@@ -405,6 +627,8 @@ export type AppServices =
   | Bucket
   | Ollama
   | AnthropicGateway
+  | AnthropicBatches
+  | ReviewQueue
   | WallClock
   | PageIndexer
   | ScanLinks;
@@ -415,6 +639,8 @@ export function liveLayer(env: Env): Layer.Layer<AppServices> {
     Layer.succeed(Bucket, makeR2Bucket(env.BUCKET)),
     Layer.succeed(Ollama, makeOllama(env)),
     Layer.succeed(AnthropicGateway, makeAnthropicGateway(env)),
+    Layer.succeed(AnthropicBatches, makeAnthropicBatches(env)),
+    Layer.succeed(ReviewQueue, makeReviewQueue(env.OCR_Q)),
     Layer.succeed(WallClock, systemClock),
     Layer.succeed(PageIndexer, makePageIndexer(env)),
     Layer.succeed(ScanLinks, makeScanLinks(env)),

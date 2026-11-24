@@ -1,9 +1,13 @@
 import { Schema } from "effect";
+import { REVIEW_EFFORTS } from "./review/message";
 
 // Which provider transcribes a book's pages first; the other is the fallback on
 // a transient failure. A book with no engine set uses Inkling.
 export const OcrEngine = Schema.Literals(["inkling", "claude"]);
 export type OcrEngine = typeof OcrEngine.Type;
+
+// Opus review effort (see review/). A book with none set uses low.
+export const ReviewEffort = Schema.Literals(REVIEW_EFFORTS);
 
 const Slug = Schema.String.check(Schema.isPattern(/^[a-z0-9-]+$/));
 const NonEmptyString = Schema.String.check(Schema.isMinLength(1));
@@ -35,6 +39,13 @@ export const Book = Schema.Struct({
   paused: Schema.optionalKey(Schema.Boolean).annotate({
     description:
       "OCR paused for this book: its pages wait in 'queued' until resumed",
+  }),
+  review_enabled: Schema.optionalKey(Schema.Boolean).annotate({
+    description:
+      "Opus review on: each page that finishes OCR is proofread against its scan in the next review batch (costs money; off by default)",
+  }),
+  review_effort: Schema.optionalKey(Schema.NullOr(ReviewEffort)).annotate({
+    description: "Opus effort for this book's reviews; null = default (low)",
   }),
 });
 
@@ -75,6 +86,14 @@ export const BookUpdateBody = Schema.Struct({
   }),
   work_id: Schema.optionalKey(Schema.NullOr(Schema.String)).annotate({
     description: "Reassign this copy to a work; null unlinks it (flat)",
+  }),
+  review_enabled: Schema.optionalKey(Schema.Boolean).annotate({
+    description:
+      "Turn the Opus review on or off for this book. On, pages that finish OCR from now on are reviewed; POST .../review queues the pages already done",
+  }),
+  review_effort: Schema.optionalKey(Schema.NullOr(ReviewEffort)).annotate({
+    description:
+      "Opus effort for reviews: low | medium | high; null = default (low)",
   }),
 }).check(atLeastOneField);
 

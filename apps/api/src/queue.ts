@@ -18,6 +18,8 @@ import { OCR_TRIGGERS, type OcrTrigger } from "./lib/ocrRuns";
 import { reindexBook } from "./lib/reindex";
 import { effectLogger, toEvlogError } from "./logging";
 import { transcribe } from "./ocr";
+import { applyReview } from "./review/apply";
+import { isReviewApply, type ReviewApplyMessage } from "./review/message";
 
 // Message enqueued for OCR; the consumer transcribes the file. `trigger` says
 // why it was enqueued (recorded on the run); messages queued before it existed
@@ -38,7 +40,7 @@ export interface ReindexMessage {
   cursor: number;
 }
 
-export type QueueMessage = OcrMessage | ReindexMessage;
+export type QueueMessage = OcrMessage | ReindexMessage | ReviewApplyMessage;
 
 function isReindex(body: QueueMessage): body is ReindexMessage {
   return (body as ReindexMessage).kind === "reindex_chain";
@@ -239,6 +241,52 @@ export function processOcrMessage(
   );
 }
 
+// The parts of a queue message the review consumer uses (a fake in tests).
+export interface ReviewDelivery {
+  body: ReviewApplyMessage;
+  attempts: number;
+  ack(): void;
+  retry(options: { delaySeconds: number }): void;
+}
+
+// Apply one page's Opus review (review/apply.ts). It writes its own record,
+// so the only failure left is D1/R2 being unreachable: retry with backoff.
+export function processReviewMessage(
+  msg: ReviewDelivery,
+): Effect.Effect<void, never, AppServices> {
+  const { body } = msg;
+  return Effect.gen(function* () {
+    const log = yield* useLogger();
+    const status = yield* applyReview(body);
+    log.set({ review: { status } });
+    msg.ack();
+  }).pipe(
+    Effect.catchCause((cause) =>
+      Effect.gen(function* () {
+        const log = yield* useLogger();
+        const error = Cause.squash(cause);
+        log.error(
+          error instanceof StorageError
+            ? toEvlogError(error)
+            : error instanceof Error
+              ? error
+              : String(error),
+        );
+        msg.retry({ delaySeconds: backoffSeconds(msg.attempts, null) });
+      }),
+    ),
+    withLogger("review", {
+      fields: {
+        kind: "review_apply",
+        file_id: body.fileId,
+        book_id: body.bookId,
+        batch_id: body.batchId,
+        attempt: msg.attempts,
+      },
+    }),
+  );
+}
+
 // Queue consumer. Each message is its own unit of work with its own wide
 // event (evlog/effect withLogger): the queue gives no Request to hang a
 // logger on, so withLogger creates the event, provides it to the Effect
@@ -249,23 +297,32 @@ export async function handleOcrQueue(
 ): Promise<void> {
   const services = liveLayer(env);
   for (const msg of batch.messages) {
-    // Full-rebuild steps share this queue; dispatch them separately.
-    const program = isReindex(msg.body)
-      ? Effect.gen(function* () {
-          const log = yield* useLogger();
-          yield* Effect.promise(() =>
-            handleReindexStep({
-              msg: msg as Message<ReindexMessage>,
-              env,
-              log,
+    // Full-rebuild steps and review applies share this queue; dispatch them
+    // separately.
+    const body = msg.body;
+    const program = isReviewApply(body)
+      ? processReviewMessage({
+          body,
+          attempts: msg.attempts,
+          ack: () => msg.ack(),
+          retry: (options) => msg.retry(options),
+        })
+      : isReindex(body)
+        ? Effect.gen(function* () {
+            const log = yield* useLogger();
+            yield* Effect.promise(() =>
+              handleReindexStep({
+                msg: msg as Message<ReindexMessage>,
+                env,
+                log,
+              }),
+            );
+          }).pipe(
+            withLogger("reindex", {
+              fields: { kind: "reindex_chain", attempt: msg.attempts },
             }),
-          );
-        }).pipe(
-          withLogger("reindex", {
-            fields: { kind: "reindex_chain", attempt: msg.attempts },
-          }),
-        )
-      : processOcrMessage(msg as Message<OcrMessage>);
+          )
+        : processOcrMessage(msg as Message<OcrMessage>);
     await Effect.runPromise(
       program.pipe(Effect.provide(services), Effect.provide(effectLogger)),
     );

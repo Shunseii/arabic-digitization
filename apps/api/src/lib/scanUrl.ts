@@ -13,7 +13,19 @@ const KEY_LABEL = "scan-url-v1";
 
 const encoder = new TextEncoder();
 
-async function signingKey(masterKey: string): Promise<CryptoKey> {
+// Derived once per isolate: a review batch signs a link for every page.
+const signingKeys = new Map<string, Promise<CryptoKey>>();
+
+function signingKey(masterKey: string): Promise<CryptoKey> {
+  let key = signingKeys.get(masterKey);
+  if (!key) {
+    key = deriveSigningKey(masterKey);
+    signingKeys.set(masterKey, key);
+  }
+  return key;
+}
+
+async function deriveSigningKey(masterKey: string): Promise<CryptoKey> {
   const master = await crypto.subtle.importKey(
     "raw",
     encoder.encode(masterKey),

@@ -201,6 +201,7 @@ describe("public routes", () => {
         "POST /api/books/{bookId}/requeue",
         "POST /api/books/{bookId}/pause",
         "POST /api/books/{bookId}/resume",
+        "POST /api/books/{bookId}/review",
         "POST /api/works",
         "GET /api/works",
         "GET /api/works/{workId}",
@@ -483,6 +484,8 @@ describe("books", () => {
         ocr_engine: "claude",
         work_id: null,
         paused: false,
+        review_enabled: false,
+        review_effort: null,
         files_total: 3,
         counts: { done: 2, queued: 1 },
         usage: {
@@ -521,6 +524,41 @@ describe("books", () => {
     });
   });
 
+  it("queues done pages for review only once the book opts in", async () => {
+    await seedBook({ h, id: "rev-1" });
+    await seedFiles({
+      h,
+      bookId: "rev-1",
+      files: [
+        { fileId: "rev-done", text: "نص", preview: "نص" },
+        { fileId: "rev-edited", text: "نص", preview: "نص", textEditedAt: 5 },
+        { fileId: "rev-blank", text: "", preview: "" },
+        { fileId: "rev-queued" },
+      ],
+    });
+    await expectError({
+      response: await h.api("/api/books/rev-1/review", { method: "POST" }),
+      status: 409,
+      error:
+        "Review is off for this book; PATCH it with review_enabled: true first",
+    });
+
+    const patched = await postJson({
+      h,
+      method: "PATCH",
+      path: "/api/books/rev-1",
+      body: { review_enabled: true, review_effort: "medium" },
+    });
+    expect(await patched.json()).toMatchObject({
+      book: { review_enabled: true, review_effort: "medium" },
+    });
+    const queued = await h.api("/api/books/rev-1/review", { method: "POST" });
+    expect(await queued.json()).toEqual({ success: true, queued: 1 });
+    expect(
+      await h.query("SELECT file_id, instance_id FROM review_queue"),
+    ).toEqual([{ file_id: "rev-done", instance_id: null }]);
+  });
+
   it("answers 404 for a missing book", async () => {
     await expectError({
       response: await h.api("/api/books/missing-book"),
@@ -553,6 +591,8 @@ describe("books", () => {
         ocr_engine: "claude",
         work_id: null,
         paused: false,
+        review_enabled: false,
+        review_effort: null,
       },
     });
     expect(h.meili.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
@@ -2331,7 +2371,7 @@ describe("every API operation", () => {
         path: path.replace(/\{[^}]+\}/g, "x"),
       })),
     );
-    expect(operations.length).toBe(28);
+    expect(operations.length).toBe(29);
     for (const { method, path } of operations) {
       for (const headers of [{}, { Authorization: "Bearer wrong" }] as Record<
         string,

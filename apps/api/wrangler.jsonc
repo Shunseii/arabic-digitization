@@ -58,6 +58,20 @@
       }
     ]
   },
+  // Opus review (src/review/): one Workflow instance per Message Batch. It
+  // claims pending pages, submits the batch, sleeps between status checks,
+  // stores the results in R2 and hands each page to the OCR queue to apply.
+  // The cron only starts an instance when pages are waiting.
+  "workflows": [
+    {
+      "name": "opus-review",
+      "binding": "REVIEW_WORKFLOW",
+      "class_name": "ReviewWorkflow"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 */3 * * *"]
+  },
   // Meilisearch (hosted on Fly, see infra/meili). MEILI_KEY is a secret:
   // `wrangler secret put MEILI_KEY` (a Meili API key with search + documents.add).
   //

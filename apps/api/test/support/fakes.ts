@@ -8,16 +8,20 @@ import { join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { Effect, Layer } from "effect";
 import { StorageError } from "../../src/effect/errors";
-
 import {
+  AnthropicBatches,
+  type AnthropicBatchesShape,
   AnthropicGateway,
   type AppServices,
+  type BatchStatus,
   Bucket,
+  type BucketShape,
   Database,
   type DatabaseShape,
   Ollama,
   PageIndexer,
   type ProviderRequest,
+  ReviewQueue,
   ScanLinks,
   type SqlValue,
   type Statement,
@@ -25,6 +29,7 @@ import {
   type TransportError,
   WallClock,
 } from "../../src/effect/services";
+import type { ReviewApplyMessage } from "../../src/review/message";
 
 const MIGRATIONS_DIR = join(import.meta.dirname, "../../migrations");
 
@@ -88,6 +93,25 @@ export function sqliteDatabase(
 
 export class FakeBucket {
   readonly objects = new Map<string, StoredBytes>();
+  // Bumped on every write; an object's etag is its version.
+  private readonly versions = new Map<string, number>();
+  private version = 0;
+
+  private write(key: string, value: StoredBytes): void {
+    this.objects.set(key, value);
+    this.versions.set(key, ++this.version);
+  }
+
+  etag(key: string): string {
+    return `v${this.versions.get(key) ?? 0}`;
+  }
+
+  putMarkdown({ key, text }: { key: string; text: string }): void {
+    this.write(key, {
+      bytes: new TextEncoder().encode(text),
+      contentType: "text/markdown; charset=utf-8",
+    });
+  }
 
   putImage({ key, contentType }: { key: string; contentType: string }): void {
     this.objects.set(key, { bytes: new Uint8Array([1, 2, 3]), contentType });
@@ -102,16 +126,53 @@ export class FakeBucket {
     return [...this.objects.keys()].filter((k) => k.startsWith(prefix));
   }
 
-  readonly service = {
-    getBytes: (key: string) => Effect.sync(() => this.objects.get(key) ?? null),
-    getText: (key: string) => Effect.sync(() => this.text(key) ?? null),
-    putText: ({ key, text }: { key: string; text: string }) =>
+  readonly service: BucketShape = {
+    getBytes: (key) => Effect.sync(() => this.objects.get(key) ?? null),
+    getText: (key) => Effect.sync(() => this.text(key) ?? null),
+    putText: (object) => Effect.sync(() => this.putMarkdown(object)),
+    getRange: ({ key, offset, length }) =>
+      Effect.sync(
+        () =>
+          this.objects.get(key)?.bytes.slice(offset, offset + length) ?? null,
+      ),
+    getVersionedText: (key) =>
       Effect.sync(() => {
-        this.objects.set(key, {
-          bytes: new TextEncoder().encode(text),
-          contentType: "text/markdown; charset=utf-8",
-        });
+        const text = this.text(key);
+        return text === undefined ? null : { text, etag: this.etag(key) };
       }),
+    putTextIfMatch: ({ key, text, etag }) =>
+      Effect.sync(() => {
+        if (this.etag(key) !== etag) return false;
+        this.putMarkdown({ key, text });
+        return true;
+      }),
+    putBytes: ({ key, bytes, contentType }) =>
+      Effect.sync(() => this.write(key, { bytes, contentType })),
+  };
+}
+
+// Message Batches that answer from a script and record what was sent.
+export class FakeBatches {
+  readonly created: string[] = [];
+  readonly retrieved: string[] = [];
+  statuses: BatchStatus[] = [];
+  results: Uint8Array = new Uint8Array();
+
+  readonly service: AnthropicBatchesShape = {
+    create: (body) =>
+      Effect.sync(() => {
+        this.created.push(body);
+        return `msgbatch_${this.created.length}`;
+      }),
+    retrieve: (batchId) =>
+      Effect.suspend(() => {
+        this.retrieved.push(batchId);
+        const status = this.statuses.shift();
+        return status
+          ? Effect.succeed(status)
+          : Effect.die(new Error("unexpected batch retrieve"));
+      }),
+    results: () => Effect.sync(() => this.results),
   };
 }
 
@@ -193,6 +254,9 @@ export interface TestWorld {
   inkling: ScriptedProvider;
   claude: ScriptedProvider;
   indexed: { fileId: string; text: string }[];
+  batches: FakeBatches;
+  sent: ReviewApplyMessage[];
+  scanLinkTtls: number[];
   faults: DatabaseFaults;
   layer: Layer.Layer<AppServices>;
 }
@@ -210,11 +274,21 @@ export function makeWorld({
   const claudeProvider = new ScriptedProvider(claude);
   const indexed: { fileId: string; text: string }[] = [];
   const faults: DatabaseFaults = { batch: false, run: () => false };
+  const batches = new FakeBatches();
+  const sent: ReviewApplyMessage[] = [];
+  const scanLinkTtls: number[] = [];
   const layer = Layer.mergeAll(
     Layer.succeed(Database, sqliteDatabase(sqlite, faults)),
     Layer.succeed(Bucket, bucket.service),
     Layer.succeed(Ollama, { chat: inklingProvider.call }),
     Layer.succeed(AnthropicGateway, { messages: claudeProvider.call }),
+    Layer.succeed(AnthropicBatches, batches.service),
+    Layer.succeed(ReviewQueue, {
+      send: (messages: readonly ReviewApplyMessage[]) =>
+        Effect.sync(() => {
+          sent.push(...messages);
+        }),
+    }),
     Layer.succeed(WallClock, steppingClock()),
     Layer.succeed(PageIndexer, {
       index: (page: { fileId: string; text: string }) =>
@@ -223,8 +297,17 @@ export function makeWorld({
         }),
     }),
     Layer.succeed(ScanLinks, {
-      urlFor: ({ fileId }: { fileId: string; ttlSeconds: number }) =>
-        Effect.succeed(`${SCAN_URL_BASE}/${fileId}?exp=1&sig=test`),
+      urlFor: ({
+        fileId,
+        ttlSeconds,
+      }: {
+        fileId: string;
+        ttlSeconds: number;
+      }) =>
+        Effect.sync(() => {
+          scanLinkTtls.push(ttlSeconds);
+          return `${SCAN_URL_BASE}/${fileId}?exp=1&sig=test`;
+        }),
     }),
   );
   return {
@@ -233,6 +316,9 @@ export function makeWorld({
     inkling: inklingProvider,
     claude: claudeProvider,
     indexed,
+    batches,
+    sent,
+    scanLinkTtls,
     faults,
     layer,
   };

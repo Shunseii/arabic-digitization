@@ -5,6 +5,9 @@ import { AppLive } from "./http/app";
 import { WorkerContext } from "./http/context";
 import { initLogging, withRequestEvent } from "./logging";
 import { handleOcrQueue, type QueueMessage } from "./queue";
+import { startReviewIfPending } from "./review/cron";
+
+export { ReviewWorkflow } from "./review/workflow";
 
 initLogging();
 
@@ -25,4 +28,5 @@ export default {
     ),
   ),
   queue: handleOcrQueue,
+  scheduled: (controller, env) => startReviewIfPending({ controller, env }),
 } satisfies ExportedHandler<Env, QueueMessage>;

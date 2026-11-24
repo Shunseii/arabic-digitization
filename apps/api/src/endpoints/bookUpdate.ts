@@ -4,6 +4,7 @@ import { type EndpointHandler, WorkerContext } from "../http/context";
 import { NotFound, notFound } from "../http/errors";
 import { respond } from "../http/respond";
 import { reindexBook } from "../lib/reindex";
+import type { ReviewEffort } from "../review/message";
 import { Book, BookUpdateBody, type OcrEngine } from "../types";
 
 export const BookUpdate = HttpApiEndpoint.patch(
@@ -32,7 +33,7 @@ export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
 
     // Build the SET clause from only the provided fields.
     const sets: string[] = [];
-    const binds: (string | null)[] = [];
+    const binds: (string | number | null)[] = [];
     if (body.title !== undefined) {
       sets.push("title = ?");
       binds.push(body.title);
@@ -48,6 +49,14 @@ export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
     if (body.work_id !== undefined) {
       sets.push("work_id = ?");
       binds.push(body.work_id); // null unlinks (flat)
+    }
+    if (body.review_enabled !== undefined) {
+      sets.push("review_enabled = ?");
+      binds.push(body.review_enabled ? 1 : 0);
+    }
+    if (body.review_effort !== undefined) {
+      sets.push("review_effort = ?");
+      binds.push(body.review_effort); // null resets to the default effort
     }
 
     const result = yield* Effect.promise(() =>
@@ -79,7 +88,7 @@ export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
 
     const book = yield* Effect.promise(() =>
       env.DB.prepare(
-        "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused FROM books WHERE id = ?",
+        "SELECT id, title, created_at, ocr_instructions, ocr_engine, work_id, paused, review_enabled, review_effort FROM books WHERE id = ?",
       )
         .bind(params.bookId)
         .first<{
@@ -90,6 +99,8 @@ export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
           ocr_engine: OcrEngine | null;
           work_id: string | null;
           paused: number;
+          review_enabled: number;
+          review_effort: ReviewEffort | null;
         }>(),
     );
 
@@ -97,7 +108,11 @@ export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
       endpoint: BookUpdate,
       body: {
         success: true,
-        book: book && { ...book, paused: book.paused === 1 },
+        book: book && {
+          ...book,
+          paused: book.paused === 1,
+          review_enabled: book.review_enabled === 1,
+        },
       },
     });
   });

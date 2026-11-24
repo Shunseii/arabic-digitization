@@ -8,3 +8,6 @@ MEILI_KEY=change-me
 # Cloudflare AI Gateway auth token (cf-aig-authorization) for Claude (OCR fallback
 # and search highlighting).
 CF_AIG_TOKEN=change-me
+# Optional: an Anthropic API key for the Opus review's Message Batches. Unset,
+# batches go through the AI Gateway with CF_AIG_TOKEN like other Claude calls.
+# ANTHROPIC_API_KEY=...
