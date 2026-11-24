@@ -14,6 +14,7 @@
 // Every run ends in one D1 batch: the page's new state, the revision it
 // replaced, the prompt versions it used, and its ocr_runs row.
 
+import { Buffer } from "node:buffer";
 import { Effect } from "effect";
 import {
   BadResponse,
@@ -39,6 +40,7 @@ import {
   Ollama,
   PageIndexer,
   readAnthropicMessage,
+  ScanLinks,
   type Statement,
   statement,
   WallClock,
@@ -105,7 +107,11 @@ interface FileRow {
 
 interface PageInput {
   mimeType: string;
-  base64: string;
+  // Inkling only: Ollama takes the image inline. Encoded on first use, so a
+  // Claude-only run never pays for it.
+  base64: () => string;
+  // Claude fetches the scan itself from this signed link.
+  imageUrl: string;
   systemPrompt: string;
 }
 
@@ -170,7 +176,7 @@ function runInkling(
         options: { num_predict: INKLING_MAX_TOKENS },
         messages: [
           { role: "system", content: page.systemPrompt },
-          { role: "user", content: USER_PROMPT, images: [page.base64] },
+          { role: "user", content: USER_PROMPT, images: [page.base64()] },
         ],
       },
     });
@@ -220,11 +226,7 @@ function runClaude(
             content: [
               {
                 type: "image",
-                source: {
-                  type: "base64",
-                  media_type: page.mimeType,
-                  data: page.base64,
-                },
+                source: { type: "url", url: page.imageUrl },
               },
               { type: "text", text: USER_PROMPT },
             ],
@@ -353,16 +355,24 @@ export function runWithFallback({
   );
 }
 
-// Chunked base64 — avoids call-stack blowups on large images that a single
-// String.fromCharCode(...bytes) would hit.
+// Native encoder: ~35x less CPU than a JS loop + btoa (≈0.4 ms vs ≈14 ms for
+// a 450 KB scan), which matters on the free plan's 10 ms CPU budget.
 function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString(
+    "base64",
+  );
 }
+
+function lazy<T>(compute: () => T): () => T {
+  let value: { v: T } | null = null;
+  return () => {
+    value ??= { v: compute() };
+    return value.v;
+  };
+}
+
+// Long enough for a slow provider call plus retries inside one run.
+const SCAN_LINK_TTL_SECONDS = 15 * 60;
 
 export interface TranscribeJob {
   fileId: string;
@@ -388,7 +398,13 @@ export function transcribe(
 ): Effect.Effect<
   RunOutcome,
   StorageError,
-  Database | Bucket | Ollama | AnthropicGateway | WallClock | PageIndexer
+  | Database
+  | Bucket
+  | Ollama
+  | AnthropicGateway
+  | WallClock
+  | PageIndexer
+  | ScanLinks
 > {
   return Effect.gen(function* () {
     const db = yield* Database;
@@ -424,12 +440,18 @@ export function transcribe(
       if (!mimeType.startsWith("image/")) {
         return yield* new NotAnImage({ contentType: mimeType });
       }
+      const scanLinks = yield* ScanLinks;
+      const imageUrl = yield* scanLinks.urlFor({
+        fileId: job.fileId,
+        ttlSeconds: SCAN_LINK_TTL_SECONDS,
+      });
       return yield* runWithFallback({
         primary,
         calls,
         page: {
           mimeType,
-          base64: toBase64(scan.bytes),
+          base64: lazy(() => toBase64(scan.bytes)),
+          imageUrl,
           systemPrompt: buildSystemPrompt(bookInstructions),
         },
       });

@@ -21,6 +21,7 @@ import { FileTextHistory } from "./endpoints/fileTextHistory";
 import { FileUpdate } from "./endpoints/fileUpdate";
 import { FileUpload } from "./endpoints/fileUpload";
 import { OcrRunsRecomputeMetrics } from "./endpoints/ocrRunsRecomputeMetrics";
+import { scanSigned } from "./endpoints/scanSigned";
 import { SearchReindex } from "./endpoints/searchReindex";
 import { TagList } from "./endpoints/tagList";
 import { WorkCreate } from "./endpoints/workCreate";
@@ -50,6 +51,10 @@ app.onError(recordUnhandledError);
 app.get("/llms.txt", (c) =>
   c.body(LLMS_TXT, 200, { "content-type": "text/markdown; charset=utf-8" }),
 );
+
+// A page scan for a signed link (lib/scanUrl), so a provider can fetch it.
+// Public on purpose: the signature is the credential. Before the gate.
+app.get("/scan/:fileId", scanSigned);
 
 // Allow the desktop webview (and any browser client) to call the API. Auth is
 // a Bearer master key with no cookies, so a wildcard origin is safe. Placed

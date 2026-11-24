@@ -72,7 +72,9 @@
   "vars": {
     "MEILI_URL": "https://arabic-digitization-search.fly.dev",
     "CF_AIG_ACCOUNT_ID": "9759ed7a233a1a22e2f01031de0f160a",
-    "CF_AIG_GATEWAY": "arabic-digitalization"
+    "CF_AIG_GATEWAY": "arabic-digitalization",
+    // Base for signed scan links (lib/scanUrl) that providers fetch.
+    "PUBLIC_API_URL": "https://arabic-digitization.khan-sufyan-cs.workers.dev"
   }
   /**
    * Smart Placement

@@ -26,6 +26,7 @@ import {
   makeWorld,
   ocrRuns,
   type ProviderReply,
+  SCAN_URL_BASE,
   seedPage,
   type TestWorld,
 } from "./support/fakes";
@@ -281,6 +282,36 @@ describe("transcribe", () => {
     for (const key of world.bucket.objects.keys()) {
       expect(world.bucket.text(key)).not.toContain("PARTIAL");
     }
+  });
+
+  it("sends Claude a signed scan link, not base64", async () => {
+    const world = makeWorld({ claude: [claudeReply({ text: PAGE })] });
+    seedPage({ world, engine: "claude" });
+
+    await run(world);
+
+    const body = world.claude.requests[0]?.body as {
+      messages: { content: { type: string; source?: unknown }[] }[];
+    };
+    const image = body.messages[0]?.content.find((c) => c.type === "image");
+    expect(image?.source).toEqual({
+      type: "url",
+      url: `${SCAN_URL_BASE}/${FILE_ID}?exp=1&sig=test`,
+    });
+    expect(JSON.stringify(body)).not.toContain("base64");
+  });
+
+  it("sends Inkling the scan inline as base64", async () => {
+    const world = makeWorld({ inkling: [inklingReply({ text: PAGE })] });
+    seedPage({ world });
+
+    await run(world);
+
+    const body = world.inkling.requests[0]?.body as {
+      messages: { images?: string[] }[];
+    };
+    // The fake scan is the bytes [1, 2, 3].
+    expect(body.messages[1]?.images).toEqual(["AQID"]);
   });
 
   it("runs Claude first for a book whose engine is claude", async () => {

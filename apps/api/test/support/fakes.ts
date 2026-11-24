@@ -18,6 +18,7 @@ import {
   Ollama,
   PageIndexer,
   type ProviderRequest,
+  ScanLinks,
   type SqlValue,
   type Statement,
   type StoredBytes,
@@ -221,6 +222,10 @@ export function makeWorld({
           indexed.push(page);
         }),
     }),
+    Layer.succeed(ScanLinks, {
+      urlFor: ({ fileId }: { fileId: string; ttlSeconds: number }) =>
+        Effect.succeed(`${SCAN_URL_BASE}/${fileId}?exp=1&sig=test`),
+    }),
   );
   return {
     sqlite,
@@ -233,6 +238,7 @@ export function makeWorld({
   };
 }
 
+export const SCAN_URL_BASE = "https://api.test/scan";
 export const BOOK_ID = "test-book";
 export const FILE_ID = "file-1";
 export const SCAN_KEY = `books/${BOOK_ID}/scans/${FILE_ID}`;

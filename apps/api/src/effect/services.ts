@@ -3,6 +3,7 @@
 
 import { Context, Duration, Effect, Layer } from "effect";
 import { indexPageOrThrow } from "../lib/pageText";
+import { signScanUrl } from "../lib/scanUrl";
 import {
   BadResponse,
   NetworkError,
@@ -370,13 +371,43 @@ export function makePageIndexer(env: Env): PageIndexerShape {
   };
 }
 
+// ---- Signed scan links --------------------------------------------------------
+
+// Mints a short-lived signed link to a page scan (lib/scanUrl), so a provider
+// can fetch the image instead of us base64-encoding it into the request.
+export interface ScanLinksShape {
+  readonly urlFor: (request: {
+    fileId: string;
+    ttlSeconds: number;
+  }) => Effect.Effect<string>;
+}
+
+export class ScanLinks extends Context.Service<ScanLinks, ScanLinksShape>()(
+  "app/ScanLinks",
+) {}
+
+export function makeScanLinks(env: Env): ScanLinksShape {
+  return {
+    urlFor: ({ fileId, ttlSeconds }) =>
+      Effect.promise(() =>
+        signScanUrl({
+          baseUrl: env.PUBLIC_API_URL,
+          masterKey: env.MASTER_KEY,
+          fileId,
+          expiresAt: Math.floor(Date.now() / 1000) + ttlSeconds,
+        }),
+      ),
+  };
+}
+
 export type AppServices =
   | Database
   | Bucket
   | Ollama
   | AnthropicGateway
   | WallClock
-  | PageIndexer;
+  | PageIndexer
+  | ScanLinks;
 
 export function liveLayer(env: Env): Layer.Layer<AppServices> {
   return Layer.mergeAll(
@@ -386,5 +417,6 @@ export function liveLayer(env: Env): Layer.Layer<AppServices> {
     Layer.succeed(AnthropicGateway, makeAnthropicGateway(env)),
     Layer.succeed(WallClock, systemClock),
     Layer.succeed(PageIndexer, makePageIndexer(env)),
+    Layer.succeed(ScanLinks, makeScanLinks(env)),
   );
 }
