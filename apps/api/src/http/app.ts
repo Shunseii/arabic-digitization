@@ -51,8 +51,8 @@ import {
 } from "../endpoints/ocrRunsRecomputeMetrics";
 import { ReviewSummary, reviewSummary } from "../endpoints/reviewSummary";
 import { scanSigned } from "../endpoints/scanSigned";
-import { Spend, spend } from "../endpoints/spend";
 import { SearchReindex, searchReindex } from "../endpoints/searchReindex";
+import { Spend, spend } from "../endpoints/spend";
 import { TagList, tagList } from "../endpoints/tagList";
 import { WorkCreate, workCreate } from "../endpoints/workCreate";
 import { WorkDelete, workDelete } from "../endpoints/workDelete";
@@ -172,7 +172,9 @@ const SearchLive = HttpApiBuilder.group(Api, "Search", (handlers) =>
 );
 
 const ActivityLive = HttpApiBuilder.group(Api, "Activity", (handlers) =>
-  handlers.handle("jobs", jobs).handle("reviewSummary", reviewSummary)
+  handlers
+    .handle("jobs", jobs)
+    .handle("reviewSummary", reviewSummary)
     .handle("spend", spend),
 );
 

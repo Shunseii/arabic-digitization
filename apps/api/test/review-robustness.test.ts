@@ -268,6 +268,7 @@ describe("a foreign batch", () => {
         effort: "low" as const,
         textSha: "x",
         attempt: 0,
+        requested: false,
       },
       {
         fileId: "file-b",
@@ -275,6 +276,7 @@ describe("a foreign batch", () => {
         effort: "low" as const,
         textSha: "x",
         attempt: 0,
+        requested: false,
       },
     ];
     const bytes = (lines: string[]) =>
@@ -486,6 +488,71 @@ describe("stuck batches", () => {
       { instance_id: "gone", stage: "failed" },
       { instance_id: "young", stage: "processing" },
     ]);
+  });
+});
+
+describe("on-demand reviews", () => {
+  it("keeps a page asked for on demand when the book's review is switched off", async () => {
+    const world = makeWorld();
+    seedReviewBook(world, ["file-a", "file-b"]);
+    world.sqlite.exec(
+      "UPDATE review_queue SET requested = 1 WHERE file_id = 'file-a'; UPDATE books SET review_enabled = 0",
+    );
+    const claimed = await run(world, claimPages("review-1"));
+    expect(
+      await run(
+        world,
+        preparePart({ instanceId: "review-1", index: 0, fileIds: claimed }),
+      ),
+    ).toEqual({ pages: 1, dropped: 1 });
+    const manifest = JSON.parse(
+      world.bucket.text("reviews/review-1/manifest-0.json") ?? "[]",
+    ) as { fileId: string; requested: boolean }[];
+    expect(manifest).toEqual([
+      expect.objectContaining({ fileId: "file-a", requested: true }),
+    ]);
+  });
+
+  it("queues an on-demand page again on the same terms after an unbilled failure", async () => {
+    const world = makeWorld();
+    seedReviewBook(world, ["file-a"]);
+    world.sqlite.exec(
+      "UPDATE review_queue SET requested = 1; UPDATE books SET review_enabled = 0",
+    );
+    const claimed = await run(world, claimPages("review-1"));
+    await run(
+      world,
+      preparePart({ instanceId: "review-1", index: 0, fileIds: claimed }),
+    );
+    const { batchId } = await run(
+      world,
+      submitBatch({ instanceId: "review-1", parts: 1, pages: 1 }),
+    );
+    world.batches.results = new TextEncoder().encode(
+      JSON.stringify({
+        custom_id: reviewCustomId({ instanceId: "review-1", fileId: "file-a" }),
+        result: { type: "expired" },
+      }),
+    );
+    await run(
+      world,
+      storeResults({ instanceId: "review-1", batchId, parts: 1 }),
+    );
+    await run(world, releaseClaims({ instanceId: "review-1", retry: false }));
+    await run(
+      world,
+      dispatchApplies({ instanceId: "review-1", batchId, parts: 1 }),
+    );
+    const [message] = world.sent;
+    if (!message) throw new Error("no message");
+    expect(message.requested).toBe(true);
+    expect(await run(world, applyReview(message))).toBe("expired");
+    // The switch is still off, yet the page waits again, still asked for.
+    expect(
+      world.sqlite
+        .prepare("SELECT file_id, attempts, requested FROM review_queue")
+        .all(),
+    ).toEqual([{ file_id: "file-a", attempts: 1, requested: 1 }]);
   });
 });
 

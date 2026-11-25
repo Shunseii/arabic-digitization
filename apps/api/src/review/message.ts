@@ -45,6 +45,9 @@ export interface ReviewApplyMessage {
   // Earlier tries of this page that ended without a review (server error,
   // expired, canceled); see REVIEW_MAX_ATTEMPTS.
   attempt: number;
+  // Asked for on demand: reviewed even if the book's switch is off, and
+  // queued again on the same terms. Absent on messages from before it.
+  requested?: boolean;
   // SHA-256 of the text that was sent for review: the edits apply only if the
   // page still has exactly that text.
   textSha: string;

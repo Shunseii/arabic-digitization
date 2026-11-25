@@ -376,7 +376,8 @@ export function applyReview(
                   cacheReadInputTokens: usage.cacheReadInputTokens,
                   calls: 1,
                   pages:
-                    record.status === "applied" || record.status === "no_changes"
+                    record.status === "applied" ||
+                    record.status === "no_changes"
                       ? 1
                       : 0,
                 },
@@ -423,6 +424,7 @@ export function applyReview(
         bookId: msg.bookId,
         at: clock.now(),
         attempts,
+        requested: msg.requested === true,
       });
     // A try that ended without a review: queue the page again, unless this
     // was its last allowed try. Such requests aren't billed.

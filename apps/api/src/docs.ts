@@ -135,12 +135,20 @@ PATCH /api/books/:bookId
            paused, review_enabled, review_effort } }
   404 if missing.
 
-POST /api/books/:bookId/review
-  Queue the book's pages that are already done for the Opus review (pages that
-  finish OCR later are queued automatically). Leaves out hand-edited and blank
-  pages. They are reviewed over the next runs, up to 100 pages per batch.
-  200 -> { success, queued: <n newly queued> }
-  404 if book missing, 409 if review_enabled is false.
+POST /api/books/:bookId/review   Body (optional): { "all"?: boolean }
+  Queue the book's done pages for the Opus review. They are reviewed over the
+  next runs, up to 100 pages per batch.
+  - No body: for a book with review on, adds the pages done before it was
+    turned on (pages that finish OCR later are queued automatically).
+  - all: true: a one-off, even with the book's review off. Every done page is
+    queued, already reviewed ones included; they are reviewed on the current
+    text (a re-review is recorded in history like any other). Pages already
+    waiting are kept and now count as asked for.
+  Either way hand-edited and blank pages are left out (a review never
+  overwrites a hand edit), and a page already waiting or in a running batch
+  isn't queued twice.
+  200 -> { success, queued, skipped_hand_edited, already_queued }
+  404 if book missing; 409 without all if review_enabled is false.
 
 DELETE /api/books/:bookId
   Delete a book and everything under it: its R2 objects (scans + text) and

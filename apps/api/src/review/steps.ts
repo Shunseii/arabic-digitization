@@ -126,6 +126,7 @@ export interface ManifestEntry {
   effort: ReviewEffort;
   textSha: string;
   attempt: number;
+  requested: boolean;
 }
 
 export interface PreparedPart {
@@ -143,6 +144,7 @@ interface CandidateRow {
   review_enabled: number;
   review_effort: string | null;
   attempts: number | null;
+  requested: number | null;
 }
 
 const effortOf = (value: string | null): ReviewEffort =>
@@ -171,7 +173,7 @@ export function preparePart({
     const rows = yield* db.all<CandidateRow>(
       statement(
         `SELECT f.file_id, f.book_id, f.state, f.text_key, f.text_edited_at,
-                b.ocr_instructions, b.review_enabled, b.review_effort, q.attempts
+                b.ocr_instructions, b.review_enabled, b.review_effort, q.attempts, q.requested
            FROM files f JOIN books b ON b.id = f.book_id
            LEFT JOIN review_queue q ON q.file_id = f.file_id
           WHERE f.file_id IN (${fileIds.map(() => "?").join(", ")})`,
@@ -185,7 +187,7 @@ export function preparePart({
         row.state === "done" &&
         row.text_key !== null &&
         row.text_edited_at === null &&
-        row.review_enabled === 1 &&
+        (row.review_enabled === 1 || row.requested === 1) &&
         isValidCustomId(reviewCustomId({ instanceId, fileId: row.file_id }));
       const text =
         eligible && row.text_key ? yield* bucket.getText(row.text_key) : null;
@@ -212,6 +214,7 @@ export function preparePart({
         effort,
         textSha: yield* Effect.promise(() => sha256Hex(text)),
         attempt: row.attempts ?? 0,
+        requested: row.requested === 1,
       });
     }
 
@@ -666,6 +669,7 @@ export function dispatchApplies({
           effort: entry.effort,
           textSha: entry.textSha,
           attempt: entry.attempt,
+          requested: entry.requested,
           resultsKey: keys.results,
           line: lineOf.get(customId) ?? null,
         };

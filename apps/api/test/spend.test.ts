@@ -5,11 +5,7 @@ import { Effect, Logger } from "effect";
 import { describe, expect, it } from "vitest";
 import { BadResponse, RateLimited } from "../src/effect/errors";
 import type { AppServices } from "../src/effect/services";
-import {
-  costUsd,
-  REVIEW_MODEL,
-  reviewCostUsd,
-} from "../src/lib/cost";
+import { costUsd, REVIEW_MODEL, reviewCostUsd } from "../src/lib/cost";
 import { sha256Hex } from "../src/lib/ocrRuns";
 import { spendDay } from "../src/lib/spend";
 import { CLAUDE_MODEL, INKLING_MODEL, transcribe } from "../src/ocr";
@@ -67,7 +63,11 @@ describe("OCR spend", () => {
     const world = makeWorld({
       inkling: [
         inklingReply({ text: PAGE, inputTokens: 1000, outputTokens: 2000 }),
-        inklingReply({ text: `${PAGE}!`, inputTokens: 1100, outputTokens: 2100 }),
+        inklingReply({
+          text: `${PAGE}!`,
+          inputTokens: 1100,
+          outputTokens: 2100,
+        }),
       ],
     });
     seedPage({ world });
@@ -75,7 +75,11 @@ describe("OCR spend", () => {
     // A re-run is billed again, and counted again.
     await ocr(world);
     const cost = (input: number, output: number) =>
-      costUsd({ model: INKLING_MODEL, inputTokens: input, outputTokens: output }) ?? 0;
+      costUsd({
+        model: INKLING_MODEL,
+        inputTokens: input,
+        outputTokens: output,
+      }) ?? 0;
     const [row] = spendRows(world);
     expect(row).toMatchObject({
       day: DAY,
@@ -101,7 +105,9 @@ describe("OCR spend", () => {
           }),
         },
       ],
-      claude: [claudeReply({ text: PAGE, inputTokens: 1500, outputTokens: 800 })],
+      claude: [
+        claudeReply({ text: PAGE, inputTokens: 1500, outputTokens: 800 }),
+      ],
     });
     seedPage({ world });
     await ocr(world);
@@ -254,7 +260,10 @@ describe("review spend", () => {
       ["msgbatch_1", { type: "expired" }],
       [
         "msgbatch_2",
-        { type: "errored", error: { type: "error", error: { type: "api_error", message: "x" } } },
+        {
+          type: "errored",
+          error: { type: "error", error: { type: "api_error", message: "x" } },
+        },
       ],
     ] as const) {
       const message = await reviewMessage({ world, batchId, result });
@@ -299,14 +308,37 @@ describe("backfill", () => {
         .all(),
     ).toEqual([
       // claude call of the run (kept its text), plus nothing else.
-      { day: "2026-11-20", kind: "ocr", model: "claude-sonnet-5-5", cost_usd: 0.02, calls: 1, pages: 1 },
+      {
+        day: "2026-11-20",
+        kind: "ocr",
+        model: "claude-sonnet-5-5",
+        cost_usd: 0.02,
+        calls: 1,
+        pages: 1,
+      },
       // The run's cut-off Inkling call, plus the pre-history page (1M in and
       // out at $0.30 + $1.00).
-      { day: "2026-11-20", kind: "ocr", model: "inkling-2-small", cost_usd: 0.01 + 1.3, calls: 2, pages: 1 },
-      { day: "2026-11-20", kind: "review", model: "claude-opus-5-5", cost_usd: 0.05, calls: 1, pages: 1 },
+      {
+        day: "2026-11-20",
+        kind: "ocr",
+        model: "inkling-2-small",
+        cost_usd: 0.01 + 1.3,
+        calls: 2,
+        pages: 1,
+      },
+      {
+        day: "2026-11-20",
+        kind: "review",
+        model: "claude-opus-5-5",
+        cost_usd: 0.05,
+        calls: 1,
+        pages: 1,
+      },
     ]);
     expect(
-      sqlite.prepare("SELECT file_id, review_cost_usd FROM files ORDER BY file_id").all(),
+      sqlite
+        .prepare("SELECT file_id, review_cost_usd FROM files ORDER BY file_id")
+        .all(),
     ).toEqual([
       { file_id: "new", review_cost_usd: 0.05 },
       { file_id: "old", review_cost_usd: null },

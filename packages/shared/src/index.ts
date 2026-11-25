@@ -83,6 +83,10 @@ export interface QueueReviewResponse {
   success: true;
   /** Pages newly added to the review queue. */
   queued: number;
+  /** Done pages left out because a person edited them. */
+  skipped_hand_edited?: number;
+  /** Pages already waiting or in a running batch. */
+  already_queued?: number;
 }
 
 /** Outcome of one page's review try (page_reviews.status). */

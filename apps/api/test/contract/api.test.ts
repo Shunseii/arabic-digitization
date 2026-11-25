@@ -496,8 +496,20 @@ describe("books", () => {
           input_tokens: 3000,
           output_tokens: 600,
           cost_usd: expect.any(Number),
-          ocr: { cost_usd: 0, input_tokens: 0, output_tokens: 0, calls: 0, pages: 0 },
-          review: { cost_usd: 0, input_tokens: 0, output_tokens: 0, calls: 0, pages: 0 },
+          ocr: {
+            cost_usd: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            calls: 0,
+            pages: 0,
+          },
+          review: {
+            cost_usd: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            calls: 0,
+            pages: 0,
+          },
           total_cost_usd: 0,
         },
       },
@@ -547,7 +559,7 @@ describe("books", () => {
       response: await h.api("/api/books/rev-1/review", { method: "POST" }),
       status: 409,
       error:
-        "Review is off for this book; PATCH it with review_enabled: true first",
+        "Review is off for this book; PATCH it with review_enabled: true first, or pass all: true for a one-off",
     });
 
     const patched = await postJson({
@@ -560,10 +572,84 @@ describe("books", () => {
       book: { review_enabled: true, review_effort: "medium" },
     });
     const queued = await h.api("/api/books/rev-1/review", { method: "POST" });
-    expect(await queued.json()).toEqual({ success: true, queued: 1 });
+    expect(await queued.json()).toEqual({
+      success: true,
+      queued: 1,
+      skipped_hand_edited: 1,
+      already_queued: 0,
+    });
     expect(
-      await h.query("SELECT file_id, instance_id FROM review_queue"),
-    ).toEqual([{ file_id: "rev-done", instance_id: null }]);
+      await h.query(
+        "SELECT file_id, instance_id, requested FROM review_queue WHERE book_id = 'rev-1'",
+      ),
+    ).toEqual([{ file_id: "rev-done", instance_id: null, requested: 0 }]);
+  });
+
+  it("reviews every done page on demand, even with the book's review off", async () => {
+    await seedBook({ h, id: "rev-all" });
+    await seedFiles({
+      h,
+      bookId: "rev-all",
+      files: [
+        { fileId: "ra-new", text: "نص", preview: "نص" },
+        { fileId: "ra-reviewed", text: "نص", preview: "نص" },
+        { fileId: "ra-waiting", text: "نص", preview: "نص" },
+        { fileId: "ra-in-batch", text: "نص", preview: "نص" },
+        { fileId: "ra-edited", text: "نص", preview: "نص", textEditedAt: 5 },
+        { fileId: "ra-blank", text: "", preview: "" },
+        { fileId: "ra-queued-ocr" },
+      ],
+    });
+    await h.sql([
+      {
+        sql: `INSERT INTO page_reviews (file_id, batch_id, book_id, created_at, model, effort, status)
+              VALUES ('ra-reviewed', 'mb', 'rev-all', 1, 'claude-opus-5-5', 'low', 'applied')`,
+      },
+      {
+        sql: `INSERT INTO review_queue (file_id, book_id, queued_at, instance_id, attempts, requested)
+              VALUES ('ra-waiting', 'rev-all', 1, NULL, 2, 0),
+                     ('ra-in-batch', 'rev-all', 1, 'review-9', 0, 0)`,
+      },
+    ]);
+    const { response, counts } = await measured({
+      h,
+      request: () =>
+        postJson({ h, path: "/api/books/rev-all/review", body: { all: true } }),
+    });
+    expect(counts).toMatchObject({ d1RoundTrips: 2 });
+    expect(
+      await (
+        await postJson({
+          h,
+          path: "/api/books/rev-all/review",
+          body: { all: true },
+        })
+      ).json(),
+    ).toEqual({
+      success: true,
+      queued: 0,
+      skipped_hand_edited: 1,
+      already_queued: 4,
+    });
+    expect(response.status).toBe(200);
+    expect(
+      await h.query(
+        "SELECT file_id, instance_id, attempts, requested FROM review_queue WHERE book_id = 'rev-all' ORDER BY file_id",
+      ),
+    ).toEqual([
+      // Already in a running batch: left as it is.
+      {
+        file_id: "ra-in-batch",
+        instance_id: "review-9",
+        attempts: 0,
+        requested: 0,
+      },
+      { file_id: "ra-new", instance_id: null, attempts: 0, requested: 1 },
+      // Already reviewed: reviewed again.
+      { file_id: "ra-reviewed", instance_id: null, attempts: 0, requested: 1 },
+      // Already waiting: now asked for, with its tries reset.
+      { file_id: "ra-waiting", instance_id: null, attempts: 0, requested: 1 },
+    ]);
   });
 
   it("answers 404 for a missing book", async () => {

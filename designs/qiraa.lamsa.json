@@ -40696,6 +40696,30 @@
       },
       "type": "frame"
     },
+    "gjd4eE1f": {
+      "componentId": "r5UVzwDh",
+      "index": "a6",
+      "name": "Review all pages",
+      "overrides": {
+        "HEEkGkmI": {
+          "icon": "refresh-cw"
+        },
+        "lzsMkobH": {
+          "hidden": true
+        }
+      },
+      "parentId": "4ay2K8ly",
+      "props": {
+        "leading": true,
+        "subtitle": true,
+        "subtitleText": "Once, now, including pages already reviewed",
+        "title": "Review all pages"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "gk9gD0KI": {
       "index": "a0",
       "name": "Dot",

@@ -256,9 +256,19 @@ describe("GET /api/spend", () => {
   it("totals OCR and review spend from the daily rollup", async () => {
     const { body } = await readMeasured<{
       total_cost_usd: number;
-      by_model: { kind: string; model: string; cost_usd: number; pages: number }[];
+      by_model: {
+        kind: string;
+        model: string;
+        cost_usd: number;
+        pages: number;
+      }[];
       daily: { day: string; ocr_cost_usd: number; review_cost_usd: number }[];
-      top_books: { kind: string; book_id: string; title: string; cost_usd: number }[];
+      top_books: {
+        kind: string;
+        book_id: string;
+        title: string;
+        cost_usd: number;
+      }[];
     }>({ label: "GET /api/spend?days=30", path: "/api/spend?days=30" });
     expect(body.daily).toHaveLength(30);
     expect(body.daily.at(-1)).toEqual({
@@ -267,7 +277,11 @@ describe("GET /api/spend", () => {
       review_cost_usd: expect.closeTo(2, 9),
     });
     expect(body.by_model).toEqual([
-      expect.objectContaining({ kind: "review", model: "claude-opus-5-5", pages: 30 * 2 * 30 }),
+      expect.objectContaining({
+        kind: "review",
+        model: "claude-opus-5-5",
+        pages: 30 * 2 * 30,
+      }),
       expect.objectContaining({ kind: "ocr", model: "inkling-2-small" }),
       expect.objectContaining({ kind: "ocr", model: "claude-sonnet-5-5" }),
     ]);
@@ -277,7 +291,10 @@ describe("GET /api/spend", () => {
       title: expect.stringMatching(/^Book [12]$/),
     });
 
-    await readMeasured({ label: "GET /api/spend?days=90", path: "/api/spend?days=90" });
+    await readMeasured({
+      label: "GET /api/spend?days=90",
+      path: "/api/spend?days=90",
+    });
     const one = await readMeasured<{ total_cost_usd: number }>({
       label: "GET /api/spend?days=90&book=b1",
       path: "/api/spend?days=90&book=b1",
@@ -298,6 +315,27 @@ describe("GET /api/spend", () => {
     expect(body.book.usage.ocr.cost_usd).toBeCloseTo(120 * 0.35, 6);
     expect(body.book.usage.review).toMatchObject({ pages: 120 * 30 });
     expect(body.book.usage.total_cost_usd).toBeCloseTo(120 * 1.35, 6);
+  });
+});
+
+describe("POST /api/books/:id/review (all)", () => {
+  it("queues a 1,000-page book on demand", async () => {
+    const { response, counts } = await measured({
+      h,
+      request: () =>
+        h.api("/api/books/b3/review", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ all: true }),
+        }),
+    });
+    rowsRead["POST /api/books/:id/review {all} (1,000 pages)"] =
+      counts.d1RowsRead;
+    expect(response.status).toBe(200);
+    const [row] = await h.query<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM review_queue WHERE book_id = 'b3' AND requested = 1",
+    );
+    expect(row?.n).toBe(FILES_PER_BOOK);
   });
 });
 

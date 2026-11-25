@@ -295,12 +295,23 @@ export const api = {
     ),
 
   /** Stop OCR for one book; its waiting pages stay queued until resumed. */
-  /** Queue a book's done pages for the Opus review (review must be on). */
-  queueReview: async (bookId: string): Promise<QueueReviewResponse> =>
+  /**
+   * Queue a book's done pages for the Opus review. Without `all` the book's
+   * review must be on; with it, every done page is reviewed once, already
+   * reviewed ones included (hand-edited pages are always skipped).
+   */
+  queueReview: async ({
+    bookId,
+    all = false,
+  }: {
+    bookId: string;
+    all?: boolean;
+  }): Promise<QueueReviewResponse> =>
     asJson<QueueReviewResponse>(
       await fetch(`${base()}/api/books/${bookId}/review`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(all ? { all: true } : {}),
       }),
     ),
 
