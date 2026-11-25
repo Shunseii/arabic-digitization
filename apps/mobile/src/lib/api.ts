@@ -18,7 +18,9 @@ import type {
   ListTagsResponse,
   ListWorksResponse,
   PauseBookResponse,
+  QueueReviewResponse,
   ResumeBookResponse,
+  ReviewSummaryResponse,
   UpdateBookResponse,
   UpdateWorkResponse,
   UploadContentType,
@@ -293,6 +295,23 @@ export const api = {
     ),
 
   /** Stop OCR for one book; its waiting pages stay queued until resumed. */
+  /** Queue a book's done pages for the Opus review (review must be on). */
+  queueReview: async (bookId: string): Promise<QueueReviewResponse> =>
+    asJson<QueueReviewResponse>(
+      await fetch(`${base()}/api/books/${bookId}/review`, {
+        method: "POST",
+        headers: authHeaders(),
+      }),
+    ),
+
+  /** Opus review totals over the last `days` days (all books). */
+  reviewSummary: async (days = 90): Promise<ReviewSummaryResponse> =>
+    asJson<ReviewSummaryResponse>(
+      await fetch(`${base()}/api/reviews/summary?days=${days}`, {
+        headers: authHeaders(),
+      }),
+    ),
+
   pauseBook: async (bookId: string): Promise<PauseBookResponse> =>
     asJson<PauseBookResponse>(
       await fetch(`${base()}/api/books/${bookId}/pause`, {

@@ -1239,6 +1239,20 @@
       },
       "type": "instance"
     },
+    "1atPVrhT": {
+      "content": "Go to page",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "o6aOJSjK",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "1d9LUMX1": {
       "index": "aG",
       "name": "Bar",
@@ -2370,6 +2384,19 @@
       },
       "type": "frame"
     },
+    "2zgYpi9D": {
+      "index": "a2",
+      "name": "Segment · failed",
+      "parentId": "9NEAPNMY",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": 3,
+        "flex": 3,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
+    },
     "2zq7Wnkb": {
       "index": "a0",
       "name": "Segment",
@@ -2587,6 +2614,23 @@
       },
       "style": {
         "width": "100%"
+      },
+      "type": "instance"
+    },
+    "3FGuYtHN": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Back",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "MjK1RkSW",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
       },
       "type": "instance"
     },
@@ -3365,6 +3409,20 @@
       "x": 3320,
       "y": 1260
     },
+    "4NbWVSR0": {
+      "index": "a1",
+      "name": "Main",
+      "parentId": "EgSeoFgE",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "min-width": 0,
+        "overflow": "hidden"
+      },
+      "type": "frame"
+    },
     "4RlIYyYE": {
       "content": "قطر الندى",
       "index": "a1",
@@ -4019,6 +4077,26 @@
         "padding": "{spacing.3} {spacing.4}"
       },
       "type": "frame"
+    },
+    "5JhrArBn": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "trash-2"
+        }
+      },
+      "parentId": "wvd7koQn",
+      "props": {
+        "icon": false,
+        "label": "Review 1,122 pages",
+        "size": "sm",
+        "state": "default",
+        "variant": "primary"
+      },
+      "type": "instance"
     },
     "5KWTXqH0": {
       "componentId": "V7ihVuoQ",
@@ -4771,6 +4849,24 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "6IaBP4lM": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Filter",
+      "parentId": "aQazjehF",
+      "style": {
+        "align-items": "center",
+        "background": "{color.accent-soft}",
+        "border": "1px solid {color.accent-soft}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
     },
     "6JgjimQF": {
       "content": "Search",
@@ -6181,6 +6277,20 @@
       },
       "type": "instance"
     },
+    "8PaqhuUY": {
+      "content": "25 in queue",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "xFFflMPd",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "8QNmvcjL": {
       "index": "a0",
       "name": "Head",
@@ -7131,6 +7241,18 @@
       },
       "type": "frame"
     },
+    "9NEAPNMY": {
+      "index": "a0",
+      "name": "Status Bar",
+      "parentId": "XBvpkNqW",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.0.5}",
+        "width": "100%"
+      },
+      "type": "frame"
+    },
     "9NnZXbzG": {
       "index": "a0",
       "name": "Bar",
@@ -7281,6 +7403,24 @@
       },
       "type": "frame"
     },
+    "9XKdXi1f": {
+      "css": "transition:\n  opacity var(--dur-modal) var(--ease-out),\n  scale var(--dur-modal) var(--ease-out),\n  display 220ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n[data-state=\"closed\"] & {\n  display: none;\n  opacity: 0;\n  scale: 0.96;\n  transition-duration: 150ms;\n}",
+      "index": "a0",
+      "name": "Dialog",
+      "parentId": "TBunFU3I",
+      "style": {
+        "background": "{color.surface}",
+        "border-radius": "{radius.lg}",
+        "box-shadow": "{shadow.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.4}",
+        "padding": "{spacing.6}",
+        "width": 420
+      },
+      "type": "frame"
+    },
     "9Zss8IGJ": {
       "index": "a0",
       "name": "Header",
@@ -7420,6 +7560,24 @@
         "padding": "{spacing.8} {spacing.10} {spacing.6}"
       },
       "type": "frame"
+    },
+    "9oF0jZTp": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Button",
+      "parentId": "wvd7koQn",
+      "props": {
+        "icon": false,
+        "label": "Only new pages",
+        "size": "sm",
+        "state": "default",
+        "variant": "ghost"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
     },
     "9p7OgFQT": {
       "content": "4",
@@ -7584,6 +7742,22 @@
         "line-height": 1.2
       },
       "type": "text"
+    },
+    "9yn6W7eT": {
+      "index": "a1",
+      "name": "Content",
+      "parentId": "4NbWVSR0",
+      "style": {
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.5}",
+        "min-height": 0,
+        "overflow": "hidden",
+        "padding": "{spacing.0} {spacing.10} {spacing.10}"
+      },
+      "type": "frame"
     },
     "9zVfFG98": {
       "name": "Usage · Scorecard",
@@ -8191,6 +8365,18 @@
       },
       "type": "text"
     },
+    "AhRlQxY3": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "koyMXO18",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "AiJT0Hsm": {
       "index": "a0",
       "name": "Segment",
@@ -8625,6 +8811,20 @@
       },
       "type": "text"
     },
+    "BJwnXEU3": {
+      "content": "All 1,150",
+      "index": "a0",
+      "name": "Label",
+      "parentId": "6IaBP4lM",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "BKLFEPnU": {
       "content": "Drop marginal notes.",
       "index": "a1",
@@ -8888,6 +9088,22 @@
         "gap": "{spacing.0}"
       },
       "type": "frame"
+    },
+    "Bf8C1AMz": {
+      "content": "Opus review · applies now",
+      "index": "a0",
+      "name": "Label",
+      "parentId": "EgQzjsUB",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 11,
+        "font-weight": 600,
+        "letter-spacing": "0.08em",
+        "line-height": 1.2,
+        "text-transform": "uppercase"
+      },
+      "type": "text"
     },
     "BgC1t6zl": {
       "index": "a0",
@@ -9393,6 +9609,24 @@
       },
       "type": "text"
     },
+    "CLarUiYJ": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Filter",
+      "parentId": "aQazjehF",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "CLtb8yWL": {
       "index": "a0",
       "name": "Segment",
@@ -9608,6 +9842,37 @@
         "line-height": 1.5
       },
       "type": "text"
+    },
+    "ChjQWSCx": {
+      "componentId": "bIsnn3o6",
+      "index": "a5",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "414",
+        "m1": "1 h",
+        "metas": "1",
+        "primary": "Blank page",
+        "primaryStyle": "italic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "ChlCpBkV": {
       "content": "",
@@ -10485,6 +10750,18 @@
       },
       "type": "frame"
     },
+    "E2bXQMHc": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "CLarUiYJ",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "E4QfHH8u": {
       "index": "a1",
       "name": "Segment",
@@ -11050,6 +11327,33 @@
         "min-width": 0
       },
       "type": "frame"
+    },
+    "EgQzjsUB": {
+      "index": "a4",
+      "name": "Opus review",
+      "parentId": "IOsUpDYi",
+      "style": {
+        "border-top": "1px solid {color.line}",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.2}",
+        "padding-top": "{spacing.4}"
+      },
+      "type": "frame"
+    },
+    "EgSeoFgE": {
+      "name": "Book · Review existing pages",
+      "style": {
+        "background": "{color.bg}",
+        "display": "flex",
+        "height": 900,
+        "overflow": "hidden",
+        "position": "relative",
+        "width": 1440
+      },
+      "type": "frame",
+      "x": 10920,
+      "y": 12480
     },
     "Eggg5bT7": {
       "index": "a7",
@@ -12310,6 +12614,19 @@
         "width": 16
       },
       "type": "icon"
+    },
+    "GAN6Gcse": {
+      "index": "a3",
+      "name": "Segment · in queue",
+      "parentId": "9NEAPNMY",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": 3,
+        "flex": 25,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
     },
     "GBrupkBl": {
       "content": "Changes apply to every copy",
@@ -13950,6 +14267,26 @@
       },
       "type": "instance"
     },
+    "IRYcbcyy": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "upload"
+        }
+      },
+      "parentId": "MjK1RkSW",
+      "props": {
+        "icon": true,
+        "label": "Upload pages",
+        "size": "sm",
+        "state": "default",
+        "variant": "primary"
+      },
+      "type": "instance"
+    },
     "IU46G0KA": {
       "index": "a1",
       "name": "Recent",
@@ -14625,6 +14962,20 @@
       },
       "type": "frame"
     },
+    "JchlMrmQ": {
+      "content": "3 failed",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "koyMXO18",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "JdxFAR6K": {
       "index": "a2",
       "name": "Tags",
@@ -15040,6 +15391,20 @@
       "index": "a1",
       "name": "Label",
       "parentId": "fpmrrHiQ",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
+    "K72QJdJb": {
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
+      "index": "a1",
+      "name": "Sub",
+      "parentId": "PnAZ2IW7",
       "style": {
         "color": "{color.ink-2}",
         "font-family": "{font.body}",
@@ -15624,6 +15989,18 @@
       },
       "type": "text"
     },
+    "KwaD2MHO": {
+      "index": "a0",
+      "name": "Head",
+      "parentId": "mNbOgicg",
+      "style": {
+        "align-items": "center",
+        "border-bottom": "1px solid {color.line}",
+        "display": "flex",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
     "Kx6J2GXR": {
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
       "index": "a1",
@@ -15641,6 +16018,37 @@
         "padding": "{spacing.0} {spacing.3}"
       },
       "type": "frame"
+    },
+    "Kx8Ex4RX": {
+      "componentId": "bIsnn3o6",
+      "index": "a2",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "411",
+        "m1": "2 h",
+        "metas": "1",
+        "primary": "ويدخل في هذا التعريف النفاق الاعتقادي، والنفاق العملي، كالذي ذكر النبي صلى الله عليه وسلم في قوله…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "KxPkhHP0": {
       "index": "a1",
@@ -16833,6 +17241,17 @@
       },
       "type": "frame"
     },
+    "MjK1RkSW": {
+      "index": "a0",
+      "name": "Bar",
+      "parentId": "pvBPXzXV",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.4}"
+      },
+      "type": "frame"
+    },
     "MoBZrJzY": {
       "componentId": "eIJYzftw",
       "index": "a3",
@@ -17435,6 +17854,20 @@
       },
       "type": "text"
     },
+    "NeaHZqBe": {
+      "content": "1,122 done",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "CLarUiYJ",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "NfcIDzKh": {
       "index": "a1",
       "name": "Pages",
@@ -17761,6 +18194,20 @@
         "min-height": 2
       },
       "type": "frame"
+    },
+    "O5ltt4RL": {
+      "componentId": "ZC9WELKS",
+      "index": "a1",
+      "name": "TableHeader",
+      "parentId": "KwaD2MHO",
+      "props": {
+        "label": "Text",
+        "state": "default"
+      },
+      "style": {
+        "flex": 1
+      },
+      "type": "instance"
     },
     "O89EPG0p": {
       "content": "مختصر القدوري",
@@ -18837,6 +19284,18 @@
       },
       "type": "frame"
     },
+    "PnAZ2IW7": {
+      "index": "a1",
+      "name": "Heading",
+      "parentId": "MjK1RkSW",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.1}",
+        "min-width": 0
+      },
+      "type": "frame"
+    },
     "PoNTD9kw": {
       "icon": "hash",
       "index": "a0",
@@ -19539,6 +19998,22 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "QkEzDsp1": {
+      "index": "a1",
+      "name": "Pages",
+      "parentId": "9yn6W7eT",
+      "style": {
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "padding": "{spacing.1} {spacing.2}"
+      },
+      "type": "frame"
     },
     "QkG0sVqg": {
       "componentId": "ZC9WELKS",
@@ -20918,6 +21393,23 @@
       },
       "type": "frame"
     },
+    "TBunFU3I": {
+      "css": "transition:\n  opacity 200ms var(--ease-out),\n  display 200ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition-duration: 150ms;\n}",
+      "index": "a2",
+      "name": "Scrim",
+      "parentId": "EgSeoFgE",
+      "style": {
+        "align-items": "center",
+        "background": "{color.scrim}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "inset": 0,
+        "justify-content": "center",
+        "padding": "{spacing.0}",
+        "position": "absolute"
+      },
+      "type": "frame"
+    },
     "TByOrNev": {
       "index": "a5",
       "name": "Cell · p50",
@@ -21736,6 +22228,22 @@
         "min-height": 2
       },
       "type": "frame"
+    },
+    "UPOtipgW": {
+      "componentId": "V7ihVuoQ",
+      "index": "a0",
+      "name": "Sidebar",
+      "parentId": "EgSeoFgE",
+      "props": {
+        "active": "library",
+        "connection": "online",
+        "failures": "5 failed",
+        "showFailures": true
+      },
+      "style": {
+        "height": "100%"
+      },
+      "type": "instance"
     },
     "UPgBUc9Y": {
       "index": "a1",
@@ -23394,6 +23902,17 @@
         "flex-shrink": 0,
         "height": 18,
         "width": "60%"
+      },
+      "type": "frame"
+    },
+    "XBvpkNqW": {
+      "index": "a0",
+      "name": "Progress",
+      "parentId": "9yn6W7eT",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.3}"
       },
       "type": "frame"
     },
@@ -25087,6 +25606,23 @@
       },
       "type": "icon"
     },
+    "ZgfOL1iM": {
+      "content": "تفسير السعدي",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "PnAZ2IW7",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 24,
+        "font-weight": 700,
+        "line-height": 1.5,
+        "text-align": "left",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
     "ZjNCcnqs": {
       "index": "a0",
       "name": "Segment",
@@ -25532,6 +26068,20 @@
       },
       "type": "text"
     },
+    "aH7cOO2k": {
+      "componentId": "ZC9WELKS",
+      "index": "a0",
+      "name": "TableHeader",
+      "parentId": "KwaD2MHO",
+      "props": {
+        "label": "Page",
+        "state": "default"
+      },
+      "style": {
+        "width": 80
+      },
+      "type": "instance"
+    },
     "aHVajoZk": {
       "index": "a0",
       "name": "Dot",
@@ -25661,6 +26211,17 @@
         "height": "100%"
       },
       "type": "instance"
+    },
+    "aQazjehF": {
+      "index": "a1",
+      "name": "Legend · Filters",
+      "parentId": "XBvpkNqW",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}"
+      },
+      "type": "frame"
     },
     "aVt9t3hz": {
       "content": "Activity",
@@ -26158,6 +26719,20 @@
       },
       "type": "frame"
     },
+    "b7lGBjkH": {
+      "componentId": "ZC9WELKS",
+      "index": "a2",
+      "name": "TableHeader",
+      "parentId": "KwaD2MHO",
+      "props": {
+        "label": "Status",
+        "state": "default"
+      },
+      "style": {
+        "width": 200
+      },
+      "type": "instance"
+    },
     "b8kTRwMn": {
       "index": "a0",
       "name": "Meta",
@@ -26491,6 +27066,37 @@
         "margin-left": "auto"
       },
       "type": "frame"
+    },
+    "bY9kOOkH": {
+      "componentId": "bIsnn3o6",
+      "index": "a7",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "416",
+        "m1": "now",
+        "metas": "1",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "bYJuIZGH": {
       "index": "a0",
@@ -26846,6 +27452,21 @@
         "overflow": "hidden"
       },
       "type": "frame"
+    },
+    "c595xRtg": {
+      "componentId": "ZC9WELKS",
+      "index": "a3",
+      "name": "TableHeader",
+      "parentId": "KwaD2MHO",
+      "props": {
+        "label": "Updated",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 90
+      },
+      "type": "instance"
     },
     "c6Iu76jS": {
       "index": "a6",
@@ -30063,6 +30684,20 @@
       },
       "type": "frame"
     },
+    "gtqR7sGE": {
+      "content": "Pages that finish OCR are proofread against the scan; costs money. When off, pages already sent for review still finish.",
+      "index": "a2",
+      "name": "Helper",
+      "parentId": "EgQzjsUB",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "gvIWTEn9": {
       "index": "a1",
       "name": "Item",
@@ -30873,6 +31508,21 @@
       },
       "type": "frame"
     },
+    "i9ZXluA0": {
+      "componentId": "ZC9WELKS",
+      "index": "a4",
+      "name": "TableHeader",
+      "parentId": "KwaD2MHO",
+      "props": {
+        "label": "",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 56
+      },
+      "type": "instance"
+    },
     "iAFmKAAg": {
       "content": "Settings",
       "index": "a0",
@@ -30887,6 +31537,37 @@
         "line-height": 1.1
       },
       "type": "text"
+    },
+    "iAX3PgGG": {
+      "componentId": "bIsnn3o6",
+      "index": "a1",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "410",
+        "m1": "2 h",
+        "metas": "1",
+        "primary": "﴿وَمِنَ النَّاسِ مَنْ يَقُولُ آمَنَّا بِاللَّهِ﴾ اعلم أن النفاق هو: إظهار الخير وإبطان الشر، ويدخل في هذا التعريف النفاق الاعتقادي والعملي…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "iDPvAWU3": {
       "index": "a1",
@@ -31108,6 +31789,26 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "iP4NUgdm": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a2",
+      "name": "Edit",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "pencil"
+        }
+      },
+      "parentId": "MjK1RkSW",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
     },
     "iPCGfEux": {
       "componentId": "KcdxBl18",
@@ -31588,6 +32289,19 @@
       "type": "frame",
       "x": 280,
       "y": 8680
+    },
+    "j8PwENzn": {
+      "index": "a0",
+      "name": "Segment · done",
+      "parentId": "9NEAPNMY",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": 3,
+        "flex": 1122,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
     },
     "jA7gxMay": {
       "index": "a0",
@@ -32403,6 +33117,17 @@
       },
       "type": "frame"
     },
+    "kHl2I0OH": {
+      "index": "a3",
+      "name": "Refresh",
+      "parentId": "MjK1RkSW",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.3}"
+      },
+      "type": "frame"
+    },
     "kJwvfXrz": {
       "index": "a0",
       "name": "Bar",
@@ -32833,6 +33558,24 @@
       },
       "type": "instance"
     },
+    "koyMXO18": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a3",
+      "name": "Filter",
+      "parentId": "aQazjehF",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "kpJkORJy": {
       "content": "·",
       "index": "a1",
@@ -32844,6 +33587,20 @@
         "font-size": 13,
         "font-weight": 400,
         "line-height": 1.45
+      },
+      "type": "text"
+    },
+    "kqsCXxR7": {
+      "content": "1,122 pages, about $33.66 (estimate). Pages that finish OCR from now on are reviewed either way. Hand-edited pages are skipped.",
+      "index": "a1",
+      "name": "Body",
+      "parentId": "9XKdXi1f",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.5
       },
       "type": "text"
     },
@@ -34061,6 +34818,17 @@
         "height": 22,
         "margin-left": "auto",
         "width": 80
+      },
+      "type": "frame"
+    },
+    "mNbOgicg": {
+      "index": "a0",
+      "name": "Table",
+      "parentId": "QkEzDsp1",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}"
       },
       "type": "frame"
     },
@@ -35469,6 +36237,18 @@
       "x": 280,
       "y": 2320
     },
+    "o6aOJSjK": {
+      "index": "a5",
+      "name": "Go to page",
+      "parentId": "aQazjehF",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "margin-left": "auto"
+      },
+      "type": "frame"
+    },
     "o7A9QVcF": {
       "content": "Go to page",
       "index": "a1",
@@ -36428,6 +37208,21 @@
       },
       "type": "frame"
     },
+    "pW3NfrcY": {
+      "content": "Updated 14:32",
+      "css": "transition: opacity 150ms ease-out;\n\n@starting-style {\n  opacity: 0;\n}",
+      "index": "a0",
+      "name": "As of",
+      "parentId": "kHl2I0OH",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "pW7HcKz4": {
       "componentId": "ZC9WELKS",
       "index": "a1",
@@ -36547,6 +37342,22 @@
         "width": 48
       },
       "type": "frame"
+    },
+    "peZYGgWL": {
+      "componentId": "TVPQCjiM",
+      "index": "a1",
+      "name": "Review switch",
+      "parentId": "EgQzjsUB",
+      "props": {
+        "first": "Off",
+        "second": "On",
+        "segments": "two",
+        "selected": "second"
+      },
+      "style": {
+        "width": 200
+      },
+      "type": "instance"
     },
     "pelQbVOj": {
       "index": "a3",
@@ -36809,6 +37620,19 @@
       },
       "type": "frame"
     },
+    "pvBPXzXV": {
+      "index": "a0",
+      "name": "Header",
+      "parentId": "4NbWVSR0",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "flex-shrink": 0,
+        "gap": "{spacing.5}",
+        "padding": "{spacing.8} {spacing.10} {spacing.6}"
+      },
+      "type": "frame"
+    },
     "pvZZsgSt": {
       "index": "a1",
       "name": "Main",
@@ -37060,6 +37884,20 @@
       },
       "type": "text"
     },
+    "qCJlp1IC": {
+      "icon": "hash",
+      "index": "a0",
+      "name": "Icon",
+      "parentId": "o6aOJSjK",
+      "set": "lucide",
+      "style": {
+        "color": "{color.accent}",
+        "flex-shrink": 0,
+        "height": 16,
+        "width": 16
+      },
+      "type": "icon"
+    },
     "qEruHgNf": {
       "index": "aC",
       "name": "Line",
@@ -37151,6 +37989,18 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "qWhoAWB7": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "xFFflMPd",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
     },
     "qWya3DdZ": {
       "index": "a0",
@@ -37479,6 +38329,37 @@
       "style": {
         "margin-left": "auto",
         "width": 270
+      },
+      "type": "instance"
+    },
+    "r6QRi3Ms": {
+      "componentId": "bIsnn3o6",
+      "index": "a6",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "415",
+        "m1": "now",
+        "metas": "1",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
       },
       "type": "instance"
     },
@@ -39213,6 +40094,21 @@
       },
       "type": "text"
     },
+    "tJaFln1q": {
+      "content": "Review the pages already done?",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "9XKdXi1f",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.display}",
+        "font-size": 24,
+        "font-weight": 600,
+        "letter-spacing": "-0.01em",
+        "line-height": 1.2
+      },
+      "type": "text"
+    },
     "tKCHUBTl": {
       "index": "a1",
       "name": "Legend · Filters",
@@ -39303,6 +40199,37 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "tRfxpfet": {
+      "componentId": "bIsnn3o6",
+      "index": "a8",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "417",
+        "m1": "now",
+        "metas": "1",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "processing",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "tRgoKveO": {
       "index": "a0",
@@ -40970,6 +41897,39 @@
       },
       "type": "text"
     },
+    "w4JGQCcl": {
+      "componentId": "bIsnn3o6",
+      "index": "a3",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "412",
+        "m1": "2 h",
+        "metas": "1",
+        "primary": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "default",
+        "status": "done",
+        "tag": "Claude",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "w7Cuhu5G": {
       "index": "a0",
       "name": "Cost per page",
@@ -41226,6 +42186,39 @@
       "type": "frame",
       "x": 1800,
       "y": 11480
+    },
+    "wVwzBURh": {
+      "componentId": "bIsnn3o6",
+      "index": "a4",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "mNbOgicg",
+      "props": {
+        "lead": "413",
+        "m1": "1 h",
+        "metas": "1",
+        "primary": "Inkling cut off at 4,096 tokens; Claude fallback rate-limited (429)",
+        "primaryStyle": "danger",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "default",
+        "status": "failed",
+        "tag": "Claude",
+        "tone": "danger",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "wWSz1MSB": {
       "index": "a1",
@@ -41593,6 +42586,18 @@
       },
       "type": "frame"
     },
+    "wvd7koQn": {
+      "index": "a2",
+      "name": "Actions",
+      "parentId": "9XKdXi1f",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.3}",
+        "margin-top": "{spacing.2}"
+      },
+      "type": "frame"
+    },
     "wvslb0EP": {
       "index": "a0",
       "name": "Segment",
@@ -41938,6 +42943,24 @@
         "height": 7,
         "opacity": 0.55,
         "width": "90%"
+      },
+      "type": "frame"
+    },
+    "xFFflMPd": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Filter",
+      "parentId": "aQazjehF",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
       },
       "type": "frame"
     },
@@ -42440,6 +43463,24 @@
         "width": 16
       },
       "type": "frame"
+    },
+    "y1dG8rsK": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Refresh",
+      "overrides": {
+        "7FTSPNV7": {
+          "css": "[data-state=\"loading\"] & { animation: spin 700ms linear infinite; }",
+          "icon": "refresh-cw"
+        }
+      },
+      "parentId": "kHl2I0OH",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
     },
     "y1fyLw00": {
       "index": "a0",

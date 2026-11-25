@@ -1,5 +1,10 @@
 import { Feather } from "@expo/vector-icons";
-import type { FileState, FileStatus } from "@qiraa/shared";
+import {
+  type BookWithStatus,
+  DEFAULT_REVIEW_COST_PER_PAGE_USD,
+  type FileState,
+  type FileStatus,
+} from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +34,7 @@ import {
   IconButton,
   ListRow,
   Loading,
+  Segmented,
   Sheet,
   StatusLine,
   T,
@@ -148,6 +154,67 @@ export default function BookScreen() {
   const resume = useMutation({
     mutationFn: () => api.resumeBook(id),
     onSettled: invalidateBook,
+  });
+
+  // What reviewing `pages` pages would cost: the average so far, or a
+  // default before any review has run. Always an estimate.
+  const estimateReview = async (pages: number): Promise<string> => {
+    const perPage = await api
+      .reviewSummary()
+      .then((s) => s.cost_per_page_usd ?? DEFAULT_REVIEW_COST_PER_PAGE_USD)
+      .catch(() => DEFAULT_REVIEW_COST_PER_PAGE_USD);
+    return `$${(pages * perPage).toFixed(2)}`;
+  };
+
+  const queueExisting = useMutation({
+    mutationFn: () => api.queueReview(id),
+    onSuccess: ({ queued }) =>
+      Alert.alert(
+        "Queued for review",
+        `${queued} ${queued === 1 ? "page" : "pages"} will be reviewed in the next batch.`,
+      ),
+    onError: (err) => Alert.alert("Could not queue pages", String(err)),
+  });
+
+  const offerExistingPages = async (pages: number) => {
+    const estimate = await estimateReview(pages);
+    Alert.alert(
+      "Review the pages already done?",
+      `${pages} ${pages === 1 ? "page" : "pages"}, about ${estimate} (estimate). Pages that finish OCR from now on are reviewed either way. Hand-edited pages are skipped.`,
+      [
+        { text: "Only new pages", style: "cancel" },
+        {
+          text: `Review ${pages}`,
+          onPress: () => queueExisting.mutate(),
+        },
+      ],
+    );
+  };
+
+  // Optimistic: the switch moves at once and moves back if the save fails.
+  const setReview = useMutation({
+    mutationFn: (on: boolean) =>
+      api.updateBook({ id, body: { review_enabled: on } }),
+    onMutate: async (on) => {
+      await queryClient.cancelQueries({ queryKey: ["book", id] });
+      const before = queryClient.getQueryData<BookWithStatus>(["book", id]);
+      if (before) {
+        queryClient.setQueryData(["book", id], {
+          ...before,
+          review_enabled: on,
+        });
+      }
+      return { before };
+    },
+    onError: (err, _on, context) => {
+      if (context?.before)
+        queryClient.setQueryData(["book", id], context.before);
+      Alert.alert("Could not change review", String(err));
+    },
+    onSuccess: (_book, on) => {
+      const done = bookQuery.data?.counts.done ?? 0;
+      if (on && done > 0) offerExistingPages(done);
+    },
   });
 
   const retry = useMutation({
@@ -736,6 +803,22 @@ export default function BookScreen() {
             disabled={!bookTitle.trim()}
             onPress={() => saveBook.mutate()}
           />
+        </View>
+        <View className="gap-2 px-5 pt-6">
+          <FieldLabel>Opus review</FieldLabel>
+          <Segmented
+            options={[
+              { value: "off", label: "Off" },
+              { value: "on", label: "On" },
+            ]}
+            value={book?.review_enabled ? "on" : "off"}
+            onChange={(value) => setReview.mutate(value === "on")}
+          />
+          <T variant="small" className="text-ink-3">
+            {book?.review_enabled
+              ? "Pages that finish OCR are proofread against the scan. Applies now; costs money."
+              : "Off. Pages already sent for review still finish."}
+          </T>
         </View>
       </Sheet>
     </View>

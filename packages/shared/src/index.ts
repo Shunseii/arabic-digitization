@@ -71,6 +71,13 @@ export const REVIEW_CATEGORY_LABELS: Record<ReviewCategory, string> = {
   layout: "Layout",
 };
 
+/**
+ * What one page's Opus review costs, for an estimate before any review has
+ * run (batch prices, low effort; a trial measured $0.02-0.06 a page). Once
+ * reviews exist, GET /api/reviews/summary's cost_per_page_usd is better.
+ */
+export const DEFAULT_REVIEW_COST_PER_PAGE_USD = 0.03;
+
 /** POST /api/books/:bookId/review */
 export interface QueueReviewResponse {
   success: true;

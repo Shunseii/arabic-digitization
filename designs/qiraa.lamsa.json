@@ -23331,6 +23331,21 @@
       },
       "type": "text"
     },
+    "OH7iN70S": {
+      "content": "Opus review",
+      "index": "a0",
+      "parentId": "oIN99TVZ",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 11,
+        "font-weight": 600,
+        "letter-spacing": "0.08em",
+        "line-height": 1.2,
+        "text-transform": "uppercase"
+      },
+      "type": "text"
+    },
     "OIK5XHqa": {
       "content": "9:41",
       "index": "a0",
@@ -41437,6 +41452,22 @@
       },
       "type": "text"
     },
+    "hnSaTKPi": {
+      "componentId": "TVPQCjiM",
+      "index": "a1",
+      "name": "Review switch",
+      "parentId": "oIN99TVZ",
+      "props": {
+        "first": "Off",
+        "second": "On",
+        "segments": "two",
+        "selected": "second"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "hntuBZ5T": {
       "index": "a0",
       "name": "Text",
@@ -47505,6 +47536,18 @@
         "flex-shrink": 0,
         "height": 6,
         "width": 6
+      },
+      "type": "frame"
+    },
+    "oIN99TVZ": {
+      "index": "a5",
+      "name": "Opus review",
+      "parentId": "4ay2K8ly",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": 8,
+        "padding-top": 6
       },
       "type": "frame"
     },
@@ -56209,6 +56252,20 @@
         "font-family": "{font.body}",
         "font-size": 12,
         "font-weight": 500,
+        "line-height": 1.35
+      },
+      "type": "text"
+    },
+    "y5VlkaMr": {
+      "content": "Pages that finish OCR are proofread against the scan. Applies now; costs money.",
+      "index": "a2",
+      "name": "Helper",
+      "parentId": "oIN99TVZ",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 12,
+        "font-weight": 400,
         "line-height": 1.35
       },
       "type": "text"
