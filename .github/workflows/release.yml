@@ -1,0 +1,194 @@
+name: release
+
+# Publishing a GitHub release with a version tag (v1.2.3) ships the apps:
+#   - desktop: builds the Electron installers for Windows (.exe) and Linux
+#     (.deb / .AppImage), uploads them to that release, and mirrors them onto
+#     the rolling `desktop-latest` release;
+#   - mobile: publishes an over-the-air update to the EAS `preview` channel,
+#     unless native code changed since the last release (then it fails and asks
+#     for a new EAS build, because an OTA can't carry native changes).
+#
+# Create the release with: gh release create v1.2.3 --title "v1.2.3" --notes "..."
+# The release notes become the OTA message. The API deploy and remote D1
+# migrations stay manual.
+#
+# Needs the EXPO_TOKEN repository secret (an Expo access token) for the OTA.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # The version comes from the tag; nothing is committed back.
+  prepare:
+    # desktop-latest is recreated by this workflow; never react to it.
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Read the version from the tag
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $TAG is not v<major>.<minor>.<patch>"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  desktop:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            builder_flag: --linux
+          - platform: windows-latest
+            builder_flag: --win
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Stamp the release version
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          cd apps/desktop
+          node -e "const f='package.json',p=require('./'+f);p.version=process.env.VERSION;require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+
+      - name: Build renderer
+        run: pnpm --filter @qiraa/desktop build
+
+      - name: Package with electron-builder
+        env:
+          # No publishing or code signing here; the next step uploads.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm --filter @qiraa/desktop exec electron-builder ${{ matrix.builder_flag }} --publish never
+
+      - name: Upload installers to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          shopt -s nullglob
+          cd apps/desktop/release
+          files=( *.AppImage *.deb *.exe )
+          echo "Uploading: ${files[*]}"
+          gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+
+  # A stable "newest build" download URL.
+  desktop-latest:
+    needs: [prepare, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recreate desktop-latest from this release's installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SHA: ${{ github.sha }}
+        run: |
+          mkdir -p latest-assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir latest-assets \
+            --pattern '*.AppImage' --pattern '*.deb' --pattern '*.exe'
+          gh release delete desktop-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create desktop-latest latest-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SHA" \
+            --title "رقمنة — Desktop (latest)" \
+            --notes "Latest desktop installers (currently v$VERSION, see release $TAG). Windows (.exe) and Linux (.deb / .AppImage)."
+
+  mobile-ota:
+    needs: prepare
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # An OTA only reaches builds with the same runtime version (app.json
+      # uses the appVersion policy), and it can't carry native changes. Compare
+      # the native fingerprint with the one the previous release recorded.
+      - name: Check for native changes since the last release
+        working-directory: apps/mobile
+        run: |
+          for platform in android ios; do
+            npx expo-updates fingerprint:generate --platform "$platform" \
+              | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).hash))" \
+              > "/tmp/fingerprint-$platform.txt"
+          done
+          printf '{"android":"%s","ios":"%s"}\n' \
+            "$(cat /tmp/fingerprint-android.txt)" "$(cat /tmp/fingerprint-ios.txt)" \
+            > /tmp/mobile-fingerprint.json
+          cat /tmp/mobile-fingerprint.json
+
+          PREV=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 \
+                   --json tagName,isDraft --jq '.[] | select(.isDraft | not) | .tagName' \
+                 | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$TAG" | head -1 || true)
+          if [ -z "$PREV" ]; then
+            echo "::warning::No earlier v* release to compare with; publishing and recording this fingerprint as the baseline."
+            exit 0
+          fi
+          if ! gh release download "$PREV" --repo "$GITHUB_REPOSITORY" \
+                 --pattern mobile-fingerprint.json --dir /tmp/prev 2>/dev/null; then
+            echo "::warning::$PREV has no mobile-fingerprint.json; publishing and recording a baseline."
+            exit 0
+          fi
+          if ! cmp -s /tmp/prev/mobile-fingerprint.json /tmp/mobile-fingerprint.json; then
+            echo "::error::Native code changed since $PREV. An OTA can't ship this: bump the app version, run an EAS build (preview profile), then release again."
+            exit 1
+          fi
+
+      - name: Publish the OTA update (preview channel)
+        working-directory: apps/mobile
+        env:
+          NOTES: ${{ github.event.release.body }}
+        run: |
+          MESSAGE="$TAG: $(printf '%s' "$NOTES" | head -n 1)"
+          npx --yes eas-cli@20.3.0 update --channel preview --message "$MESSAGE" --non-interactive
+
+      - name: Record this release's native fingerprint
+        run: |
+          gh release upload "$TAG" /tmp/mobile-fingerprint.json --repo "$GITHUB_REPOSITORY" --clobber
