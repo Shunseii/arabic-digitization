@@ -267,12 +267,13 @@ export const UploadScreen = () => {
           {!started && (
             <>
               <div className="flex items-end gap-4">
-                <label className="flex w-40 flex-col gap-2">
+                <div className="flex w-40 flex-col gap-2">
                   <FieldLabel>Start at page</FieldLabel>
                   {statusQuery.isLoading ? (
                     <Skeleton className="h-[50px] rounded-md" />
                   ) : (
                     <input
+                      aria-label="Start at page"
                       value={startPage}
                       inputMode="numeric"
                       onChange={(e) =>
@@ -282,7 +283,7 @@ export const UploadScreen = () => {
                       className="h-[50px] rounded-md border border-line bg-surface px-3.5 text-body text-ink outline-none placeholder:text-ink focus:border-accent"
                     />
                   )}
-                </label>
+                </div>
                 <p className="pb-4 text-small text-ink-2">
                   Pages are numbered from here in the order shown.
                 </p>

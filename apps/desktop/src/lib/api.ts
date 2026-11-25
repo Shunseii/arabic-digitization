@@ -22,6 +22,7 @@ import type {
   ListWorksResponse,
   RecentFile,
   RecentFilesResponse,
+  SpendResponse,
   UpdateBookResponse,
   UpdateWorkResponse,
   UploadContentType,
@@ -310,6 +311,21 @@ export const api = {
   jobs: async (): Promise<JobsResponse> =>
     asJson<JobsResponse>(
       await fetch(`${base()}/api/jobs`, { headers: authHeaders() }),
+    ),
+
+  /** What OCR and the Opus review cost over the last `days` (Usage). */
+  spend: async ({
+    days,
+    bookId,
+  }: {
+    days: number;
+    bookId?: string;
+  }): Promise<SpendResponse> =>
+    asJson<SpendResponse>(
+      await fetch(
+        `${base()}/api/spend?days=${days}${bookId ? `&book=${encodeURIComponent(bookId)}` : ""}`,
+        { headers: authHeaders() },
+      ),
     ),
 
   recentFiles: async (limit = 25): Promise<RecentFile[]> =>

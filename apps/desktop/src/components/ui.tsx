@@ -138,16 +138,19 @@ export const RefreshControl = ({
   refreshing,
   updatedAt,
   failed = false,
+  label = "Updated",
 }: {
   onRefresh: () => void;
   refreshing: boolean;
   updatedAt: number;
   failed?: boolean;
+  /** Words before the time ("Updated 14:32", "Data as of 14:32"). */
+  label?: string;
 }) => {
   const asOf = refreshing
     ? "Refreshing…"
     : updatedAt > 0
-      ? `${failed ? "Last updated" : "Updated"} ${clock(updatedAt)}`
+      ? `${failed ? "Last updated" : label} ${clock(updatedAt)}`
       : null;
   return (
     <div className="flex items-center gap-3">
