@@ -1,4 +1,4 @@
-import type { SpendKind, SpendResponse } from "@qiraa/shared";
+import type { RecentPageReview, SpendKind, SpendResponse } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChartColumn,
@@ -10,8 +10,10 @@ import {
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { HeaderCell, Stat } from "@/components/table";
+import { REVIEW_STATUS } from "@/components/review-diff";
+import { HeaderCell, LeadCell, Stat } from "@/components/table";
 import {
+  Badge,
   Button,
   CheckOption,
   cx,
@@ -21,12 +23,14 @@ import {
   Popover,
   RefreshControl,
   Segmented,
+  Skeleton,
   Tag,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
 import { errorMessage } from "@/lib/errors";
-import { count } from "@/lib/format";
+import { ago, count } from "@/lib/format";
+import { type ReviewRouteState, reviewPath } from "@/routes/review";
 
 // Usage is built on GET /api/spend (totals by kind and model, a daily series
 // by kind, the costliest books per kind). The design's per-run views (fallback
@@ -225,6 +229,102 @@ const Scorecard = ({
     </>
   );
 };
+
+const REVIEW_LIST_LIMIT = 50;
+
+const ReviewedPages = ({
+  reviews,
+  failed,
+  onOpen,
+}: {
+  reviews: RecentPageReview[] | undefined;
+  failed: boolean;
+  onOpen: (review: RecentPageReview) => void;
+}) => (
+  <Card
+    title="Reviewed pages"
+    sub={`The ${REVIEW_LIST_LIMIT} newest Opus reviews in this window. Open one to see what it changed in the OCR text.`}
+  >
+    <div className="flex flex-col">
+      <div className="flex items-center border-b border-line">
+        <HeaderCell className="w-20">Page</HeaderCell>
+        <HeaderCell className="flex-1">Book</HeaderCell>
+        <HeaderCell className="w-44">Result</HeaderCell>
+        <HeaderCell className="w-52">Edits</HeaderCell>
+        <HeaderCell className="w-24 justify-end">Cost</HeaderCell>
+        <HeaderCell className="w-20 justify-end">When</HeaderCell>
+        <HeaderCell className="w-12" />
+      </div>
+      {!reviews && failed && (
+        <p className="py-6 text-center text-small text-danger">
+          Couldn't load the reviewed pages. Refresh to try again.
+        </p>
+      )}
+      {!reviews &&
+        !failed &&
+        [0, 1, 2].map((row) => (
+          <div
+            key={row}
+            className="flex items-center gap-6 border-b border-line px-3 py-4 last:border-b-0"
+          >
+            <Skeleton className="h-5 w-10 rounded-sm" />
+            <Skeleton className="h-4 flex-1 rounded-sm" />
+            <Skeleton className="h-4 w-32 rounded-sm" />
+          </div>
+        ))}
+      {reviews?.length === 0 && (
+        <p className="py-6 text-center text-small text-ink-2">
+          No pages were reviewed in this window.
+        </p>
+      )}
+      {reviews?.map((review) => (
+        <button
+          type="button"
+          key={`${review.file_id}-${review.batch_id}`}
+          onClick={() => onOpen(review)}
+          className="flex w-full items-center border-b border-line py-3 text-left last:border-b-0 hover:bg-surface-2"
+        >
+          <LeadCell className="w-20">
+            {review.page_number != null ? count(review.page_number) : "—"}
+          </LeadCell>
+          <span
+            dir="rtl"
+            className="min-w-0 flex-1 truncate px-3 text-left font-ar text-body font-medium leading-[1.6] text-ink"
+          >
+            {review.book_title ?? review.book_id}
+          </span>
+          <span className="w-44 px-3">
+            <Badge tone={REVIEW_STATUS[review.status].tone}>
+              {REVIEW_STATUS[review.status].label}
+            </Badge>
+          </span>
+          <span className="flex w-52 items-baseline gap-2 px-3 text-small tabular-nums">
+            <span className="text-ink">
+              {count(review.edits_applied)} applied
+            </span>
+            {review.edits_failed > 0 && (
+              <span className="text-warn">
+                {count(review.edits_failed)} not applied
+              </span>
+            )}
+          </span>
+          <span className="w-24 px-3 text-right text-small tabular-nums text-ink">
+            {money(review.cost_usd, 3)}
+          </span>
+          <span
+            className="w-20 px-3 text-right text-small tabular-nums text-ink-2"
+            title={new Date(review.created_at).toLocaleString()}
+          >
+            {ago(review.created_at)}
+          </span>
+          <span className="flex w-12 justify-end px-3 text-ink-3">
+            <ChevronRight size={16} />
+          </span>
+        </button>
+      ))}
+    </div>
+  </Card>
+);
 
 const dayLabel = (day: string, opts: Intl.DateTimeFormatOptions) =>
   new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
@@ -476,6 +576,30 @@ export const UsageScreen = () => {
       api.spend({ days: Number(range), bookId: bookId ?? undefined }),
     enabled: configured,
   });
+  const reviewsQuery = useQuery({
+    queryKey: ["recent-reviews", range, bookId],
+    queryFn: () =>
+      api.recentReviews({
+        days: Number(range),
+        bookId: bookId ?? undefined,
+        limit: REVIEW_LIST_LIMIT,
+      }),
+    enabled: configured && tab === "scorecard",
+  });
+  const openReview = (review: RecentPageReview) => {
+    const state: ReviewRouteState = {
+      pageNumber: review.page_number,
+      bookTitle: review.book_title,
+    };
+    navigate(
+      reviewPath({
+        bookId: review.book_id,
+        fileId: review.file_id,
+        batchId: review.batch_id,
+      }),
+      { state },
+    );
+  };
 
   if (!configured)
     return (
@@ -498,7 +622,10 @@ export const UsageScreen = () => {
       actions={
         <RefreshControl
           label="Data as of"
-          onRefresh={() => spendQuery.refetch()}
+          onRefresh={() => {
+            spendQuery.refetch();
+            if (tab === "scorecard") reviewsQuery.refetch();
+          }}
           refreshing={spendQuery.isFetching}
           updatedAt={spendQuery.dataUpdatedAt}
           failed={spendQuery.isError}
@@ -592,7 +719,17 @@ export const UsageScreen = () => {
             <Stat className="flex-1" label="Review spend" value="" loading />
           </div>
         ) : tab === "scorecard" ? (
-          <Scorecard data={data} onOpenBook={(id) => navigate(`/book/${id}`)} />
+          <>
+            <Scorecard
+              data={data}
+              onOpenBook={(id) => navigate(`/book/${id}`)}
+            />
+            <ReviewedPages
+              reviews={reviewsQuery.data?.reviews}
+              failed={reviewsQuery.isError}
+              onOpen={openReview}
+            />
+          </>
         ) : (
           <Card
             title="Spend per day, by kind"

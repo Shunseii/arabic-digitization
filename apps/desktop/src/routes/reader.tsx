@@ -6,6 +6,7 @@ import {
   CircleAlert,
   CloudOff,
   File,
+  GitCompare,
   Hourglass,
   RefreshCw,
   RotateCw,
@@ -34,6 +35,7 @@ import { errorMessage } from "@/lib/errors";
 import { count } from "@/lib/format";
 import { Markdown } from "@/lib/markdown";
 import { loadStatus, recentKey, statusKey } from "@/lib/status";
+import { type ReviewRouteState, reviewPath } from "@/routes/review";
 import { statusLabel, statusTone } from "@/theme";
 
 const READABLE: FileState[] = ["done", "approved", "needs_review"];
@@ -96,6 +98,25 @@ export const ReaderScreen = () => {
       queryClient.invalidateQueries({ queryKey: recentKey });
     },
   });
+
+  const reviewsQuery = useQuery({
+    queryKey: ["page-reviews", bookId, fileId],
+    queryFn: () => api.pageReviews({ bookId, fileId }),
+    enabled: file?.review_cost_usd != null,
+  });
+  const lastChange = reviewsQuery.data?.reviews.find(
+    (r) => r.revision_id !== null,
+  );
+  const openLastChange = () => {
+    if (!lastChange) return;
+    const state: ReviewRouteState = {
+      pageNumber: file?.page_number,
+      bookTitle: bookQuery.data?.title,
+    };
+    navigate(reviewPath({ bookId, fileId, batchId: lastChange.batch_id }), {
+      state,
+    });
+  };
 
   const [reviewing, setReviewing] = useState(false);
   const notice = useNotice();
@@ -192,12 +213,24 @@ export const ReaderScreen = () => {
         {file && (
           <Badge tone={statusTone[file.state]}>{statusLabel[file.state]}</Badge>
         )}
+        {lastChange && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={GitCompare}
+            className="ml-auto"
+            title="What the last Opus review changed on this page"
+            onClick={openLastChange}
+          >
+            Review changes
+          </Button>
+        )}
         {file && (
           <Button
             size="sm"
             variant="secondary"
             icon={ReviewIcon}
-            className="ml-auto"
+            className={cx(!lastChange && "ml-auto")}
             disabled={reviewBlocked !== null}
             title={reviewBlocked ?? "Have Opus proofread this page again"}
             onClick={() => setReviewing(true)}
