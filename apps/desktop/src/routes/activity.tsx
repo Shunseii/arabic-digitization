@@ -57,11 +57,34 @@ const failureTarget = (f: FailedMessage): string | null => {
 };
 
 const pageLabel = (f: FailedMessage): string =>
-  f.page_number != null
-    ? String(f.page_number)
-    : f.kind === "reindex"
-      ? "—"
-      : f.file_id.slice(0, 4);
+  f.page_number != null ? String(f.page_number) : "—";
+
+// Errors are stored as the provider or database put them (often a JSON
+// body). Show a short plain message; the raw text stays in the hover title.
+const KNOWN_ERRORS: { test: RegExp; message: string }[] = [
+  { test: /overloaded_error|Claude 529/i, message: "Claude overloaded (529)" },
+  { test: /^Claude 429|rate_limit_error/i, message: "Claude rate limited (429)" },
+  { test: /^Inkling 503/i, message: "Inkling unavailable (503)" },
+  { test: /^Inkling 429/i, message: "Inkling rate limited (429)" },
+  {
+    test: /D1.*(network connection lost|reset|timed? ?out)/i,
+    message: "Database connection lost",
+  },
+  { test: /timed out/i, message: "Timed out" },
+];
+
+const ERROR_SHORT_MAX = 80;
+
+const shortError = (raw: string): string => {
+  const known = KNOWN_ERRORS.find((k) => k.test.test(raw));
+  if (known) return known.message;
+  // Drop a trailing JSON body, keep the first sentence.
+  const text = raw.split(/[{[]/, 1)[0]?.replace(/[:\s]+$/, "") || raw;
+  const sentence = text.split(/(?<=\.)\s/, 1)[0] ?? text;
+  return sentence.length > ERROR_SHORT_MAX
+    ? `${sentence.slice(0, ERROR_SHORT_MAX - 1)}…`
+    : sentence;
+};
 
 const FailedSection = ({
   count,
@@ -74,7 +97,7 @@ const FailedSection = ({
   return (
     <>
       <p className="mt-5 text-xs font-bold tracking-wide text-text-muted">
-        FAILED · {count}
+        GAVE UP · {count}
         {count > recent.length && (
           <span className="font-normal">
             {" "}
@@ -111,10 +134,10 @@ const FailedSection = ({
                   className="truncate text-xs text-text-secondary"
                   title={f.error ?? undefined}
                 >
-                  {f.error ?? "No error recorded"}
+                  {f.error ? shortError(f.error) : "No error recorded"}
                 </span>
                 <span className="text-xs text-text-muted">
-                  {relativeTime(f.last_failed_at)} ago · {f.attempts} attempts
+                  {relativeTime(f.last_failed_at)} ago
                 </span>
               </span>
               <span
