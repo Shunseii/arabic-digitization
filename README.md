@@ -47,9 +47,18 @@ Every `/api/*` request needs `Authorization: Bearer <MASTER_KEY>`. Full, always-
 | GET | `/api/books/:bookId/files/:fileId/text` | One file's transcription (raw `text/markdown`); `?rev=<id>` for an earlier version |
 | PATCH | `/api/books/:bookId/files/:fileId/text` | Hand-edit a transcription with exact find-and-replace edits (`{edits: [{old, new}], note?}`) |
 | GET | `/api/books/:bookId/files/:fileId/text/history` | Every change to a page's text (hand edits and re-OCRs), newest first |
+| PATCH | `/api/books/:bookId` | Update a book (`{title?, ocr_instructions?, ocr_engine?, review_enabled?, review_effort?}`); `review_enabled` switches the Opus review on or off |
+| POST | `/api/books/:bookId/review` | Queue the book's done pages for the Opus review: no body adds the pages done before review was turned on; `{all: true}` re-reviews every done page, even with review off. Returns `{queued, skipped_hand_edited, already_queued}` |
+| POST | `/api/books/:bookId/files/:fileId/review` | Review one page now (even with the book's review off), starting a review run if none is running. 409 if the page isn't done or is hand-edited |
+| GET | `/api/books/:bookId/files/:fileId/reviews` | A page's Opus reviews, newest first, with each edit and whether it applied |
+| GET | `/api/reviews/summary` | Review totals (`?days=<1-90>&book=<bookId>`): pages, edits by category, cost per page, batch timing |
+| GET | `/api/spend` | OCR vs review cost (`?days=<1-90>&book=<bookId>`): by model, daily, top books |
+| GET | `/api/jobs` | Running work: OCR per book, review batches, messages that ran out of retries. Refresh on demand; don't poll |
 | POST | `/api/search/reindex` | Rebuild the search index from R2 (`{bookId?}`) |
 
 **Hand edits and history.** Every change to a page's text, whether a hand edit (`PATCH …/text`) or a re-OCR, first saves the text it replaces; `…/text/history` lists the changes and `…/text?rev=<id>` reads an earlier version back. Re-OCR is not blocked by hand edits: re-running a page, or requeueing a book with `states: ["done"]`, overwrites hand-fixed pages (their edited text stays in history). `text_edited_at` in the status rows marks pages with hand edits, so check it before re-OCRing finished pages. Details and the restore recipe are in `/llms.txt`.
+
+**Opus review.** A book with review on gets each page proofread by Claude Opus against the scan after OCR, through the Message Batches API (a batch every 3 hours, roughly $0.03 a page). Applied edits are one `review` entry in the page's history, so they can be undone. A review never touches a hand-edited page. It costs money: estimate with `cost_per_page_usd` from `/api/reviews/summary` before queueing a whole book.
 
 Search *queries* don't go through the Worker — clients query Meilisearch
 directly with a read-only key (see `infra/meili`). The Worker only *writes* to

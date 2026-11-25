@@ -1,6 +1,6 @@
 # corpus
 
-Command-line access to the Arabic digitization corpus: books, OCR status, retries, pause/resume, export, and hybrid search.
+Command-line access to the Arabic digitization corpus: books, OCR status, retries, pause/resume, export, Opus review, spend and running jobs, and hybrid search.
 
 It exists so that you (and agents running commands for you) stop getting a 1Password prompt on every call. `corpus` reads its four secrets from 1Password **once**, caches them in RAM for 12 hours, and every later call — including separate processes — reads the cache.
 
@@ -66,7 +66,7 @@ That's it. For the next 12 hours no `corpus` command touches 1Password.
 corpus auth login | status | logout
 
 corpus books                                  list books with per-state page counts
-corpus show <book>                            counts, OCR cost, paused, OCR engine, OCR instructions
+corpus show <book>                            counts, OCR/review cost, review on/off, paused, OCR engine, OCR instructions
 corpus create --title <t> [--id <slug>] [--instructions <text>] [--work <id>] [--engine inkling|claude]
 corpus engine <book> <inkling|claude|default>  set which OCR provider runs first
 corpus delete <book> --yes                    irreversible; refuses without --yes
@@ -84,12 +84,26 @@ corpus edit <book> <fileId> --edits <file.json|-> [--note <why>]
                                               exact find-and-replace, all or nothing
 corpus history <book> <fileId>                changes to a page's text, newest first
 
+corpus review <book> on [--yes | --new-only]  review pages as they finish OCR; asks whether to queue done pages too
+corpus review <book> off                      stop reviewing new pages
+corpus review <book> --all [--yes]            re-review every done page, even with review off (asks first)
+corpus review <book> <fileId|page...>         review specific pages now, even with review off
+corpus reviews [--days n] [--book <book>]     review totals: pages, edits by category, cost, batch timing
+corpus reviews <book> <fileId|page>           a page's reviews and each edit (applied or skipped)
+
+corpus jobs                                   live OCR per book, review batches, pages that gave up
+corpus spend [--days n] [--book <book>]       OCR vs review cost: by model, daily, top books
+
 corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]
 ```
 
 Editing: each `old` must occur exactly once in the page (add surrounding words to pick one of several), and nothing is applied if any edit fails. Every change to a page's text, by hand or by re-OCR, first saves the text it replaces: `corpus history` lists the changes and `corpus text --rev <id>` shows the text just before one. **Re-OCR overwrites hand edits** (`corpus ocr`, `corpus retry --states done`); check for `(edited)` pages in `corpus status` first. To restore a version, replace the whole page with it via `--edits` (one edit whose `old` is the full current text).
 
 OCR engine: each book OCRs with Inkling by default, falling back to Claude when Inkling is rate-limited, down, or cuts a page off at its length cap. `--engine claude` (on `create`) or `corpus engine <book> claude` flips the order: Claude first, Inkling as the fallback. `default` resets it to Inkling. Changing the engine only affects pages OCR'd from then on; to re-OCR finished pages run `corpus retry <book> --states done` (this overwrites hand edits, see above). `corpus books` tags each book that has an engine set.
+
+Review: Claude Opus proofreads OCR'd pages against the scan in batches (one every 3 hours, results within a day) and applies exact find-and-replace edits. Each applied review is a `review` entry in `corpus history`, so it can be undone like any change. **A review never changes a hand-edited page**, and hand-edited pages are left out when queueing. **It costs money** (about $0.03 a page): `corpus review <book> on` and `--all` show the page count and an estimate (pages × the measured cost per page from the last 90 days, or $0.03 before any review has run) and ask before queueing. Without a terminal they refuse unless you pass `--yes` (queue) or, for `on`, `--new-only` (review only pages OCR'd from now on). Pages named one by one (`corpus review <book> 12 13`) are queued without asking and start a review run if none is running. A page number can match several fragments of one page; all of them are queued.
+
+Activity: `corpus jobs` reads the same data as the desktop Activity screen; run it when you want a look, don't loop it (it reads the database on every call). `corpus reviews` and `corpus spend` default to the last 30 days.
 
 Search is hybrid: `--ratio 0` is keyword-only, `1` is semantic-only, default `0.5`. Concrete phrases work better than category words ("rules of ablution", not "fiqh").
 
