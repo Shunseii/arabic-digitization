@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Button,
+  CheckOption,
   Chip,
   cx,
   DropdownTrigger,
@@ -196,34 +197,15 @@ const TagFilter = ({
         onClose={() => setOpen(false)}
         className="left-0 top-[calc(100%+8px)] w-60 origin-top-left"
       >
-        {options.map((o) => {
-          const checked = selected.has(o.name);
-          return (
-            <label
-              key={o.name}
-              className="flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2 hover:bg-surface-2"
-            >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => onToggle(o.name)}
-                className="sr-only"
-              />
-              <span
-                className={cx(
-                  "flex size-4 items-center justify-center rounded border-[1.5px]",
-                  checked ? "border-accent bg-accent" : "border-line",
-                )}
-              >
-                {checked && <Check size={12} className="text-on-accent" />}
-              </span>
-              <span className="flex-1 text-small text-ink">{o.name}</span>
-              <span className="text-small font-medium text-ink-3">
-                {o.books}
-              </span>
-            </label>
-          );
-        })}
+        {options.map((o) => (
+          <CheckOption
+            key={o.name}
+            checked={selected.has(o.name)}
+            onToggle={() => onToggle(o.name)}
+            label={o.name}
+            count={o.books}
+          />
+        ))}
       </Popover>
     </div>
   );

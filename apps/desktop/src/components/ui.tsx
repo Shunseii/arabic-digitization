@@ -1,5 +1,13 @@
 import type { LucideIcon } from "lucide-react";
-import { ChevronDown, LoaderCircle, RefreshCw, Search, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  CircleX,
+  LoaderCircle,
+  RefreshCw,
+  Search,
+  X,
+} from "lucide-react";
 import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -239,11 +247,14 @@ export const SearchField = ({
   onChange,
   placeholder,
   className,
+  busy = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   className?: string;
+  /** Shows a spinner in place of the clear button while results load. */
+  busy?: boolean;
 }) => (
   <label
     className={cx(
@@ -258,15 +269,19 @@ export const SearchField = ({
       placeholder={placeholder}
       className="min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
     />
-    {value && (
-      <button
-        type="button"
-        aria-label="Clear"
-        onClick={() => onChange("")}
-        className="shrink-0 text-ink-3"
-      >
-        <X size={18} />
-      </button>
+    {busy ? (
+      <LoaderCircle size={18} className="shrink-0 animate-spin text-ink-3" />
+    ) : (
+      value && (
+        <button
+          type="button"
+          aria-label="Clear"
+          onClick={() => onChange("")}
+          className="shrink-0 text-ink-3"
+        >
+          <CircleX size={18} />
+        </button>
+      )
     )}
   </label>
 );
@@ -563,6 +578,51 @@ export const Popover = ({
       {children}
     </div>
   </>
+);
+
+/** A checkbox row in a filter popover, with a trailing count. */
+export const CheckOption = ({
+  checked,
+  onToggle,
+  label,
+  count,
+  disabled = false,
+  className,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  label: ReactNode;
+  count?: ReactNode;
+  disabled?: boolean;
+  className?: string;
+}) => (
+  <label
+    className={cx(
+      "flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2 hover:bg-surface-2",
+      disabled && "cursor-default opacity-40",
+      className,
+    )}
+  >
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={onToggle}
+      className="sr-only"
+    />
+    <span
+      className={cx(
+        "flex size-4 shrink-0 items-center justify-center rounded border-[1.5px]",
+        checked ? "border-accent bg-accent" : "border-line",
+      )}
+    >
+      {checked && <Check size={12} className="text-on-accent" />}
+    </span>
+    <span className="min-w-0 flex-1 truncate text-small text-ink">{label}</span>
+    {count != null && (
+      <span className="text-small font-medium text-ink-3">{count}</span>
+    )}
+  </label>
 );
 
 export const MenuItem = ({

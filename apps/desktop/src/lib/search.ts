@@ -24,7 +24,9 @@ export type SearchHit = {
   text: string; // matched chunk text
   page_text?: string; // full page markdown — preview render
   _rankingScore?: number;
-  _formatted?: { text?: string };
+  // instant-meilisearch moves Meili's _formatted (cropped, with
+  // __ais-highlight__ markers) here.
+  _snippetResult?: { text?: { value?: string } };
 };
 
 // react-instantsearch re-initialises (and can infinite-loop) if the
