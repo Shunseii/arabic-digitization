@@ -20,6 +20,76 @@ const NOT_REVIEWED = [
   "refused",
 ];
 
+// Batch timing for tuning the poll schedule. Durations in ms. Percentiles
+// are nearest-rank over batches that ended; checks and steps over batches
+// that were finalized.
+const BatchTiming = Schema.Struct({
+  count: Schema.Int.annotate({
+    description: "Batches started in the window (all books: batches mix books)",
+  }),
+  pages_avg: Schema.NullOr(Schema.Number),
+  duration_ms: Schema.Struct({
+    p50: Schema.NullOr(Schema.Int),
+    p90: Schema.NullOr(Schema.Int),
+    max: Schema.NullOr(Schema.Int),
+  }).annotate({
+    description: "Submission to Anthropic's ended_at",
+  }),
+  polling_lag_ms: Schema.Struct({
+    p50: Schema.NullOr(Schema.Int),
+    max: Schema.NullOr(Schema.Int),
+  }).annotate({
+    description: "Anthropic's ended_at to the check that saw it",
+  }),
+  checks: Schema.Struct({
+    avg: Schema.NullOr(Schema.Number),
+    max: Schema.NullOr(Schema.Int),
+  }),
+  steps: Schema.Struct({
+    avg: Schema.NullOr(Schema.Number),
+    max: Schema.NullOr(Schema.Int),
+  }),
+});
+
+interface BatchTimingRow {
+  count: number;
+  pages_avg: number | null;
+  checks_avg: number | null;
+  checks_max: number | null;
+  steps_avg: number | null;
+  steps_max: number | null;
+  duration_max: number | null;
+  duration_p50: number | null;
+  duration_p90: number | null;
+  lag_max: number | null;
+  lag_p50: number | null;
+}
+
+// One statement over the window's review_batches rows (through
+// idx_review_batches_created). Nearest-rank percentile: the value at rank
+// ceil(n * p / 100), as integer arithmetic.
+const BATCH_TIMING_SQL = `
+  WITH b AS MATERIALIZED (
+         SELECT pages, checks, steps,
+                anthropic_ended_at - submitted_at AS duration,
+                ended_at - anthropic_ended_at AS lag
+           FROM review_batches WHERE created_at >= ?1),
+       d AS (SELECT duration AS v, ROW_NUMBER() OVER (ORDER BY duration) AS r,
+                    COUNT(*) OVER () AS n
+               FROM b WHERE duration IS NOT NULL),
+       l AS (SELECT lag AS v, ROW_NUMBER() OVER (ORDER BY lag) AS r,
+                    COUNT(*) OVER () AS n
+               FROM b WHERE lag IS NOT NULL)
+  SELECT a.*,
+         (SELECT v FROM d WHERE r = (n * 50 + 99) / 100) AS duration_p50,
+         (SELECT v FROM d WHERE r = (n * 90 + 99) / 100) AS duration_p90,
+         (SELECT v FROM l WHERE r = (n * 50 + 99) / 100) AS lag_p50
+    FROM (SELECT COUNT(*) AS count, AVG(pages) AS pages_avg,
+                 AVG(checks) AS checks_avg, MAX(checks) AS checks_max,
+                 AVG(steps) AS steps_avg, MAX(steps) AS steps_max,
+                 MAX(duration) AS duration_max, MAX(lag) AS lag_max
+            FROM b) a`;
+
 const EditCounts = Schema.Struct({
   proposed: Schema.Int,
   applied: Schema.Int,
@@ -71,6 +141,7 @@ export const ReviewSummary = HttpApiEndpoint.get(
       cost_per_page_usd: Schema.NullOr(Schema.Number).annotate({
         description: "Cost / pages reviewed",
       }),
+      batches: BatchTiming,
       hand_edited_after_review: Schema.Int.annotate({
         description: "Pages changed by a review and then edited by hand",
       }),
@@ -110,9 +181,10 @@ export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
     // One pass over the window's rows (idx_page_reviews_created). Categories
     // are read with json_extract on their fixed keys rather than json_each,
     // which would read every row once per category.
-    const { results: statuses } = yield* Effect.promise(() =>
-      env.DB.prepare(
-        `SELECT r.status, COUNT(*) AS pages,
+    const [statusResult, timingResult] = yield* Effect.promise(() =>
+      env.DB.batch([
+        env.DB.prepare(
+          `SELECT r.status, COUNT(*) AS pages,
                 SUM(r.edits_proposed) AS proposed, SUM(r.edits_applied) AS applied,
                 SUM(r.edits_failed) AS failed, SUM(r.chars_changed) AS chars_changed,
                 SUM(r.chars_total) AS chars_total, SUM(r.cost_usd) AS cost_usd,
@@ -124,10 +196,13 @@ export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
            FROM page_reviews r
           WHERE r.created_at >= ?1 AND (?2 IS NULL OR r.book_id = ?2)
           GROUP BY r.status`,
-      )
-        .bind(since, book)
-        .all<StatusRow & Record<string, number | null>>(),
+        ).bind(since, book),
+        env.DB.prepare(BATCH_TIMING_SQL).bind(since),
+      ]),
     );
+    const statuses = (statusResult?.results ?? []) as (StatusRow &
+      Record<string, number | null>)[];
+    const timing = (timingResult?.results[0] ?? null) as BatchTimingRow | null;
 
     const count = (names: readonly string[]) =>
       statuses
@@ -183,6 +258,27 @@ export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
         cost_usd: costUsd,
         cost_per_page_usd: reviewed > 0 ? costUsd / reviewed : null,
         hand_edited_after_review: sum("hand_edited"),
+        batches: {
+          count: timing?.count ?? 0,
+          pages_avg: timing?.pages_avg ?? null,
+          duration_ms: {
+            p50: timing?.duration_p50 ?? null,
+            p90: timing?.duration_p90 ?? null,
+            max: timing?.duration_max ?? null,
+          },
+          polling_lag_ms: {
+            p50: timing?.lag_p50 ?? null,
+            max: timing?.lag_max ?? null,
+          },
+          checks: {
+            avg: timing?.checks_avg ?? null,
+            max: timing?.checks_max ?? null,
+          },
+          steps: {
+            avg: timing?.steps_avg ?? null,
+            max: timing?.steps_max ?? null,
+          },
+        },
       },
     });
   });

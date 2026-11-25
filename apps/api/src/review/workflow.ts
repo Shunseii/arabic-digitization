@@ -26,7 +26,7 @@ import {
 } from "cloudflare:workers";
 import { Effect, type Layer } from "effect";
 import { type AppServices, liveLayer } from "../effect/services";
-import { pollUntilEnded } from "./poll";
+import { pollUntilEnded, workflowSteps } from "./poll";
 import {
   type BatchCheck,
   checkBatch,
@@ -119,7 +119,7 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
         run(recordBatch({ batchId, instanceId, pages })),
       );
 
-      const { last: check } = await pollUntilEnded<BatchCheck>({
+      const { last: check, checks } = await pollUntilEnded<BatchCheck>({
         step: { sleep: (name, durationMs) => step.sleep(name, durationMs) },
         submittedAt,
         check: ({ index, previous }) =>
@@ -138,7 +138,13 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
           run(
             releaseClaims({ instanceId, retry: true }).pipe(
               Effect.andThen(
-                finalizeBatch({ instanceId, ended: false, resultsKey: null }),
+                finalizeBatch({
+                  instanceId,
+                  ended: false,
+                  resultsKey: null,
+                  checks,
+                  steps: workflowSteps({ parts, checks, ended: false }),
+                }),
               ),
             ),
           ),
@@ -157,7 +163,13 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
       );
       await step.do("finalize", () =>
         run(
-          finalizeBatch({ instanceId, ended: true, resultsKey: results.key }),
+          finalizeBatch({
+            instanceId,
+            ended: true,
+            resultsKey: results.key,
+            checks,
+            steps: workflowSteps({ parts, checks, ended: true }),
+          }),
         ),
       );
       return { pages, batchId, ended: true, dispatched };

@@ -32,12 +32,15 @@ CREATE TABLE review_queue (
 --   preparing  pages claimed, requests being built
 --   processing batch submitted; a status check stores Anthropic's counts
 --              when they changed (most checks change nothing)
---   ingesting  batch ended (ended_at: when a check first saw it), results
---              being copied to R2
+--   ingesting  batch ended (ended_at: when a check first saw it;
+--              anthropic_ended_at: when Anthropic says it finished, so the
+--              difference is the polling lag), results being copied to R2
 --   applying   one queue message per page sent; pages are applied as they land
 --   empty      nothing eligible to send (no batch)
 --   timed_out  the batch didn't end within 26 hours; pages went back to the queue
 --   failed     a step ran out of retries; pages went back to the queue
+-- checks and steps (status checks run, and Workflow steps used counting
+-- sleeps) are written by the final write, to tune the poll schedule.
 -- The index on created_at serves the recent-batches list and the in-flight
 -- window (one extra written row per batch).
 CREATE TABLE review_batches (
@@ -57,6 +60,9 @@ CREATE TABLE review_batches (
   expired           INTEGER NOT NULL DEFAULT 0,
   canceled          INTEGER NOT NULL DEFAULT 0,
   ended_at          INTEGER,
+  anthropic_ended_at INTEGER,
+  checks            INTEGER,
+  steps             INTEGER,
   results_key       TEXT,
   error             TEXT
 ) WITHOUT ROWID;

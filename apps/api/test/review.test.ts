@@ -6,6 +6,7 @@ import { sha256Hex } from "../src/lib/ocrRuns";
 import { transcribe } from "../src/ocr";
 import { applyReview, applyReviewEdits } from "../src/review/apply";
 import type { ReviewApplyMessage } from "../src/review/message";
+import { workflowSteps } from "../src/review/poll";
 import type { ReviewEdit } from "../src/review/prompt";
 import {
   type BatchCheck,
@@ -38,6 +39,8 @@ const run = <A, E>(
   Effect.runPromise(
     program.pipe(Effect.provide(world.layer), Effect.provide(Logger.layer([]))),
   );
+
+const ANTHROPIC_ENDED_AT = Date.parse("2026-11-24T12:05:00Z");
 
 const PAGE = "١٢ كتاب الطهارة\n\n---\n\nقال المصنف رحمه الله: الماء طهور";
 const textKeyOf = (fileId: string) => `books/${BOOK_ID}/text/${fileId}.md`;
@@ -526,7 +529,7 @@ describe("review_batches stages", () => {
     const row = () =>
       world.sqlite
         .prepare(
-          "SELECT stage, batch_id, pages, processing, succeeded, submitted_at, ended_at FROM review_batches WHERE instance_id = 'review-1'",
+          "SELECT stage, batch_id, pages, processing, succeeded, submitted_at, ended_at, anthropic_ended_at, checks, steps FROM review_batches WHERE instance_id = 'review-1'",
         )
         .get() as Record<string, unknown>;
     const batchWrites: string[] = [];
@@ -557,15 +560,17 @@ describe("review_batches stages", () => {
       expired: 0,
     };
     world.batches.statuses = [
-      { processingStatus: "in_progress", counts },
-      { processingStatus: "in_progress", counts },
+      { processingStatus: "in_progress", counts, endedAt: null },
+      { processingStatus: "in_progress", counts, endedAt: null },
       {
         processingStatus: "in_progress",
         counts: { ...counts, processing: 1, succeeded: 1 },
+        endedAt: null,
       },
       {
         processingStatus: "ended",
         counts: { ...counts, processing: 0, succeeded: 2 },
+        endedAt: ANTHROPIC_ENDED_AT,
       },
     ];
     let previous: BatchCheck | null = null;
@@ -598,16 +603,66 @@ describe("review_batches stages", () => {
       processing: 0,
       succeeded: 2,
       ended_at: ended.checkedAt,
+      anthropic_ended_at: ANTHROPIC_ENDED_AT,
     });
 
-    // Finalize keeps the time the batch ended, for measuring its duration.
+    // Finalize keeps the time the batch ended, and records the checks and
+    // steps the instance used, in the same write.
+    batchWrites.length = 0;
     await run(
       world,
-      finalizeBatch({ instanceId: "review-1", ended: true, resultsKey: "k" }),
+      finalizeBatch({
+        instanceId: "review-1",
+        ended: true,
+        resultsKey: "k",
+        checks: 4,
+        steps: workflowSteps({ parts: 1, checks: 4, ended: true }),
+      }),
     );
+    expect(batchWrites).toHaveLength(1);
     expect(row()).toMatchObject({
       stage: "applying",
       ended_at: ended.checkedAt,
+      anthropic_ended_at: ANTHROPIC_ENDED_AT,
+      checks: 4,
+      steps: 16,
+    });
+  });
+
+  it("records checks and steps when the Workflow gives up waiting", async () => {
+    const world = makeWorld();
+    seedBook(world);
+    seedDonePage({ world, fileId: "file-a" });
+    world.sqlite.exec(
+      "INSERT INTO review_queue (file_id, book_id, queued_at) VALUES ('file-a', 'test-book', 1)",
+    );
+    await run(world, claimPages("review-1"));
+    await run(
+      world,
+      recordBatch({ instanceId: "review-1", batchId: "msgbatch_x", pages: 1 }),
+    );
+    await run(
+      world,
+      finalizeBatch({
+        instanceId: "review-1",
+        ended: false,
+        resultsKey: null,
+        checks: 95,
+        steps: workflowSteps({ parts: 4, checks: 95, ended: false }),
+      }),
+    );
+    expect(
+      world.sqlite
+        .prepare(
+          "SELECT stage, checks, steps, anthropic_ended_at, ended_at IS NOT NULL AS ended FROM review_batches",
+        )
+        .get(),
+    ).toEqual({
+      stage: "timed_out",
+      checks: 95,
+      steps: 198,
+      anthropic_ended_at: null,
+      ended: 1,
     });
   });
 });

@@ -35,6 +35,21 @@ export function nextWaitMs({
   return Math.min(everyMs, remaining);
 }
 
+// Steps a review Workflow instance uses, counting sleeps: select, one
+// prepare per chunk, submit and record; a sleep and a check per poll; then
+// results, release, dispatch and finalize, or one release step on timeout.
+export function workflowSteps({
+  parts,
+  checks,
+  ended,
+}: {
+  parts: number;
+  checks: number;
+  ended: boolean;
+}): number {
+  return 1 + parts + 2 + 2 * checks + (ended ? 4 : 1);
+}
+
 // The part of WorkflowStep the loop uses.
 export interface PollStep {
   sleep: (name: string, durationMs: number) => Promise<void>;

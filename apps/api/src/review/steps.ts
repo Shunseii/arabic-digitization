@@ -336,13 +336,14 @@ export function checkBatch({
       yield* db.run(
         statement(
           `UPDATE review_batches
-              SET stage = ?, processing_status = ?, ended_at = ?, processing = ?,
-                  succeeded = ?, errored = ?, expired = ?, canceled = ?
+              SET stage = ?, processing_status = ?, ended_at = ?, anthropic_ended_at = ?,
+                  processing = ?, succeeded = ?, errored = ?, expired = ?, canceled = ?
             WHERE instance_id = ?`,
           [
             ended ? "ingesting" : "processing",
             status.processingStatus,
             ended ? checkedAt : null,
+            ended ? status.endedAt : null,
             counts.processing,
             counts.succeeded,
             counts.errored,
@@ -494,15 +495,20 @@ export function dispatchApplies({
 
 // The batch's last stage: 'applying' once every page has been handed to the
 // queue (GET /api/jobs shows it done when every page has a review row), or
-// 'timed_out' when the Workflow gave up waiting.
+// 'timed_out' when the Workflow gave up waiting. Also records how many status
+// checks and Workflow steps the batch took, for tuning the poll schedule.
 export function finalizeBatch({
   instanceId,
   ended,
   resultsKey,
+  checks,
+  steps,
 }: {
   instanceId: string;
   ended: boolean;
   resultsKey: string | null;
+  checks: number;
+  steps: number;
 }): Effect.Effect<void, StorageError, Database | WallClock> {
   return Effect.gen(function* () {
     const db = yield* Database;
@@ -510,9 +516,17 @@ export function finalizeBatch({
     yield* db.run(
       statement(
         `UPDATE review_batches
-            SET stage = ?, ended_at = COALESCE(ended_at, ?), results_key = ?
+            SET stage = ?, ended_at = COALESCE(ended_at, ?), results_key = ?,
+                checks = ?, steps = ?
           WHERE instance_id = ?`,
-        [ended ? "applying" : "timed_out", clock.now(), resultsKey, instanceId],
+        [
+          ended ? "applying" : "timed_out",
+          clock.now(),
+          resultsKey,
+          checks,
+          steps,
+          instanceId,
+        ],
       ),
     );
   });

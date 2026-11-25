@@ -1,19 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { readBatchStatus } from "../src/effect/services";
 import {
   nextWaitMs,
   POLL_DEADLINE_MS,
   type PollStep,
   pollUntilEnded,
+  workflowSteps,
 } from "../src/review/poll";
 import { PREPARE_CHUNK_PAGES, REVIEW_BATCH_PAGES } from "../src/review/steps";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const SUBMITTED_AT = 1_000_000;
-
-// The review Workflow's steps outside the poll loop, at most: select, one
-// prepare per chunk, submit, record, results, release, dispatch, finalize.
-const OTHER_STEPS = 1 + REVIEW_BATCH_PAGES / PREPARE_CHUNK_PAGES + 6;
 
 // A fake step on a simulated clock: each sleep moves time on, and a check
 // takes `checkMs`.
@@ -44,6 +42,33 @@ function simulate({
   return { run, sleeps, elapsed: () => now - SUBMITTED_AT };
 }
 
+describe("readBatchStatus", () => {
+  it("reads Anthropic's ended_at, which is null until the batch ends", () => {
+    const counts = {
+      processing: 0,
+      succeeded: 8,
+      errored: 0,
+      canceled: 0,
+      expired: 0,
+    };
+    expect(
+      readBatchStatus({
+        processing_status: "ended",
+        request_counts: counts,
+        ended_at: "2026-11-24T12:05:00.123Z",
+      }),
+    ).toEqual({
+      processingStatus: "ended",
+      counts,
+      endedAt: Date.parse("2026-11-24T12:05:00.123Z"),
+    });
+    expect(
+      readBatchStatus({ processing_status: "in_progress", ended_at: null })
+        .endedAt,
+    ).toBeNull();
+  });
+});
+
 describe("review batch polling", () => {
   it("checks every minute for an hour, every 10 minutes to 3 hours, then hourly to 26 hours", async () => {
     const sim = simulate();
@@ -63,7 +88,11 @@ describe("review batch polling", () => {
   it("keeps the worst case well under the Free plan's 1,024 steps per instance", async () => {
     const { checks } = await simulate().run();
     // A sleep and a check per poll, counting sleeps as steps to be safe.
-    const worstCaseSteps = OTHER_STEPS + 2 * checks;
+    const worstCaseSteps = workflowSteps({
+      parts: REVIEW_BATCH_PAGES / PREPARE_CHUNK_PAGES,
+      checks,
+      ended: true,
+    });
     expect(worstCaseSteps).toBe(201);
     expect(worstCaseSteps).toBeLessThan(300);
   });

@@ -60,14 +60,21 @@ beforeAll(async () => {
     {
       sql: `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < ${BATCHES - 1})
             INSERT INTO review_batches (instance_id, batch_id, created_at, model, pages, stage,
-                                        submitted_at, processing, succeeded, ended_at)
+                                        submitted_at, processing, succeeded, ended_at,
+                                        anthropic_ended_at, checks, steps)
             SELECT 'review-' || i, 'msgbatch_' || i, ${NOW} - (${BATCHES} - i) * 3 * ${HOUR},
                    'claude-opus-5-5', ${REVIEWS_PER_BATCH},
                    CASE WHEN i = ${BATCHES - 1} THEN 'processing' ELSE 'applying' END,
                    ${NOW} - (${BATCHES} - i) * 3 * ${HOUR} + 60000,
                    CASE WHEN i = ${BATCHES - 1} THEN ${REVIEWS_PER_BATCH} ELSE 0 END,
                    CASE WHEN i = ${BATCHES - 1} THEN 0 ELSE ${REVIEWS_PER_BATCH} END,
-                   CASE WHEN i = ${BATCHES - 1} THEN NULL ELSE ${NOW} - (${BATCHES} - i) * 3 * ${HOUR} + ${HOUR} END
+                   -- Batch i took i + 1 minutes; polling saw it (i % 3) minutes late.
+                   CASE WHEN i = ${BATCHES - 1} THEN NULL
+                        ELSE ${NOW} - (${BATCHES} - i) * 3 * ${HOUR} + 60000 + (i + 1) * 60000 + (i % 3) * 60000 END,
+                   CASE WHEN i = ${BATCHES - 1} THEN NULL
+                        ELSE ${NOW} - (${BATCHES} - i) * 3 * ${HOUR} + 60000 + (i + 1) * 60000 END,
+                   CASE WHEN i = ${BATCHES - 1} THEN NULL ELSE i + 1 END,
+                   CASE WHEN i = ${BATCHES - 1} THEN NULL ELSE 2 * (i + 1) + 11 END
               FROM n`,
     },
     {
@@ -186,6 +193,9 @@ describe("GET /api/jobs", () => {
     expect(body.review.in_flight[1]).toMatchObject({ reviewed: 10, pages: 20 });
     expect(body.review.recent).toHaveLength(10);
     expect(body.review.recent[0]).toMatchObject({
+      anthropic_ended_at: expect.any(Number),
+      checks: 18,
+      steps: 47,
       instance_id: "review-17",
       stage: "done",
     });
@@ -208,9 +218,19 @@ describe("GET /api/reviews/summary", () => {
       text_changed_share: number;
       cost_per_page_usd: number;
       hand_edited_after_review: number;
+      batches: unknown;
     }>({
       label: "GET /api/reviews/summary?days=90",
       path: "/api/reviews/summary?days=90",
+    });
+    // Batch timing: 19 ended batches of 1..19 minutes, lag 0-2 minutes.
+    expect(body.batches).toEqual({
+      count: BATCHES,
+      pages_avg: REVIEWS_PER_BATCH,
+      duration_ms: { p50: 10 * 60000, p90: 18 * 60000, max: 19 * 60000 },
+      polling_lag_ms: { p50: 60000, max: 2 * 60000 },
+      checks: { avg: 10, max: 19 },
+      steps: { avg: 31, max: 49 },
     });
     const pages = (BATCHES - 1) * REVIEWS_PER_BATCH - 10;
     expect(body.pages_reviewed + body.pages_not_reviewed).toBe(pages);

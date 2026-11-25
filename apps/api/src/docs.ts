@@ -262,7 +262,7 @@ GET /api/jobs
       in_flight: [ Batch ], waiting: [ { book_id, title, pages, retrying } ],
       recent: [ Batch ] } }
   Batch = { instance_id, batch_id, stage, instance_status, pages, reviewed,
-            created_at, submitted_at, ended_at,
+            created_at, submitted_at, ended_at, anthropic_ended_at, checks, steps,
             request_counts: { processing, succeeded, errored, expired, canceled },
             edits_applied, edits_failed, errors, cost_usd, error }
   // books: those with pages not done, or OCR runs in the recent window
@@ -283,11 +283,19 @@ GET /api/reviews/summary[?days=<1-90, default 30>][&book=<bookId>]
            pages_not_reviewed, pages_skipped, by_status: { status: n },
            edits: { proposed, applied, failed }, by_category: { tashkeel|spelling|
            quran|footnotes|punctuation|layout: { proposed, applied, failed } },
-           text_changed_share, cost_usd, cost_per_page_usd, hand_edited_after_review }
+           text_changed_share, cost_usd, cost_per_page_usd, hand_edited_after_review,
+           batches: { count, pages_avg, duration_ms: { p50, p90, max },
+                      polling_lag_ms: { p50, max }, checks: { avg, max },
+                      steps: { avg, max } } }
   // edits.failed = failed to apply (find didn't match exactly once).
   // text_changed_share = characters changed by applied edits / characters of
   // the reviewed pages. hand_edited_after_review = pages a review changed that
   // were then edited by hand.
+  // batches: review batches started in the window (all books, since a batch
+  // mixes books), for tuning how often batches are polled. duration_ms is
+  // submission to Anthropic's ended_at; polling_lag_ms is Anthropic's ended_at
+  // to the check that saw it; checks/steps are the status checks and Workflow
+  // steps a batch used. Percentiles are nearest-rank; null with no data.
 
 ## OCR run history (admin)
 Every OCR run of a page (primary engine plus any fallback) is recorded in D1

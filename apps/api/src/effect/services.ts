@@ -390,6 +390,8 @@ export interface BatchCounts {
 export interface BatchStatus {
   processingStatus: string;
   counts: BatchCounts;
+  // When Anthropic finished the batch (its ended_at, epoch ms); null until then.
+  endedAt: number | null;
 }
 
 export interface AnthropicBatchesShape {
@@ -474,8 +476,11 @@ export function readBatchStatus(raw: unknown): BatchStatus {
   const data = isRecord(raw) ? raw : {};
   const counts = isRecord(data.request_counts) ? data.request_counts : {};
   const count = (name: string) => numberOrNull(counts[name]) ?? 0;
+  const endedAt =
+    typeof data.ended_at === "string" ? Date.parse(data.ended_at) : Number.NaN;
   return {
     processingStatus: String(data.processing_status),
+    endedAt: Number.isNaN(endedAt) ? null : endedAt,
     counts: {
       processing: count("processing"),
       succeeded: count("succeeded"),

@@ -71,7 +71,20 @@ const ReviewBatch = Schema.Struct({
   }),
   created_at: Schema.Int,
   submitted_at: Schema.NullOr(Schema.Int),
-  ended_at: Schema.NullOr(Schema.Int),
+  ended_at: Schema.NullOr(Schema.Int).annotate({
+    description: "When a status check first saw the batch ended",
+  }),
+  anthropic_ended_at: Schema.NullOr(Schema.Int).annotate({
+    description:
+      "When Anthropic finished the batch (ended_at minus this is the polling lag)",
+  }),
+  checks: Schema.NullOr(Schema.Int).annotate({
+    description: "Status checks run; set when the batch is finalized",
+  }),
+  steps: Schema.NullOr(Schema.Int).annotate({
+    description:
+      "Workflow steps used (sleeps included); set when the batch is finalized",
+  }),
   request_counts: RequestCounts,
   edits_applied: Schema.Int,
   edits_failed: Schema.Int,
@@ -153,6 +166,9 @@ interface BatchRow {
   created_at: number;
   submitted_at: number | null;
   ended_at: number | null;
+  anthropic_ended_at: number | null;
+  checks: number | null;
+  steps: number | null;
   processing: number;
   succeeded: number;
   errored: number;
@@ -228,7 +244,7 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
           ).bind(RECENT_RUNS, recentSince, PROBLEM_PAGES),
           env.DB.prepare(
             `SELECT instance_id, batch_id, stage, pages, created_at, submitted_at,
-                    ended_at, processing, succeeded,
+                    ended_at, anthropic_ended_at, checks, steps, processing, succeeded,
                     errored, expired, canceled, error
                FROM review_batches ORDER BY created_at DESC LIMIT ?`,
           ).bind(RECENT_BATCHES),
@@ -364,6 +380,9 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
         created_at: row.created_at,
         submitted_at: row.submitted_at,
         ended_at: row.ended_at,
+        anthropic_ended_at: row.anthropic_ended_at,
+        checks: row.checks,
+        steps: row.steps,
         request_counts: {
           processing: row.processing,
           succeeded: row.succeeded,

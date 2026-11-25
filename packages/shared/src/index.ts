@@ -155,6 +155,17 @@ export interface ReviewSummaryResponse {
   cost_usd: number;
   cost_per_page_usd: number | null;
   hand_edited_after_review: number;
+  /** Review batches started in the window (all books), for tuning polling. */
+  batches: {
+    count: number;
+    pages_avg: number | null;
+    /** Submission to Anthropic's ended_at, ms (nearest-rank percentiles). */
+    duration_ms: { p50: number | null; p90: number | null; max: number | null };
+    /** Anthropic's ended_at to the check that saw it, ms. */
+    polling_lag_ms: { p50: number | null; max: number | null };
+    checks: { avg: number | null; max: number | null };
+    steps: { avg: number | null; max: number | null };
+  };
 }
 
 export type ReviewBatchStage =
@@ -178,8 +189,14 @@ export interface ReviewBatchJob {
   reviewed: number;
   created_at: number;
   submitted_at: number | null;
-  /** When a check saw the batch ended (ended_at - submitted_at = duration). */
+  /** When a status check first saw the batch ended. */
   ended_at: number | null;
+  /** When Anthropic finished it; ended_at minus this is the polling lag. */
+  anthropic_ended_at: number | null;
+  /** Status checks run; set when the batch is finalized. */
+  checks: number | null;
+  /** Workflow steps used, sleeps included; set when the batch is finalized. */
+  steps: number | null;
   /** Anthropic's counts as of the last check that saw them change. */
   request_counts: {
     processing: number;
