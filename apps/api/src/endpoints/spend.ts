@@ -67,7 +67,7 @@ export const Spend = HttpApiEndpoint.get("spend", "/api/spend", {
       description: "Days with any spend, oldest first",
     }),
     top_books: Schema.Array(TopBook).annotate({
-      description: `The ${TOP_BOOKS} costliest books per kind`,
+      description: `The ${TOP_BOOKS} costliest books per kind; empty when book is set`,
     }),
   }),
 }).annotate(OpenApi.Summary, "OCR and review spend over a time window");
@@ -190,8 +190,11 @@ export const spend: EndpointHandler<typeof Spend> = ({ query }) =>
     );
     const rollup = rollUp(results);
 
-    // Titles of the listed books only (primary-key lookups).
-    const ids = [...new Set(rollup.books.map((b) => b.book_id))];
+    // One book's spend has nothing to rank, so top_books is empty then and
+    // the title lookup is skipped. Otherwise titles of the listed books only
+    // (primary-key lookups).
+    const topBooks = book === null ? rollup.books : [];
+    const ids = [...new Set(topBooks.map((b) => b.book_id))];
     const titles = new Map<string, string>();
     if (ids.length > 0) {
       const { results: rows } = yield* Effect.promise(() =>
@@ -213,7 +216,7 @@ export const spend: EndpointHandler<typeof Spend> = ({ query }) =>
         total_cost_usd: rollup.byModel.reduce((n, row) => n + row.cost_usd, 0),
         by_model: rollup.byModel,
         daily: rollup.daily,
-        top_books: rollup.books.map((b) => ({
+        top_books: topBooks.map((b) => ({
           ...b,
           title: titles.get(b.book_id) ?? null,
         })),
