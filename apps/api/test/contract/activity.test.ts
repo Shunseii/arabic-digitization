@@ -100,6 +100,21 @@ beforeAll(async () => {
             INSERT INTO text_revisions (file_id, book_id, change, model, note, prev_key, created_at)
             SELECT 'f' || i, 'b1', 'edit', NULL, NULL, 'k', ${NOW} FROM n`,
     },
+    // 120 days of spend for 6 books: OCR with two models every day, review
+    // on books 1 and 2 (one row per day/book/kind/model, as the rollup keeps).
+    {
+      sql: `WITH RECURSIVE d(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM d WHERE i < 119),
+                     b(j) AS (SELECT 1 UNION ALL SELECT j + 1 FROM b WHERE j < ${BOOKS})
+            INSERT INTO spend_daily (day, book_id, kind, model, cost_usd, input_tokens, output_tokens, calls, pages)
+            SELECT date(${NOW} / 1000, 'unixepoch', '-' || i || ' days'), 'b' || j, 'ocr',
+                   'inkling-2-small', 0.25, 100000, 200000, 40, 40 FROM d, b
+            UNION ALL
+            SELECT date(${NOW} / 1000, 'unixepoch', '-' || i || ' days'), 'b' || j, 'ocr',
+                   'claude-sonnet-5-5', 0.10, 10000, 5000, 2, 1 FROM d, b
+            UNION ALL
+            SELECT date(${NOW} / 1000, 'unixepoch', '-' || i || ' days'), 'b' || j, 'review',
+                   'claude-opus-5-5', 1.00, 200000, 30000, 30, 30 FROM d, b WHERE j <= 2`,
+    },
     // 30 dead messages; the first 10 were resolved later.
     {
       sql: `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 29)
@@ -234,6 +249,55 @@ describe("GET /api/jobs", () => {
     });
     // Far below the 6,000 files and 6,000 runs in the tables.
     expect(counts.d1RowsRead).toBeLessThan(3000);
+  });
+});
+
+describe("GET /api/spend", () => {
+  it("totals OCR and review spend from the daily rollup", async () => {
+    const { body } = await readMeasured<{
+      total_cost_usd: number;
+      by_model: { kind: string; model: string; cost_usd: number; pages: number }[];
+      daily: { day: string; ocr_cost_usd: number; review_cost_usd: number }[];
+      top_books: { kind: string; book_id: string; title: string; cost_usd: number }[];
+    }>({ label: "GET /api/spend?days=30", path: "/api/spend?days=30" });
+    expect(body.daily).toHaveLength(30);
+    expect(body.daily.at(-1)).toEqual({
+      day: new Date(NOW).toISOString().slice(0, 10),
+      ocr_cost_usd: expect.closeTo(BOOKS * 0.35, 9),
+      review_cost_usd: expect.closeTo(2, 9),
+    });
+    expect(body.by_model).toEqual([
+      expect.objectContaining({ kind: "review", model: "claude-opus-5-5", pages: 30 * 2 * 30 }),
+      expect.objectContaining({ kind: "ocr", model: "inkling-2-small" }),
+      expect.objectContaining({ kind: "ocr", model: "claude-sonnet-5-5" }),
+    ]);
+    expect(body.total_cost_usd).toBeCloseTo(30 * (BOOKS * 0.35 + 2), 6);
+    expect(body.top_books.filter((b) => b.kind === "ocr")).toHaveLength(5);
+    expect(body.top_books.find((b) => b.kind === "review")).toMatchObject({
+      title: expect.stringMatching(/^Book [12]$/),
+    });
+
+    await readMeasured({ label: "GET /api/spend?days=90", path: "/api/spend?days=90" });
+    const one = await readMeasured<{ total_cost_usd: number }>({
+      label: "GET /api/spend?days=90&book=b1",
+      path: "/api/spend?days=90&book=b1",
+    });
+    expect(one.body.total_cost_usd).toBeCloseTo(90 * 1.35, 6);
+  });
+
+  it("splits a book's usage into OCR and review", async () => {
+    const { body } = await readMeasured<{
+      book: {
+        usage: {
+          ocr: { cost_usd: number; pages: number };
+          review: { cost_usd: number; pages: number };
+          total_cost_usd: number;
+        };
+      };
+    }>({ label: "GET /api/books/:id (usage)", path: "/api/books/b1" });
+    expect(body.book.usage.ocr.cost_usd).toBeCloseTo(120 * 0.35, 6);
+    expect(body.book.usage.review).toMatchObject({ pages: 120 * 30 });
+    expect(body.book.usage.total_cost_usd).toBeCloseTo(120 * 1.35, 6);
   });
 });
 

@@ -312,12 +312,56 @@ export interface WorkWithCounts extends Work {
   copies_total: number;
 }
 
-/** Aggregate OCR token usage + derived cost. */
+/** Billed spend of one kind (from the daily spend rollup). */
+export interface SpendTotals {
+  cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  /** Billed provider calls. */
+  calls: number;
+  /** Pages transcribed (OCR) or reviewed (review). */
+  pages: number;
+}
+
+/** A book's usage. */
 export interface Usage {
+  /** Tokens and cost of the OCR of the pages' current text (older clients). */
   input_tokens: number;
   output_tokens: number;
   /** null if any contributing model has no known price. */
   cost_usd: number | null;
+  /** Everything OCR billed, re-runs and failed-but-billed calls included. */
+  ocr?: SpendTotals;
+  /** Everything the Opus review billed. */
+  review?: SpendTotals;
+  total_cost_usd?: number;
+}
+
+export type SpendKind = "ocr" | "review";
+
+/** GET /api/spend */
+export interface SpendResponse {
+  success: true;
+  /** First UTC day of the window ('YYYY-MM-DD'). */
+  since_day: string;
+  book_id: string | null;
+  total_cost_usd: number;
+  by_model: (SpendTotals & {
+    kind: SpendKind;
+    model: string;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+  })[];
+  /** Days with any spend, oldest first. */
+  daily: { day: string; ocr_cost_usd: number; review_cost_usd: number }[];
+  /** The 5 costliest books per kind (empty when filtered to one book). */
+  top_books: {
+    kind: SpendKind;
+    book_id: string;
+    title: string | null;
+    cost_usd: number;
+    pages: number;
+  }[];
 }
 
 /** Book plus a per-state file count (the dashboard/library summary). */
@@ -361,6 +405,10 @@ export interface FileStatus {
   output_tokens: number | null;
   /** Derived (tokens x model price); null if the model has no known price. */
   cost_usd: number | null;
+  /** Same as cost_usd: the OCR of the page's current text. */
+  ocr_cost_usd?: number | null;
+  /** What the page's Opus reviews cost; null if never reviewed. */
+  review_cost_usd?: number | null;
 }
 
 /** One file in a bulk export: metadata + transcribed text (null if none yet). */

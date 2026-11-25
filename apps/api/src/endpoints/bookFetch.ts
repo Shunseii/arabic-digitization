@@ -23,6 +23,58 @@ interface UsageRow {
   output_tokens: number;
 }
 
+interface SpendTotalsRow {
+  kind: "ocr" | "review";
+  cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  calls: number;
+  pages: number;
+}
+
+const NO_SPEND = {
+  cost_usd: 0,
+  input_tokens: 0,
+  output_tokens: 0,
+  calls: 0,
+  pages: 0,
+};
+
+function bookUsage({
+  usageRows,
+  spendRows,
+}: {
+  usageRows: UsageRow[];
+  spendRows: SpendTotalsRow[];
+}) {
+  if (usageRows.length === 0 && spendRows.length === 0) return null;
+  const current = totalUsage(usageRows) ?? {
+    input_tokens: 0,
+    output_tokens: 0,
+    cost_usd: 0,
+  };
+  const spendOf = (kind: SpendTotalsRow["kind"]) => {
+    const row = spendRows.find((r) => r.kind === kind);
+    return row
+      ? {
+          cost_usd: row.cost_usd,
+          input_tokens: row.input_tokens,
+          output_tokens: row.output_tokens,
+          calls: row.calls,
+          pages: row.pages,
+        }
+      : NO_SPEND;
+  };
+  const ocr = spendOf("ocr");
+  const review = spendOf("review");
+  return {
+    ...current,
+    ocr,
+    review,
+    total_cost_usd: ocr.cost_usd + review.cost_usd,
+  };
+}
+
 // Aggregate token usage + cost, grouped by model so mixed-model books price
 // correctly. cost_usd is null if any contributing model has no known price.
 function totalUsage(rows: UsageRow[]) {
@@ -81,14 +133,23 @@ export const bookFetch: EndpointHandler<typeof BookFetch> = ({ params }) =>
       files_total += row.c;
     }
 
-    const { results: usageRows } = yield* Effect.promise(() =>
-      env.DB.prepare(
-        `SELECT NULLIF(ocr_model, '') AS ocr_model, input_tokens, output_tokens
-           FROM book_usage WHERE book_id = ? AND n > 0`,
-      )
-        .bind(params.bookId)
-        .all<UsageRow>(),
+    const [usageResult, spendResult] = yield* Effect.promise(() =>
+      env.DB.batch([
+        env.DB.prepare(
+          `SELECT NULLIF(ocr_model, '') AS ocr_model, input_tokens, output_tokens
+             FROM book_usage WHERE book_id = ? AND n > 0`,
+        ).bind(params.bookId),
+        // The book's rows of the spend rollup, through idx_spend_daily_book.
+        env.DB.prepare(
+          `SELECT kind, SUM(cost_usd) AS cost_usd, SUM(input_tokens) AS input_tokens,
+                  SUM(output_tokens) AS output_tokens, SUM(calls) AS calls,
+                  SUM(pages) AS pages
+             FROM spend_daily WHERE book_id = ? GROUP BY kind`,
+        ).bind(params.bookId),
+      ]),
     );
+    const usageRows = (usageResult?.results ?? []) as UsageRow[];
+    const spendRows = (spendResult?.results ?? []) as SpendTotalsRow[];
 
     return respond({
       endpoint: BookFetch,
@@ -100,7 +161,7 @@ export const bookFetch: EndpointHandler<typeof BookFetch> = ({ params }) =>
           review_enabled: book.review_enabled === 1,
           files_total,
           counts,
-          usage: totalUsage(usageRows),
+          usage: bookUsage({ usageRows, spendRows }),
         },
       },
     });

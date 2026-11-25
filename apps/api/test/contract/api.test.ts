@@ -221,6 +221,7 @@ describe("public routes", () => {
         "POST /api/search/reindex",
         "GET /api/jobs",
         "GET /api/reviews/summary",
+        "GET /api/spend",
         "POST /api/admin/ocr-runs/recompute-metrics",
       ].sort(),
     );
@@ -462,7 +463,7 @@ describe("books", () => {
       request: () => h.api("/api/books/fetch-1"),
     });
     expect(response.status).toBe(200);
-    expect(counts).toMatchObject({ d1Queries: 3, r2Reads: 0 });
+    expect(counts).toMatchObject({ d1Queries: 4, r2Reads: 0 });
     const expectedCost =
       (costUsd({
         model: "inkling-2-small",
@@ -495,6 +496,9 @@ describe("books", () => {
           input_tokens: 3000,
           output_tokens: 600,
           cost_usd: expect.any(Number),
+          ocr: { cost_usd: 0, input_tokens: 0, output_tokens: 0, calls: 0, pages: 0 },
+          review: { cost_usd: 0, input_tokens: 0, output_tokens: 0, calls: 0, pages: 0 },
+          total_cost_usd: 0,
         },
       },
     });
@@ -762,6 +766,12 @@ describe("book status", () => {
         inputTokens: 105,
         outputTokens: 55,
       }),
+      ocr_cost_usd: costUsd({
+        model: "inkling-2-small",
+        inputTokens: 105,
+        outputTokens: 55,
+      }),
+      review_cost_usd: null,
     });
     expect(body.files.find((f) => f.file_id === "st-0000")).toMatchObject({
       state: "failed",
@@ -897,6 +907,8 @@ describe("recent files", () => {
       input_tokens: null,
       output_tokens: null,
       cost_usd: null,
+      ocr_cost_usd: null,
+      review_cost_usd: null,
       book_id: "recent-b",
       book_title: "كتاب ب",
     });
@@ -2374,7 +2386,7 @@ describe("every API operation", () => {
         path: path.replace(/\{[^}]+\}/g, "x"),
       })),
     );
-    expect(operations.length).toBe(32);
+    expect(operations.length).toBe(33);
     for (const { method, path } of operations) {
       for (const headers of [{}, { Authorization: "Bearer wrong" }] as Record<
         string,

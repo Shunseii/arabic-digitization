@@ -61,6 +61,7 @@ import {
   sha256Hex,
 } from "./lib/ocrRuns";
 import { historyKey } from "./lib/pageText";
+import { ocrSpend } from "./lib/spend";
 import { enqueueReview } from "./review/pending";
 import type { OcrEngine } from "./types";
 
@@ -613,6 +614,12 @@ function storeTranscription({
         textKey: runKey,
         measurement: measurePage(text),
       }),
+      ...ocrSpend({
+        bookId: row.book_id,
+        at: run.createdAt,
+        calls: run.calls,
+        storedModel: output.model,
+      }),
     );
     yield* db.batch(statements);
     yield* bucket.putText({ key: textKey, text });
@@ -670,6 +677,12 @@ function storeFailure({
         finalModel: null,
         textKey: null,
         measurement: null,
+      }),
+      ...ocrSpend({
+        bookId: row.book_id,
+        at: run.createdAt,
+        calls: run.calls,
+        storedModel: null,
       }),
     ]);
     return { status, error, finalModel: null };

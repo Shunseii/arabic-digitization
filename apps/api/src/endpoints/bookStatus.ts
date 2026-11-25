@@ -6,24 +6,27 @@ import { respond } from "../http/respond";
 import { costUsd } from "../lib/cost";
 import { FileStatus } from "../types";
 
-export type FileStatusRow = Omit<typeof FileStatus.Type, "cost_usd"> & {
+export type FileStatusRow = Omit<
+  typeof FileStatus.Type,
+  "cost_usd" | "ocr_cost_usd"
+> & {
   ocr_model: string | null;
 };
 
 export const FILE_STATUS_COLUMNS =
-  "file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, ocr_model";
+  "file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, ocr_model, review_cost_usd";
 
 export const toFileStatus = ({
   ocr_model,
   ...f
-}: FileStatusRow): typeof FileStatus.Type => ({
-  ...f,
-  cost_usd: costUsd({
+}: FileStatusRow): typeof FileStatus.Type => {
+  const ocrCost = costUsd({
     model: ocr_model,
     inputTokens: f.input_tokens,
     outputTokens: f.output_tokens,
-  }),
-});
+  });
+  return { ...f, cost_usd: ocrCost, ocr_cost_usd: ocrCost };
+};
 
 // Page order: unnumbered pages last, a missing order_hint first (the
 // generated columns of migration 0010, walked by idx_files_book_order).

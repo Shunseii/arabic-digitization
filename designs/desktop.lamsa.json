@@ -487,6 +487,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -494,8 +499,9 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "412",
-        "m1": "2 h",
-        "metas": "1",
+        "m1": "$0.0031",
+        "m2": "2 h",
+        "metas": "2",
         "primary": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة…",
         "primaryStyle": "arabic",
         "showLead": true,
@@ -5981,7 +5987,7 @@
       "type": "instance"
     },
     "874eLuee": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "QhRFFziZ",
@@ -7459,6 +7465,21 @@
         "width": 36
       },
       "type": "frame"
+    },
+    "9rCOlIrD": {
+      "componentId": "ZC9WELKS",
+      "index": "a2V",
+      "name": "TableHeader",
+      "parentId": "f0srAt49",
+      "props": {
+        "label": "Cost",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 80
+      },
+      "type": "instance"
     },
     "9tYrgf3M": {
       "content": "Page 412",
@@ -13306,7 +13327,7 @@
       "type": "frame"
     },
     "Hc88UcJM": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "TbL8FwSr",
@@ -16046,6 +16067,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -16053,8 +16079,9 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "414",
-        "m1": "1 h",
-        "metas": "1",
+        "m1": "$0.0029",
+        "m2": "1 h",
+        "metas": "2",
         "primary": "Blank page",
         "primaryStyle": "italic",
         "showLead": true,
@@ -16176,6 +16203,25 @@
         "line-height": 1.1
       },
       "type": "text"
+    },
+    "Lnfj4lem": {
+      "componentId": "rBYFWXt7",
+      "index": "a1",
+      "name": "Cost split",
+      "parentId": "RCrUhquu",
+      "props": {
+        "line1": "OCR · $0.0031",
+        "line2": "Review · $0.0151",
+        "series": "two",
+        "title": "Page 410 · $0.0182"
+      },
+      "style": {
+        "position": "absolute",
+        "right": 130,
+        "top": 96,
+        "z-index": 2
+      },
+      "type": "instance"
     },
     "LoY0C3M3": {
       "content": "",
@@ -18127,6 +18173,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -18134,8 +18185,9 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "415",
-        "m1": "now",
-        "metas": "1",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
         "primary": "Not transcribed yet",
         "primaryStyle": "muted",
         "showLead": true,
@@ -18911,6 +18963,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -18918,8 +18975,9 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "417",
-        "m1": "now",
-        "metas": "1",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
         "primary": "Not transcribed yet",
         "primaryStyle": "muted",
         "showLead": true,
@@ -19748,7 +19806,8 @@
         "display": "flex",
         "flex-direction": "column",
         "gap": "{spacing.0}",
-        "padding": "{spacing.1} {spacing.2}"
+        "padding": "{spacing.1} {spacing.2}",
+        "position": "relative"
       },
       "type": "frame"
     },
@@ -20510,7 +20569,7 @@
       "type": "frame"
     },
     "SbjhfjgD": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "y3iUVw8G",
@@ -21993,6 +22052,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -22000,8 +22064,9 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "413",
-        "m1": "1 h",
-        "metas": "1",
+        "m1": "$0.0042",
+        "m2": "1 h",
+        "metas": "2",
         "primary": "Inkling cut off at 4,096 tokens; Claude fallback rate-limited (429)",
         "primaryStyle": "danger",
         "showLead": true,
@@ -23979,7 +24044,7 @@
       "type": "instance"
     },
     "YLtUIUbN": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "XO9tPdcb",
@@ -24214,6 +24279,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -24221,8 +24291,9 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "411",
-        "m1": "2 h",
-        "metas": "1",
+        "m1": "$0.0177",
+        "m2": "2 h",
+        "metas": "2",
         "primary": "ويدخل في هذا التعريف النفاق الاعتقادي، والنفاق العملي، كالذي ذكر النبي صلى الله عليه وسلم في قوله…",
         "primaryStyle": "arabic",
         "showLead": true,
@@ -27008,7 +27079,7 @@
       "type": "frame"
     },
     "cMRvLvRH": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "FsDZfgNe",
@@ -27849,7 +27920,7 @@
       "type": "text"
     },
     "dvUIye7F": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "piLVJbXW",
@@ -32494,7 +32565,7 @@
       "type": "text"
     },
     "kTfkhaEO": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "2L9sQO6Y",
@@ -33508,7 +33579,7 @@
       "type": "frame"
     },
     "lnbDRyej": {
-      "content": "1,150 pages · $3.34 OCR · Abd al-Rahman al-Sa'di",
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
       "name": "Sub",
       "parentId": "zlfCNwGs",
@@ -37481,6 +37552,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -37488,14 +37564,15 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "410",
-        "m1": "2 h",
-        "metas": "1",
+        "m1": "$0.0182",
+        "m2": "2 h",
+        "metas": "2",
         "primary": "﴿وَمِنَ النَّاسِ مَنْ يَقُولُ آمَنَّا بِاللَّهِ﴾ اعلم أن النفاق هو: إظهار الخير وإبطان الشر، ويدخل في هذا التعريف النفاق الاعتقادي والعملي…",
         "primaryStyle": "arabic",
         "showLead": true,
         "showPre": false,
         "showStatus": true,
-        "state": "default",
+        "state": "hover",
         "status": "done",
         "tone": "ok",
         "trailing": "more"
@@ -41437,6 +41514,11 @@
       "overrides": {
         "D3IFLKR9": {
           "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
             "width": 90
           }
         }
@@ -41444,8 +41526,9 @@
       "parentId": "cC9HOGtv",
       "props": {
         "lead": "416",
-        "m1": "now",
-        "metas": "1",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
         "primary": "Not transcribed yet",
         "primaryStyle": "muted",
         "showLead": true,

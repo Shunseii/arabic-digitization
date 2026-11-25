@@ -81,6 +81,13 @@ const GROUPS: { key: ProgressGroup; label: string; color: keyof Palette }[] = [
 
 type PageSelection = { file: FileStatus; label: string };
 
+// A page's total cost (its OCR plus its reviews), or nothing if unknown.
+const pageCostLabel = (f: FileStatus): string | undefined => {
+  const ocr = f.ocr_cost_usd ?? f.cost_usd;
+  if (ocr == null && f.review_cost_usd == null) return undefined;
+  return `$${((ocr ?? 0) + (f.review_cost_usd ?? 0)).toFixed(4)}`;
+};
+
 const capitalize = (s: string): string =>
   s.charAt(0).toUpperCase() + s.slice(1);
 // Where a jumped-to row lands: a little below the top of the list.
@@ -303,11 +310,20 @@ export default function BookScreen() {
       ? { ...g, label: "paused", color: "ink3" as const }
       : g,
   );
-  const costUsd = book?.usage?.cost_usd;
+  // Everything billed for the book (re-runs included), split by kind; an
+  // older API without the split reports the OCR of the current text only.
+  const ocrCost = book?.usage?.ocr?.cost_usd ?? book?.usage?.cost_usd;
+  const reviewCost = book?.usage?.review?.cost_usd ?? 0;
   const summary =
     files.length === 0
       ? "No pages yet"
-      : `${files.length} pages${costUsd != null ? ` · $${costUsd.toFixed(2)} OCR` : ""}`;
+      : [
+          `${files.length} pages`,
+          ocrCost != null ? `$${ocrCost.toFixed(2)} OCR` : null,
+          reviewCost > 0 ? `$${reviewCost.toFixed(2)} review` : null,
+        ]
+          .filter((part) => part !== null)
+          .join(" · ");
 
   const openScan = () =>
     router.push(
@@ -797,11 +813,7 @@ const PageRow = memo(
               <StatusLine
                 state={file.state}
                 paused={paused}
-                trailing={
-                  file.cost_usd != null
-                    ? `$${file.cost_usd.toFixed(4)}`
-                    : undefined
-                }
+                trailing={pageCostLabel(file)}
               />
             </View>
           </Pressable>

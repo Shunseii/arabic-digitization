@@ -112,11 +112,27 @@ export type FileState = typeof FileState.Type;
 
 // Aggregate OCR usage across the book's done pages; null if none have usage
 // data yet. cost_usd is null if any contributing model lacks a known price.
+const SpendTotals = Schema.Struct({
+  cost_usd: Schema.Number,
+  input_tokens: Schema.Int,
+  output_tokens: Schema.Int,
+  calls: Schema.Int.annotate({ description: "Billed provider calls" }),
+  pages: Schema.Int.annotate({
+    description: "Pages transcribed (ocr) or reviewed (review)",
+  }),
+});
+
+// input_tokens/output_tokens/cost_usd: the OCR of the pages' current text
+// (older clients read these). ocr/review/total_cost_usd: everything billed,
+// re-runs and failed-but-billed calls included (the spend rollup).
 const BookUsage = Schema.NullOr(
   Schema.Struct({
     input_tokens: Schema.Int,
     output_tokens: Schema.Int,
     cost_usd: Schema.NullOr(Schema.Number),
+    ocr: SpendTotals,
+    review: SpendTotals,
+    total_cost_usd: Schema.Number,
   }),
 );
 
@@ -156,6 +172,12 @@ export const FileStatus = Schema.Struct({
   input_tokens: Schema.NullOr(Schema.Int),
   output_tokens: Schema.NullOr(Schema.Int),
   cost_usd: Schema.NullOr(Schema.Number),
+  ocr_cost_usd: Schema.NullOr(Schema.Number).annotate({
+    description: "The OCR of the page's current text (same as cost_usd)",
+  }),
+  review_cost_usd: Schema.NullOr(Schema.Number).annotate({
+    description: "What the page's Opus reviews cost; null if never reviewed",
+  }),
 });
 export type FileStatus = typeof FileStatus.Type;
 

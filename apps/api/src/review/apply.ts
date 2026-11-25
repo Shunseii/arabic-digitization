@@ -25,6 +25,7 @@ import { applyEdits } from "../endpoints/fileTextEdit";
 import { REVIEW_MODEL, type ReviewUsage, reviewCostUsd } from "../lib/cost";
 import { sha256Hex } from "../lib/ocrRuns";
 import { reviewHistoryKey } from "../lib/pageText";
+import { addSpend, spendDay } from "../lib/spend";
 import { REVIEW_MAX_ATTEMPTS, type ReviewApplyMessage } from "./message";
 import { enqueueReview } from "./pending";
 import {
@@ -336,11 +337,73 @@ export function applyReview(
     );
     if (seen) return "duplicate" as const;
 
+    // Only the first record of this page's review counts: a twin delivery
+    // adds no spend, cost or revision.
+    const notRecorded = {
+      sql: "NOT EXISTS (SELECT 1 FROM page_reviews WHERE file_id = ? AND batch_id = ?)",
+      params: key,
+    };
+    // A billed result adds to the spend rollup and to the page's review cost
+    // (with the new preview when the review changed the text), in the batch
+    // that records it. Unbilled results (errored, expired, canceled) add
+    // nothing.
+    const costStatements = ({
+      record,
+      preview,
+      at,
+    }: {
+      record: ReviewRecord;
+      preview: string | null;
+      at: number;
+    }): Statement[] => {
+      const usage = record.usage ?? NO_USAGE;
+      const billed = usage.inputTokens > 0 || usage.outputTokens > 0;
+      if (!billed && preview === null) return [];
+      const cost = billed ? reviewCostUsd(usage) : 0;
+      return [
+        ...(billed
+          ? [
+              addSpend({
+                row: {
+                  day: spendDay(at),
+                  bookId: msg.bookId,
+                  kind: "review",
+                  model: REVIEW_MODEL,
+                  costUsd: cost,
+                  inputTokens: usage.inputTokens,
+                  outputTokens: usage.outputTokens,
+                  cacheCreationInputTokens: usage.cacheCreationInputTokens,
+                  cacheReadInputTokens: usage.cacheReadInputTokens,
+                  calls: 1,
+                  pages:
+                    record.status === "applied" || record.status === "no_changes"
+                      ? 1
+                      : 0,
+                },
+                onlyIf: notRecorded,
+              }),
+            ]
+          : []),
+        statement(
+          `UPDATE files
+              SET review_cost_usd = CASE WHEN ? THEN COALESCE(review_cost_usd, 0) + ? ELSE review_cost_usd END,
+                  preview = COALESCE(?, preview), updated_at = ?
+            WHERE file_id = ? AND ${notRecorded.sql}`,
+          [billed ? 1 : 0, cost, preview, at, msg.fileId, ...key],
+        ),
+      ];
+    };
+
     // A review that got through resolves an earlier dead apply of this page
     // (a no-op unless such a row exists).
-    const finish = (record: ReviewRecord, extra: Statement[] = []) =>
+    const finish = (
+      record: ReviewRecord,
+      extra: Statement[] = [],
+      preview: string | null = null,
+    ) =>
       db
         .batch([
+          ...costStatements({ record, preview, at: clock.now() }),
           ...extra,
           insertPageReview({ msg, at: clock.now(), record }),
           ...(record.status === "applied" || record.status === "no_changes"
@@ -511,10 +574,6 @@ export function applyReview(
       { status: "applied", ...reviewed, revisionFromLastInsert: true },
       [
         statement(
-          "UPDATE files SET preview = ?, updated_at = ? WHERE file_id = ?",
-          [outcome.text.slice(0, 120), at, msg.fileId],
-        ),
-        statement(
           `INSERT INTO text_revisions (file_id, book_id, change, model, note, prev_key, created_at)
            SELECT ?, ?, 'review', ?, ?, ?, ?
             WHERE NOT EXISTS (SELECT 1 FROM page_reviews WHERE file_id = ? AND batch_id = ?)`,
@@ -529,6 +588,7 @@ export function applyReview(
           ],
         ),
       ],
+      outcome.text.slice(0, 120),
     );
     yield* indexer.index({ fileId: msg.fileId, text: outcome.text });
     return "applied" as const;

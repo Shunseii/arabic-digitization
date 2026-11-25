@@ -51,6 +51,7 @@ import {
 } from "../endpoints/ocrRunsRecomputeMetrics";
 import { ReviewSummary, reviewSummary } from "../endpoints/reviewSummary";
 import { scanSigned } from "../endpoints/scanSigned";
+import { Spend, spend } from "../endpoints/spend";
 import { SearchReindex, searchReindex } from "../endpoints/searchReindex";
 import { TagList, tagList } from "../endpoints/tagList";
 import { WorkCreate, workCreate } from "../endpoints/workCreate";
@@ -115,7 +116,7 @@ export const Api = HttpApi.make("api")
   // read-only key — see infra/meili). Reindex rebuilds the index from R2.
   .add(HttpApiGroup.make("Search").add(SearchReindex))
   // Running work and the Opus review's usage (read-only views over D1).
-  .add(HttpApiGroup.make("Activity").add(Jobs, ReviewSummary))
+  .add(HttpApiGroup.make("Activity").add(Jobs, ReviewSummary, Spend))
   // Admin: recompute the OCR run metrics cache (lib/metrics.ts) in pages.
   .add(HttpApiGroup.make("Admin").add(OcrRunsRecomputeMetrics))
   .middleware(InputValidation)
@@ -171,7 +172,8 @@ const SearchLive = HttpApiBuilder.group(Api, "Search", (handlers) =>
 );
 
 const ActivityLive = HttpApiBuilder.group(Api, "Activity", (handlers) =>
-  handlers.handle("jobs", jobs).handle("reviewSummary", reviewSummary),
+  handlers.handle("jobs", jobs).handle("reviewSummary", reviewSummary)
+    .handle("spend", spend),
 );
 
 const AdminLive = HttpApiBuilder.group(Api, "Admin", (handlers) =>

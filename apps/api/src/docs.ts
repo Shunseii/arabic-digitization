@@ -110,8 +110,14 @@ GET /api/books
 GET /api/books/:bookId
   200 -> { success, book: { id, title, created_at, ocr_instructions, ocr_engine, paused,
            review_enabled, review_effort, files_total, counts,
-           usage: { input_tokens, output_tokens, cost_usd } | null } }
-  // usage aggregates the book's done pages; null if none tracked yet.
+           usage: { input_tokens, output_tokens, cost_usd,
+                    ocr: Spend, review: Spend, total_cost_usd } | null } }
+  Spend = { cost_usd, input_tokens, output_tokens, calls, pages }
+  // input_tokens/output_tokens/cost_usd: the OCR of the pages' current text.
+  // ocr / review: everything billed for this book (re-runs and failed calls
+  // that still produced tokens included; unbilled review results add $0);
+  // calls = billed provider calls, pages = pages transcribed / reviewed.
+  // usage is null if nothing was tracked yet.
   404 if missing.
 
 PATCH /api/books/:bookId
@@ -145,7 +151,9 @@ DELETE /api/books/:bookId
 GET /api/books/:bookId/status[?since=<epoch ms>]
   Per-file states (no text). Each file includes text_edited_at (epoch ms of the
   last hand edit, null if none).
-  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, cost_usd } ], files_total }
+  200 -> { success, files: [ { file_id, page_number, state, role, order_hint, preview, error, updated_at, text_edited_at, input_tokens, output_tokens, cost_usd, ocr_cost_usd, review_cost_usd } ], files_total }
+  // ocr_cost_usd (= cost_usd) is the OCR of the page's current text;
+  // review_cost_usd is what its Opus reviews cost (null if never reviewed).
   // With since, files holds only files whose updated_at > since; merge them
   // into the previous list by file_id. files_total always counts every file:
   // if the merged list is longer, files were deleted, so refetch without since.
@@ -292,6 +300,18 @@ GET /api/jobs
   // when the batch ended, so ended_at - submitted_at is its duration) | applying
   // (pages being applied: reviewed of pages) | done | empty | timed_out |
   // failed. recent: the last 10 finished batches.
+
+GET /api/spend[?days=<1-90, default 30>][&book=<bookId>]
+  What OCR and the Opus review cost, from a daily rollup (UTC days, today
+  included). Every billed call counts: OCR re-runs, fallbacks, failed calls
+  that still produced tokens, and billed review results.
+  200 -> { success, since_day, book_id, total_cost_usd,
+           by_model: [ { kind: "ocr"|"review", model, cost_usd, input_tokens, output_tokens,
+                         cache_creation_input_tokens, cache_read_input_tokens, calls, pages } ],
+           daily: [ { day, ocr_cost_usd, review_cost_usd } ],
+           top_books: [ { kind, book_id, title, cost_usd, pages } ] }
+  // daily lists only days with spend, oldest first. top_books: the 5 costliest
+  // books per kind (empty with book=).
 
 GET /api/reviews/summary[?days=<1-90, default 30>][&book=<bookId>]
   Opus review totals over the window, for the usage dashboard.
