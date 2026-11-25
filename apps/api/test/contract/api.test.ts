@@ -215,6 +215,7 @@ describe("public routes", () => {
         "GET /api/books/{bookId}/files/{fileId}/text",
         "PATCH /api/books/{bookId}/files/{fileId}/text",
         "GET /api/books/{bookId}/files/{fileId}/text/history",
+        "POST /api/books/{bookId}/files/{fileId}/review",
         "GET /api/books/{bookId}/files/{fileId}/reviews",
         "GET /api/books/{bookId}/files/{fileId}/image",
         "POST /api/books/{bookId}/files/{fileId}/highlight",
@@ -1873,6 +1874,236 @@ describe("files", () => {
   });
 });
 
+describe("page review", () => {
+  const ON_DEMAND_ID = /^review-ondemand-\d+$/;
+  const reviewPage = (fileId: string) =>
+    h.api(`/api/books/pr-1/files/${fileId}/review`, { method: "POST" });
+  const queueRow = async (fileId: string) =>
+    (
+      await h.query(
+        "SELECT instance_id, attempts, requested FROM review_queue WHERE file_id = ?",
+        [fileId],
+      )
+    )[0] ?? null;
+
+  beforeAll(async () => {
+    // Review is off for the book: a page asked for is reviewed anyway.
+    await seedBook({ h, id: "pr-1" });
+    await seedFiles({
+      h,
+      bookId: "pr-1",
+      files: [
+        { fileId: "pr-new", text: "نص", preview: "نص" },
+        { fileId: "pr-new-2", text: "نص", preview: "نص" },
+        { fileId: "pr-new-3", text: "نص", preview: "نص" },
+        { fileId: "pr-new-4", text: "نص", preview: "نص" },
+        { fileId: "pr-waiting", text: "نص", preview: "نص" },
+        { fileId: "pr-in-batch", text: "نص", preview: "نص" },
+        { fileId: "pr-edited", text: "نص", preview: "نص", textEditedAt: 5 },
+        { fileId: "pr-blank", text: "", preview: "" },
+        { fileId: "pr-queued" },
+      ],
+    });
+    await h.sql([
+      {
+        sql: `INSERT INTO review_queue (file_id, book_id, queued_at, instance_id, attempts, requested)
+              VALUES ('pr-waiting', 'pr-1', 1, NULL, 2, 0),
+                     ('pr-in-batch', 'pr-1', 1, 'review-9', 1, 0)`,
+      },
+    ]);
+  });
+
+  it("queues the page as asked for and starts a run, with the book's review off", async () => {
+    const { response, counts, operations } = await measured({
+      h,
+      request: () => reviewPage("pr-new"),
+    });
+    expect(response.status).toBe(202);
+    expect(await (await reviewPage("pr-new")).json()).toEqual({
+      success: true,
+      queued: false,
+      already_queued: true,
+      run_started: true,
+      instance_id: expect.stringMatching(ON_DEMAND_ID),
+    });
+    // One D1 round trip; one row written (the queue row, WITHOUT ROWID).
+    expect(counts).toMatchObject({
+      d1RoundTrips: 1,
+      d1Queries: 4,
+      d1RowsWritten: 1,
+      workflowCreates: 1,
+      r2Reads: 0,
+      queueSends: 0,
+    });
+    expect(counts.d1RowsRead).toBeLessThanOrEqual(8);
+    expect(
+      operations.find((o) => o.kind === "workflow.create")?.detail,
+    ).toMatch(ON_DEMAND_ID);
+    expect(await queueRow("pr-new")).toEqual({
+      instance_id: null,
+      attempts: 0,
+      requested: 1,
+    });
+  });
+
+  it("refuses pages that aren't done, are blank or were edited by hand", async () => {
+    const cases = [
+      {
+        fileId: "pr-edited",
+        error: "Page was edited by hand; a review never overwrites a hand edit",
+      },
+      {
+        fileId: "pr-blank",
+        error: "Page is blank; there is nothing to review",
+      },
+      {
+        fileId: "pr-queued",
+        error:
+          "Page isn't transcribed yet (state: queued); only done pages can be reviewed",
+      },
+    ];
+    for (const { fileId, error } of cases) {
+      const { response, counts } = await measured({
+        h,
+        request: () => reviewPage(fileId),
+      });
+      expect(response.status).toBe(409);
+      expect(counts).toMatchObject({ d1RowsWritten: 0, workflowCreates: 0 });
+      await expectError({
+        response: await reviewPage(fileId),
+        status: 409,
+        error,
+      });
+      expect(await queueRow(fileId)).toBeNull();
+    }
+  });
+
+  it("doesn't queue a page twice", async () => {
+    // Waiting: now asked for, with its tries reset.
+    expect(await (await reviewPage("pr-waiting")).json()).toMatchObject({
+      queued: false,
+      already_queued: true,
+      run_started: true,
+    });
+    expect(await queueRow("pr-waiting")).toEqual({
+      instance_id: null,
+      attempts: 0,
+      requested: 1,
+    });
+    // In a running batch: left alone, and no run is started for it.
+    const { response, counts } = await measured({
+      h,
+      request: () => reviewPage("pr-in-batch"),
+    });
+    expect(response.status).toBe(202);
+    expect(counts).toMatchObject({ d1RowsWritten: 0, workflowCreates: 0 });
+    expect(await (await reviewPage("pr-in-batch")).json()).toEqual({
+      success: true,
+      queued: false,
+      already_queued: true,
+      run_started: false,
+      instance_id: null,
+    });
+    expect(await queueRow("pr-in-batch")).toEqual({
+      instance_id: "review-9",
+      attempts: 1,
+      requested: 0,
+    });
+  });
+
+  it("leaves the page for the next run while a run is going", async () => {
+    const now = Date.now();
+    await h.sql([
+      {
+        sql: `INSERT INTO review_batches (instance_id, created_at, model, pages, stage)
+              VALUES ('review-running', ?, 'claude-opus-5-5', 3, 'processing'),
+                     ('review-applying', ?, 'claude-opus-5-5', 3, 'applying'),
+                     ('review-stuck', ?, 'claude-opus-5-5', 3, 'processing')`,
+        // A running row older than 28 hours is stuck (the cron sweeps it).
+        params: [now, now, now - 29 * 60 * 60 * 1000],
+      },
+    ]);
+    const { response, counts } = await measured({
+      h,
+      request: () => reviewPage("pr-new-2"),
+    });
+    expect(response.status).toBe(202);
+    expect(counts.workflowCreates).toBe(0);
+    expect(await queueRow("pr-new-2")).toEqual({
+      instance_id: null,
+      attempts: 0,
+      requested: 1,
+    });
+    expect(await (await reviewPage("pr-new-2")).json()).toEqual({
+      success: true,
+      queued: false,
+      already_queued: true,
+      run_started: false,
+      instance_id: null,
+    });
+
+    // Once that run has moved on to applying, a click starts a run again.
+    await h.sql([
+      {
+        sql: "UPDATE review_batches SET stage = 'applying' WHERE instance_id = 'review-running'",
+      },
+    ]);
+    expect(await (await reviewPage("pr-new-2")).json()).toMatchObject({
+      run_started: true,
+      instance_id: expect.stringMatching(ON_DEMAND_ID),
+    });
+    await h.sql([
+      {
+        sql: "DELETE FROM review_batches WHERE instance_id IN ('review-running', 'review-applying', 'review-stuck')",
+      },
+    ]);
+  });
+
+  it("starts one run for clicks in the same minute", async () => {
+    type Body = { instance_id: string | null };
+    const clickBoth = async () => {
+      await h.ops();
+      const first = (await (await reviewPage("pr-new-3")).json()) as Body;
+      const second = (await (await reviewPage("pr-new-4")).json()) as Body;
+      const { operations } = await h.ops();
+      return { first, second, operations };
+    };
+    let clicks = await clickBoth();
+    // Clicked again if the two straddled a minute boundary.
+    if (clicks.first.instance_id !== clicks.second.instance_id) {
+      clicks = await clickBoth();
+    }
+    expect(clicks.first).toMatchObject({ run_started: true });
+    expect(clicks.second).toMatchObject({
+      run_started: true,
+      instance_id: clicks.first.instance_id,
+    });
+    // Both creates used the same id; the second found the instance there
+    // (the first may too, if an earlier test started it this minute).
+    const creates = clicks.operations
+      .filter((o) => o.kind === "workflow.create")
+      .map((o) => o.detail);
+    expect(creates).toHaveLength(2);
+    expect(creates[0]?.startsWith(clicks.first.instance_id ?? "-")).toBe(true);
+    expect(creates[1]).toBe(`${clicks.first.instance_id} (duplicate)`);
+  });
+
+  it("answers 404 for a missing book or page", async () => {
+    await expectError({
+      response: await h.api("/api/books/pr-missing/files/pr-new/review", {
+        method: "POST",
+      }),
+      status: 404,
+      error: "Book 'pr-missing' not found",
+    });
+    await expectError({
+      response: await reviewPage("pr-missing"),
+      status: 404,
+      error: "File 'pr-missing' not found",
+    });
+  });
+});
+
 describe("file text", () => {
   beforeAll(async () => {
     await seedBook({ h, id: "text-1" });
@@ -2472,7 +2703,7 @@ describe("every API operation", () => {
         path: path.replace(/\{[^}]+\}/g, "x"),
       })),
     );
-    expect(operations.length).toBe(33);
+    expect(operations.length).toBe(34);
     for (const { method, path } of operations) {
       for (const headers of [{}, { Authorization: "Bearer wrong" }] as Record<
         string,

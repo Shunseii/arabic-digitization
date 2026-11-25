@@ -17,11 +17,13 @@ export interface Operation {
     | "r2.head"
     | "kv.get"
     | "kv.put"
-    | "queue.send";
+    | "queue.send"
+    | "workflow.create";
   detail?: string;
   // D1 statements run (a batch runs several in one round trip).
   statements?: number;
   rowsRead?: number;
+  rowsWritten?: number;
 }
 
 const operations: Operation[] = [];
@@ -29,7 +31,7 @@ const queueMessages: unknown[] = [];
 
 interface D1Result {
   results: unknown[];
-  meta: { rows_read?: number; changes?: number };
+  meta: { rows_read?: number; rows_written?: number; changes?: number };
 }
 
 function countingStatement({
@@ -44,6 +46,7 @@ function countingStatement({
       kind: "d1.query",
       detail: sql,
       rowsRead: result.meta.rows_read ?? 0,
+      rowsWritten: result.meta.rows_written ?? 0,
     });
     return result;
   };
@@ -83,6 +86,10 @@ function countingDatabase(db: D1Database): D1Database {
         detail: `${statements.length} statements`,
         statements: statements.length,
         rowsRead: results.reduce((n, r) => n + (r.meta.rows_read ?? 0), 0),
+        rowsWritten: results.reduce(
+          (n, r) => n + (r.meta.rows_written ?? 0),
+          0,
+        ),
       });
       return results;
     },
@@ -163,6 +170,27 @@ function countingQueue(queue: Queue): Queue {
     },
   } as unknown as Queue;
 }
+
+// The harness runs no Workflow: the review Workflow binding is a fake that
+// records creates and, like the real one, rejects an id already taken.
+const reviewInstances = new Set<string>();
+
+const fakeReviewWorkflow = {
+  create: async ({ id }: { id: string; params?: unknown }) => {
+    const duplicate = reviewInstances.has(id);
+    operations.push({
+      kind: "workflow.create",
+      detail: duplicate ? `${id} (duplicate)` : id,
+    });
+    if (duplicate) {
+      throw new Error(
+        `Instance with id ${id} already exists (instance.already_exists)`,
+      );
+    }
+    reviewInstances.add(id);
+    return { id };
+  },
+} as unknown as Workflow;
 
 async function handleTestRoute({
   request,
@@ -251,6 +279,7 @@ export default {
       BUCKET: countingBucket(env.BUCKET),
       HIGHLIGHT_CACHE: countingKv(env.HIGHLIGHT_CACHE),
       OCR_Q: countingQueue(env.OCR_Q),
+      REVIEW_WORKFLOW: fakeReviewWorkflow,
     };
     return worker.fetch(request, counted, ctx);
   },

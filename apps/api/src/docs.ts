@@ -73,6 +73,8 @@ Batches API (half price, results within 24 hours), not inline:
   Turning review on does not queue pages already done: POST .../review does.
 - Every 3 hours, if pages are waiting, one batch of up to 100 is submitted.
   Results are applied page by page as they come back.
+- POST .../files/:fileId/review re-runs one page's review and starts a run
+  at once (see below).
 - Edits are applied like a hand edit: each "find" must match exactly once,
   in order; one that doesn't is counted as failed to apply and skipped. The
   applied change is one "review" revision in the page's history (undoable).
@@ -230,6 +232,23 @@ POST /api/books/:bookId/files/:fileId/ocr
   in the page's history.
   202 -> { success, file_id, state: "queued" }
   404 if file missing.
+
+POST /api/books/:bookId/files/:fileId/review
+  Re-run the Opus review of one page now (a one-off, at batch prices). The
+  page is queued as asked for, even with the book's review off (tries reset),
+  and a review run is started at once instead of waiting for the 3-hourly
+  cron. Runs started within the same minute are one run (instance id
+  review-ondemand-<minute>), so rapid clicks start one batch. If a run is
+  already going (a batch preparing, submitting, processing or ingesting), no
+  second run is started and the page waits for the next one.
+  A page already waiting or in a running batch isn't queued twice
+  (already_queued); a waiting one now counts as asked for.
+  202 -> { success, queued: boolean, already_queued: boolean,
+           run_started: boolean, instance_id: string|null }
+  // queued: newly added to the queue. run_started: a run was started for it
+  // (or one started this minute already exists); instance_id is that run.
+  404 if book or file missing. 409 if the page isn't done, is blank, or was
+  edited by hand (a review never overwrites a hand edit); the error says which.
 
 GET /api/books/:bookId/files/:fileId/text
   Raw Markdown transcription (Content-Type: text/markdown).

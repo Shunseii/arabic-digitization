@@ -89,6 +89,22 @@ export interface QueueReviewResponse {
   already_queued?: number;
 }
 
+/** POST /api/books/:bookId/files/:fileId/review (202) */
+export interface QueuePageReviewResponse {
+  success: true;
+  /** The page was newly added to the review queue. */
+  queued: boolean;
+  /** The page was already waiting or in a running batch. */
+  already_queued: boolean;
+  /**
+   * A review run was started for it (or one started this minute already
+   * exists). False: a run is going, and the page waits for the next one.
+   */
+  run_started: boolean;
+  /** The run's Workflow instance id when run_started, else null. */
+  instance_id: string | null;
+}
+
 /** Outcome of one page's review try (page_reviews.status). */
 export type PageReviewStatus =
   | "applied"
