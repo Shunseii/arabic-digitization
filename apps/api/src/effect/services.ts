@@ -1,7 +1,7 @@
 // The Worker's dependencies as Effect services. liveLayer wraps `env`; tests
 // provide fakes (see test/fakes.ts).
 
-import { Context, Duration, Effect, Layer } from "effect";
+import { Context, Duration, Effect, Layer, Option, Schema } from "effect";
 import { indexPageOrThrow } from "../lib/pageText";
 import { signScanUrl } from "../lib/scanUrl";
 import type { ReviewApplyMessage } from "../review/message";
@@ -481,44 +481,72 @@ function readJson(res: Response): Effect.Effect<unknown, TransportError> {
   });
 }
 
-export function readBatchStatus(raw: unknown): BatchStatus {
-  const data = isRecord(raw) ? raw : {};
-  const counts = isRecord(data.request_counts) ? data.request_counts : {};
-  const count = (name: string) => numberOrNull(counts[name]) ?? 0;
-  const endedAt =
-    typeof data.ended_at === "string" ? Date.parse(data.ended_at) : Number.NaN;
+// Anthropic's Message Batch object, as create, retrieve and list return it.
+// Decoded with Schema: a body that doesn't match is a BadResponse, never a
+// guess.
+const RequestCounts = Schema.Struct({
+  processing: Schema.Number,
+  succeeded: Schema.Number,
+  errored: Schema.Number,
+  canceled: Schema.Number,
+  expired: Schema.Number,
+});
+
+const BatchObject = Schema.Struct({
+  id: Schema.String,
+  processing_status: Schema.String,
+  request_counts: RequestCounts,
+  created_at: Schema.String,
+  ended_at: Schema.optional(Schema.NullOr(Schema.String)),
+});
+
+const BatchPage = Schema.Struct({ data: Schema.Array(BatchObject) });
+
+const decodeBatchObject = Schema.decodeUnknownOption(BatchObject);
+const decodeBatchPage = Schema.decodeUnknownOption(BatchPage);
+
+const timeOrNull = (value: string | null | undefined): number | null => {
+  const time = value ? Date.parse(value) : Number.NaN;
+  return Number.isNaN(time) ? null : time;
+};
+
+// The status in a batch object, or null if the body isn't one.
+export function readBatchStatus(raw: unknown): BatchStatus | null {
+  const batch = Option.getOrNull(decodeBatchObject(raw));
+  if (!batch) return null;
   return {
-    processingStatus: String(data.processing_status),
-    endedAt: Number.isNaN(endedAt) ? null : endedAt,
-    counts: {
-      processing: count("processing"),
-      succeeded: count("succeeded"),
-      errored: count("errored"),
-      canceled: count("canceled"),
-      expired: count("expired"),
-    },
+    processingStatus: batch.processing_status,
+    endedAt: timeOrNull(batch.ended_at),
+    counts: { ...batch.request_counts },
   };
 }
 
-const BATCH_LIST_LIMIT = 20;
-
-export function readBatchList(raw: unknown): BatchSummary[] {
-  const data = isRecord(raw) && Array.isArray(raw.data) ? raw.data : [];
-  return data.flatMap((item) => {
-    if (!isRecord(item) || typeof item.id !== "string") return [];
-    const createdAt =
-      typeof item.created_at === "string" ? Date.parse(item.created_at) : NaN;
-    if (Number.isNaN(createdAt)) return [];
-    const { counts } = readBatchStatus(item);
+// One page of the batch list, or null if the body isn't one.
+export function readBatchList(raw: unknown): BatchSummary[] | null {
+  const page = Option.getOrNull(decodeBatchPage(raw));
+  if (!page) return null;
+  return page.data.flatMap((batch) => {
+    const createdAt = timeOrNull(batch.created_at);
+    if (createdAt === null) return [];
+    const counts = batch.request_counts;
     const requests =
       counts.processing +
       counts.succeeded +
       counts.errored +
       counts.canceled +
       counts.expired;
-    return [{ id: item.id, createdAt, requests }];
+    return [{ id: batch.id, createdAt, requests }];
   });
 }
+
+const decoded =
+  <A>(what: string) =>
+  (value: A | null) =>
+    value === null
+      ? Effect.fail(notJson(`unexpected ${what} body`))
+      : Effect.succeed(value);
+
+const BATCH_LIST_LIMIT = 20;
 
 export function makeAnthropicBatches(env: Env): AnthropicBatchesShape {
   const { base, headers } = batchEndpoint(env);
@@ -535,23 +563,26 @@ export function makeAnthropicBatches(env: Env): AnthropicBatchesShape {
         },
       }).pipe(
         Effect.flatMap(readJson),
-        Effect.flatMap((raw) => {
-          const id = isRecord(raw) ? raw.id : undefined;
-          return typeof id === "string"
-            ? Effect.succeed(id)
-            : Effect.fail(notJson("batch create returned no id"));
-        }),
+        Effect.map(
+          (raw) => Option.getOrNull(decodeBatchObject(raw))?.id ?? null,
+        ),
+        Effect.flatMap(decoded<string>("batch create")),
       ),
     retrieve: (batchId) =>
       exchange({ url: batchUrl(batchId), init: { headers } }).pipe(
         Effect.flatMap(readJson),
         Effect.map(readBatchStatus),
+        Effect.flatMap(decoded<BatchStatus>("batch retrieve")),
       ),
     list: () =>
       exchange({
         url: `${base}?limit=${BATCH_LIST_LIMIT}`,
         init: { headers },
-      }).pipe(Effect.flatMap(readJson), Effect.map(readBatchList)),
+      }).pipe(
+        Effect.flatMap(readJson),
+        Effect.map(readBatchList),
+        Effect.flatMap(decoded<BatchSummary[]>("batch list")),
+      ),
     results: (batchId) =>
       exchange({ url: `${batchUrl(batchId)}/results`, init: { headers } }).pipe(
         Effect.flatMap((res) =>
@@ -579,15 +610,13 @@ export class ReviewInstances extends Context.Service<
 
 export function makeReviewInstances(workflow: Workflow): ReviewInstancesShape {
   return {
+    // get() rejects for an instance that doesn't exist (or no longer does);
+    // that is the expected answer here, not a failure.
     status: (instanceId) =>
-      Effect.promise(async () => {
-        try {
-          const instance = await workflow.get(instanceId);
-          return (await instance.status()).status;
-        } catch {
-          return null;
-        }
-      }),
+      Effect.tryPromise(async () => {
+        const instance = await workflow.get(instanceId);
+        return (await instance.status()).status;
+      }).pipe(Effect.catch(() => Effect.succeed(null))),
   };
 }
 

@@ -481,9 +481,23 @@ function readManifest({
   });
 }
 
-// Whether the results are exactly this instance's requests: every line's
-// custom_id is one this instance sent, and every page it sent has a line.
-// False means the batch isn't ours (a retried submit adopted a stranger's).
+function countLines(bytes: Uint8Array): number {
+  let lines = 0;
+  let start = 0;
+  while (start < bytes.length) {
+    const newline = bytes.indexOf(NEWLINE, start);
+    const end = newline === -1 ? bytes.length : newline;
+    if (end > start) lines += 1;
+    start = end + 1;
+  }
+  return lines;
+}
+
+// Whether the results are this instance's requests: no line carries a
+// custom_id this instance didn't send, and every page it sent has a line,
+// except as many as there are lines too garbled to read a custom_id from
+// (those pages fail on their own, see review/apply.ts). False means the batch
+// isn't ours (a retried submit adopted a stranger's).
 export function resultsAreOwn({
   instanceId,
   bytes,
@@ -498,12 +512,14 @@ export function resultsAreOwn({
       reviewCustomId({ instanceId, fileId: entry.fileId }),
     ),
   );
+  const lines = indexResultLines(bytes);
   const seen = new Set<string>();
-  for (const line of indexResultLines(bytes)) {
+  for (const line of lines) {
     if (!expected.has(line.customId)) return false;
     seen.add(line.customId);
   }
-  return seen.size === expected.size;
+  const unreadable = countLines(bytes) - lines.length;
+  return seen.size > 0 && expected.size - seen.size <= unreadable;
 }
 
 export const FOREIGN_BATCH = "adopted_foreign_batch";

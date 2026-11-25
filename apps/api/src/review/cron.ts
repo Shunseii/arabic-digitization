@@ -1,8 +1,17 @@
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import { liveLayer } from "../effect/services";
 import { countPending } from "./steps";
 import { sweepStuckBatches } from "./sweep";
 import type { ReviewParams } from "./workflow";
+
+class WorkflowCreateError extends Data.TaggedError("WorkflowCreateError")<{
+  instanceId: string;
+  detail: string;
+}> {
+  override get message(): string {
+    return `could not start review instance ${this.instanceId}: ${this.detail}`;
+  }
+}
 
 // Cron trigger (wrangler.jsonc): free the pages of batches whose instance
 // died (review/sweep.ts), then start one review Workflow instance when pages
@@ -28,9 +37,27 @@ export async function startReviewIfPending({
   );
   if (pending === 0) return;
   const params: ReviewParams = { reason: "cron" };
-  await env.REVIEW_WORKFLOW.create({
-    id: `review-${controller.scheduledTime}`,
-    params,
-  });
-  console.log(JSON.stringify({ kind: "review_cron", pending, started: true }));
+  const id = `review-${controller.scheduledTime}`;
+  // A retried cron run finds its instance already created: logged, not thrown.
+  const started = await Effect.runPromise(
+    Effect.tryPromise({
+      try: () => env.REVIEW_WORKFLOW.create({ id, params }),
+      catch: (cause) =>
+        new WorkflowCreateError({
+          instanceId: id,
+          detail: cause instanceof Error ? cause.message : String(cause),
+        }),
+    }).pipe(
+      Effect.as(true),
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          console.error(
+            JSON.stringify({ kind: "review_cron", error: error.message }),
+          );
+          return false;
+        }),
+      ),
+    ),
+  );
+  console.log(JSON.stringify({ kind: "review_cron", pending, started }));
 }

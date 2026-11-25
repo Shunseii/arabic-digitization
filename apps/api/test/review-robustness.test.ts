@@ -283,7 +283,10 @@ describe("a foreign batch", () => {
     const check = (lines: string[]) =>
       resultsAreOwn({ instanceId: "review-1", bytes: bytes(lines), manifest });
     expect(check([own("file-a"), own("file-b")])).toBe(true);
+    // A page with no line is ours only if a garbled line accounts for it.
     expect(check([own("file-a")])).toBe(false);
+    expect(check([own("file-a"), '{"garbled'])).toBe(true);
+    expect(check(['{"garbled', '{"garbled'])).toBe(false);
     expect(check([own("file-a"), own("file-b"), own("file-c")])).toBe(false);
     expect(
       check([

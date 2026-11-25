@@ -7,7 +7,7 @@
 // A page that a person edited by hand (files.text_edited_at) is never touched,
 // and nor is a page whose text changed after it was sent for review.
 
-import { Effect } from "effect";
+import { Effect, Option, Schema } from "effect";
 import type { StorageError } from "../effect/errors";
 import {
   Bucket,
@@ -121,6 +121,9 @@ export function applyReviewEdits({
   };
 }
 
+export const UNREADABLE_RESULT = "unreadable_result";
+export const UNKNOWN_RESULT_TYPE = "unknown_result_type";
+
 export type BatchResult =
   | { type: "succeeded"; message: unknown }
   | { type: "errored"; errorType: string; error: string }
@@ -141,7 +144,39 @@ function readError(raw: unknown): { errorType: string; error: string } {
   return { errorType, error: message.slice(0, ERROR_MAX) };
 }
 
-// One line of the results JSONL: {"custom_id": ..., "result": {...}}.
+// One line of the results JSONL, decoded with Schema. The result types are
+// the four the Batches API documents; anything else is handled explicitly.
+const ResultLine = Schema.Struct({
+  custom_id: Schema.String,
+  result: Schema.Struct({
+    type: Schema.String,
+    message: Schema.optional(Schema.Unknown),
+    error: Schema.optional(Schema.Unknown),
+  }),
+});
+
+const SucceededMessage = Schema.Struct({
+  content: Schema.Array(Schema.Unknown),
+  stop_reason: Schema.optional(Schema.NullOr(Schema.String)),
+  usage: Schema.Struct({
+    input_tokens: Schema.Number,
+    output_tokens: Schema.Number,
+    cache_creation_input_tokens: Schema.optional(Schema.NullOr(Schema.Number)),
+    cache_read_input_tokens: Schema.optional(Schema.NullOr(Schema.Number)),
+  }),
+});
+
+const decodeResultLine = Schema.decodeUnknownOption(ResultLine);
+const decodeSucceededMessage = Schema.decodeUnknownOption(SucceededMessage);
+
+const unreadable = (error: string): BatchResult => ({
+  type: "errored",
+  errorType: UNREADABLE_RESULT,
+  error,
+});
+
+// A line that can't be read is this page's failure alone (retried like a
+// server error); the rest of the batch is unaffected.
 export function readBatchResult({
   line,
   customId,
@@ -153,36 +188,43 @@ export function readBatchResult({
   try {
     raw = JSON.parse(line);
   } catch {
-    return {
-      type: "errored",
-      errorType: "unreadable_result",
-      error: "results line is not JSON",
-    };
+    return unreadable("results line is not JSON");
   }
-  if (!isRecord(raw) || raw.custom_id !== customId || !isRecord(raw.result)) {
-    return {
-      type: "errored",
-      errorType: "unreadable_result",
-      error: "results line is not this page's",
-    };
+  const decoded = Option.getOrNull(decodeResultLine(raw));
+  if (!decoded) return unreadable("results line has an unexpected shape");
+  if (decoded.custom_id !== customId) {
+    return unreadable("results line is not this page's");
   }
-  const result = raw.result;
+  const { result } = decoded;
   switch (result.type) {
-    case "succeeded":
-      return { type: "succeeded", message: result.message };
+    case "succeeded": {
+      const message = Option.getOrNull(decodeSucceededMessage(result.message));
+      return message
+        ? { type: "succeeded", message }
+        : unreadable("succeeded result has an unexpected message");
+    }
     case "expired":
       return { type: "expired" };
     case "canceled":
       return { type: "canceled" };
-    default:
+    case "errored":
       return { type: "errored", ...readError(result.error) };
+    default:
+      return {
+        type: "errored",
+        errorType: UNKNOWN_RESULT_TYPE,
+        error: `result type '${result.type}'`,
+      };
   }
 }
 
-// An invalid request fails the same way every time; anything else that
-// errored (api_error, overloaded_error, ...) is on Anthropic's side and
-// worth another try.
-const PERMANENT_ERROR_TYPES = new Set(["invalid_request_error"]);
+// An invalid request fails the same way every time, and a result type this
+// code doesn't know won't change on a retry; anything else that errored
+// (api_error, overloaded_error, an unreadable line, ...) is worth another try.
+const PERMANENT_ERROR_TYPES = new Set([
+  "invalid_request_error",
+  UNKNOWN_RESULT_TYPE,
+]);
 
 function readUsage(message: unknown): ReviewUsage {
   const usage =

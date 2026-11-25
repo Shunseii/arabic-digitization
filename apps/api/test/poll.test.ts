@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBatchStatus } from "../src/effect/services";
+import { readBatchList, readBatchStatus } from "../src/effect/services";
 import {
   nextWaitMs,
   POLL_DEADLINE_MS,
@@ -42,30 +42,51 @@ function simulate({
   return { run, sleeps, elapsed: () => now - SUBMITTED_AT };
 }
 
-describe("readBatchStatus", () => {
+describe("batch responses", () => {
+  const counts = {
+    processing: 0,
+    succeeded: 8,
+    errored: 0,
+    canceled: 0,
+    expired: 0,
+  };
+  const batch = {
+    id: "msgbatch_1",
+    type: "message_batch",
+    processing_status: "ended",
+    request_counts: counts,
+    created_at: "2026-11-24T12:00:00Z",
+    ended_at: "2026-11-24T12:05:00.123Z",
+  };
+
   it("reads Anthropic's ended_at, which is null until the batch ends", () => {
-    const counts = {
-      processing: 0,
-      succeeded: 8,
-      errored: 0,
-      canceled: 0,
-      expired: 0,
-    };
-    expect(
-      readBatchStatus({
-        processing_status: "ended",
-        request_counts: counts,
-        ended_at: "2026-11-24T12:05:00.123Z",
-      }),
-    ).toEqual({
+    expect(readBatchStatus(batch)).toEqual({
       processingStatus: "ended",
       counts,
       endedAt: Date.parse("2026-11-24T12:05:00.123Z"),
     });
     expect(
-      readBatchStatus({ processing_status: "in_progress", ended_at: null })
-        .endedAt,
+      readBatchStatus({
+        ...batch,
+        processing_status: "in_progress",
+        ended_at: null,
+      })?.endedAt,
     ).toBeNull();
+  });
+
+  it("decodes the list and refuses bodies of the wrong shape", () => {
+    expect(readBatchList({ data: [batch], has_more: false })).toEqual([
+      {
+        id: "msgbatch_1",
+        createdAt: Date.parse("2026-11-24T12:00:00Z"),
+        requests: 8,
+      },
+    ]);
+    expect(readBatchStatus({ processing_status: "ended" })).toBeNull();
+    expect(
+      readBatchStatus({ ...batch, request_counts: { processing: "1" } }),
+    ).toBeNull();
+    expect(readBatchList({ data: "nope" })).toBeNull();
   });
 });
 

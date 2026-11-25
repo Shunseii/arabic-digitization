@@ -25,8 +25,10 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import { Effect, type Layer } from "effect";
+import { NonRetryableError } from "cloudflare:workflows";
+import { Cause, Effect, Exit, type Layer } from "effect";
 import { type AppServices, liveLayer } from "../effect/services";
+import { retryTransient, type StepError, stepFailureKind } from "./failures";
 import { pollUntilEnded, workflowSteps } from "./poll";
 import {
   abandonForeignBatch,
@@ -61,14 +63,38 @@ export interface ReviewSummary {
   dispatched: number;
 }
 
-function runIn<A, E>({
+// What a step throws for the Workflow: a retryable failure as a plain Error
+// (the Workflow retries the step), a terminal one as NonRetryableError (the
+// instance fails at once and its pages are released). A defect is a bug and
+// is thrown as it is.
+function toWorkflowError(failure: unknown): unknown {
+  switch (stepFailureKind(failure)) {
+    case "retryable":
+      return new Error(describe(failure));
+    case "terminal":
+      return new NonRetryableError(
+        describe(failure),
+        (failure as StepError)._tag,
+      );
+    case "defect":
+      return failure;
+  }
+}
+
+// Run one step's program: transient failures are retried briefly in place,
+// then whatever is left is classified for the Workflow.
+async function runIn<A, E extends StepError>({
   layer,
   program,
 }: {
   layer: Layer.Layer<AppServices>;
   program: Effect.Effect<A, E, AppServices>;
 }): Promise<A> {
-  return Effect.runPromise(program.pipe(Effect.provide(layer)));
+  const exit = await Effect.runPromiseExit(
+    retryTransient({ effect: program }).pipe(Effect.provide(layer)),
+  );
+  if (Exit.isSuccess(exit)) return exit.value;
+  throw toWorkflowError(Cause.squash(exit.cause));
 }
 
 const describe = (error: unknown) =>
@@ -81,8 +107,9 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
   ): Promise<ReviewSummary> {
     const layer = liveLayer(this.env);
     const instanceId = event.instanceId;
-    const run = <A, E>(program: Effect.Effect<A, E, AppServices>) =>
-      runIn({ layer, program });
+    const run = <A, E extends StepError>(
+      program: Effect.Effect<A, E, AppServices>,
+    ) => runIn({ layer, program });
 
     try {
       const fileIds = await step.do("select", () =>
