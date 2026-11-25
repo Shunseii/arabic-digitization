@@ -16,6 +16,7 @@ import type {
   FileRecord,
   FileUpdateResponse,
   HighlightResponse,
+  JobsResponse,
   ListBooksResponse,
   ListTagsResponse,
   ListWorksResponse,
@@ -305,6 +306,12 @@ export const api = {
     ),
 
   /** Recent page-fragments across all books, newest first (for Activity). */
+  /** Running work and queue messages that ran out of retries. */
+  jobs: async (): Promise<JobsResponse> =>
+    asJson<JobsResponse>(
+      await fetch(`${base()}/api/jobs`, { headers: authHeaders() }),
+    ),
+
   recentFiles: async (limit = 25): Promise<RecentFile[]> =>
     (
       await asJson<RecentFilesResponse>(

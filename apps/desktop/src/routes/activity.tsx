@@ -1,4 +1,4 @@
-import type { BookWithStatus, FileStatus } from "@qiraa/shared";
+import type { BookWithStatus, FailedMessage, FileStatus } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -6,7 +6,7 @@ import { Centered, Loading, RefreshButton, StatusBadge } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
 import { recentKey } from "@/lib/status";
-import { colors } from "@/theme";
+import { colors, statusColors } from "@/theme";
 
 const READABLE: FileStatus["state"][] = ["done", "approved", "needs_review"];
 
@@ -41,6 +41,100 @@ const Stat = ({
   </div>
 );
 
+const KIND_LABEL: Record<FailedMessage["kind"], string> = {
+  ocr: "OCR",
+  review_apply: "Review",
+  reindex: "Reindex",
+};
+
+// Where a failure is acted on: an OCR failure on its book (where a page's OCR
+// is re-run), a review failure on the page itself, a reindex on its book.
+const failureTarget = (f: FailedMessage): string | null => {
+  if (f.kind === "review_apply" && f.book_id) {
+    return `/reader/${f.book_id}/${f.file_id}`;
+  }
+  return f.book_id ? `/book/${f.book_id}` : null;
+};
+
+const pageLabel = (f: FailedMessage): string =>
+  f.page_number != null
+    ? String(f.page_number)
+    : f.kind === "reindex"
+      ? "—"
+      : f.file_id.slice(0, 4);
+
+const FailedSection = ({
+  count,
+  recent,
+}: {
+  count: number;
+  recent: FailedMessage[];
+}) => {
+  const navigate = useNavigate();
+  return (
+    <>
+      <p className="mt-5 text-xs font-bold tracking-wide text-text-muted">
+        FAILED · {count}
+        {count > recent.length && (
+          <span className="font-normal">
+            {" "}
+            (showing {recent.length} of {count})
+          </span>
+        )}
+      </p>
+      <div className="mt-2">
+        {recent.map((f, i) => {
+          const target = failureTarget(f);
+          return (
+            <button
+              type="button"
+              key={f.id}
+              disabled={!target}
+              onClick={() => target && navigate(target)}
+              className="flex w-full flex-row items-center gap-3 py-3 text-left disabled:cursor-default"
+              style={
+                i > 0
+                  ? { borderTop: `1px solid ${colors.hairline}` }
+                  : undefined
+              }
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-alt">
+                <span className="text-sm font-semibold text-ink">
+                  {pageLabel(f)}
+                </span>
+              </span>
+              <span className="flex flex-1 flex-col gap-0.5 overflow-hidden">
+                <span className="truncate text-base text-ink" dir="rtl">
+                  {f.book_title ?? f.book_id ?? "—"}
+                </span>
+                <span
+                  className="truncate text-xs text-text-secondary"
+                  title={f.error ?? undefined}
+                >
+                  {f.error ?? "No error recorded"}
+                </span>
+                <span className="text-xs text-text-muted">
+                  {relativeTime(f.last_failed_at)} ago · {f.attempts} attempts
+                </span>
+              </span>
+              <span
+                className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                style={{
+                  backgroundColor: `${statusColors.failed}22`,
+                  color: statusColors.failed,
+                }}
+              >
+                {KIND_LABEL[f.kind]}
+              </span>
+              {target && <ChevronRight size={16} color={colors.textMuted} />}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+};
+
 export const ActivityScreen = () => {
   const navigate = useNavigate();
   const { configured, ready } = useConfigState();
@@ -53,6 +147,11 @@ export const ActivityScreen = () => {
   const recentQuery = useQuery({
     queryKey: recentKey,
     queryFn: () => api.recentFiles(25),
+    enabled: configured,
+  });
+  const jobsQuery = useQuery({
+    queryKey: ["jobs"],
+    queryFn: api.jobs,
     enabled: configured,
   });
 
@@ -75,9 +174,12 @@ export const ActivityScreen = () => {
   const failed = sum(books, "failed");
   const recent = recentQuery.data ?? [];
 
+  const deadMessages = jobsQuery.data?.failed;
+
   const refetchAll = () => {
     booksQuery.refetch();
     recentQuery.refetch();
+    jobsQuery.refetch();
   };
 
   return (
@@ -87,7 +189,11 @@ export const ActivityScreen = () => {
           <h1 className="text-[30px] font-semibold text-ink">Activity</h1>
           <RefreshButton
             onRefresh={refetchAll}
-            refreshing={booksQuery.isFetching || recentQuery.isFetching}
+            refreshing={
+              booksQuery.isFetching ||
+              recentQuery.isFetching ||
+              jobsQuery.isFetching
+            }
           />
         </div>
 
@@ -98,6 +204,13 @@ export const ActivityScreen = () => {
           <span className="h-8 w-px bg-hairline" />
           <Stat value={failed} label="failed" color="#EE6A4D" />
         </div>
+
+        {deadMessages && deadMessages.count > 0 && (
+          <FailedSection
+            count={deadMessages.count}
+            recent={deadMessages.recent}
+          />
+        )}
 
         <p className="mt-5 text-xs font-bold tracking-wide text-text-muted">
           RECENTLY SCANNED

@@ -108,6 +108,9 @@ const FailedMessage = Schema.Struct({
   file_id: Schema.String.annotate({ description: "Empty for reindex" }),
   book_id: Schema.NullOr(Schema.String),
   book_title: Schema.NullOr(Schema.String),
+  page_number: Schema.NullOr(Schema.Int).annotate({
+    description: "The page's printed number, if known",
+  }),
   ref: Schema.NullOr(Schema.String).annotate({
     description: "The review batch id (review_apply) or book id (reindex)",
   }),
@@ -298,9 +301,11 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
         ),
         env.DB.prepare(
           `SELECT f.kind || ':' || f.file_id AS id, f.kind, f.file_id, f.book_id,
-                    b.title AS book_title, f.ref, f.last_error AS error, f.attempts,
-                    f.first_failed_at, f.last_failed_at
-               FROM failed_messages f LEFT JOIN books b ON b.id = f.book_id
+                    b.title AS book_title, p.page_number, f.ref, f.last_error AS error,
+                    f.attempts, f.first_failed_at, f.last_failed_at
+               FROM failed_messages f
+               LEFT JOIN books b ON b.id = f.book_id
+               LEFT JOIN files p ON p.file_id = f.file_id
               WHERE f.resolved_at IS NULL
               ORDER BY f.first_failed_at DESC LIMIT ?`,
         ).bind(FAILED_SHOWN),

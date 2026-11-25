@@ -225,6 +225,7 @@ describe("GET /api/jobs", () => {
       file_id: "f29",
       book_id: "b1",
       book_title: "Book 1",
+      page_number: null,
       ref: "msgbatch_29",
       error: "boom 29",
       attempts: 11,

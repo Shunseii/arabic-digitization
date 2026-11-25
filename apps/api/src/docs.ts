@@ -264,7 +264,7 @@ GET /api/jobs
     failed: {
       count,
       recent: [ { id, kind: "ocr"|"review_apply"|"reindex", file_id, book_id,
-                  book_title, ref, error, attempts, first_failed_at,
+                  book_title, page_number, ref, error, attempts, first_failed_at,
                   last_failed_at } ] },
     review: {
       in_flight: [ Batch ], waiting: [ { book_id, title, pages, retrying } ],

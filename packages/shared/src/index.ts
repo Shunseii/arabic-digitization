@@ -252,6 +252,8 @@ export interface FailedMessage {
   file_id: string;
   book_id: string | null;
   book_title: string | null;
+  /** The page's printed number, if known. */
+  page_number: number | null;
   /** The review batch id (review_apply) or the book id (reindex). */
   ref: string | null;
   /** The last error seen; null if it wasn't kept. */
