@@ -73,6 +73,12 @@
   --warn-soft: #f6e8cf;
   --danger: #b03c2c;
   --danger-soft: #f6dcd6;
+  /* Motion: one curve family, three durations. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-press: 150ms;
+  --dur-pop: 160ms;
+  --dur-modal: 220ms;
 }
 
 .dark {
