@@ -1,29 +1,15 @@
 import type { FileState } from "@qiraa/shared";
+import type { Tone } from "@/components/ui";
 
-/** Design tokens — mirrors apps/mobile/src/theme.ts (dark OLED + manuscript gold). */
-export const colors = {
-  bg: "#0C0D10",
-  surface: "#14161B",
-  surfaceAlt: "#1C1F26",
-  border: "#282C34",
-  hairline: "#20242B",
-  ink: "#F4F2EC",
-  textSecondary: "#9D9A92",
-  textMuted: "#65635D",
-  accent: "#E3A63C",
-  accentInk: "#14110A",
-  accentSoft: "#2A2114",
-} as const;
-
-export const statusColors: Record<FileState, string> = {
-  captured: "#7C786E",
-  queued: "#7C786E",
-  processing: "#5C8DF0",
-  rate_limited: "#5C8DF0",
-  done: "#46B97D",
-  needs_review: "#C77DFF",
-  approved: "#46B97D",
-  failed: "#EE6A4D",
+export const statusTone: Record<FileState, Tone> = {
+  captured: "neutral",
+  queued: "accent",
+  processing: "accent",
+  rate_limited: "warn",
+  done: "ok",
+  needs_review: "warn",
+  approved: "ok",
+  failed: "danger",
 };
 
 export const statusLabel: Record<FileState, string> = {
@@ -36,3 +22,19 @@ export const statusLabel: Record<FileState, string> = {
   approved: "approved",
   failed: "failed",
 };
+
+// TEMP(migration): old palette names still used by routes not yet redesigned.
+export const colors = {
+  accent: "var(--accent)",
+  textSecondary: "var(--ink-2)",
+  textMuted: "var(--ink-3)",
+  hairline: "var(--line)",
+  border: "var(--line)",
+  ink: "var(--ink)",
+  surface: "var(--surface)",
+  surfaceAlt: "var(--surface-2)",
+  bg: "var(--bg)",
+  accentInk: "var(--on-accent)",
+  accentSoft: "var(--accent-soft)",
+} as const;
+export const statusColors: Record<FileState, string> = statusLabel;

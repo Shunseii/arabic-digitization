@@ -1,8 +1,16 @@
+/* Colour, radius and motion tokens shared with the mobile app. Its `@theme`
+   block is Tailwind 4 syntax that this Tailwind 3 build passes through and the
+   browser ignores; the :root and .dark custom properties are what we use. */
+@import "../../mobile/src/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+}
+:root.dark {
   color-scheme: dark;
 }
 
@@ -14,37 +22,150 @@ body,
 
 body {
   margin: 0;
-  background-color: #0c0d10;
-  color: #f4f2ec;
-  /* Latin glyphs resolve to the system UI font; Arabic glyphs (absent from it)
-     fall through to Noto Naskh Arabic. */
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
-    "Noto Naskh Arabic", sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: "Inter Variable", "Noto Naskh Arabic", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
-/* Slim, themed scrollbars so scroll regions match the manuscript palette. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #282c34 transparent;
-}
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-thumb {
-  background-color: #282c34;
-  border-radius: 9999px;
-  border: 3px solid transparent;
-  background-clip: padding-box;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background-color: #3a3f48;
+  scrollbar-color: var(--line) transparent;
 }
 
-/* The desktop window has no native text-select chrome; allow it in readers. */
 button {
   cursor: pointer;
+}
+
+@layer components {
+  /* Press: the only motion on high-frequency controls. Kept under reduced
+     motion because it carries state (the click registered). */
+  .press {
+    transition: scale var(--dur-press) var(--ease-out);
+  }
+  .press:active:not(:disabled) {
+    scale: 0.97;
+  }
+
+  /* Refresh: the icon spins only while the fetch is in flight. */
+  [data-state="loading"] > .refresh-icon {
+    animation: spin 700ms linear infinite;
+  }
+
+  /* The "Updated 14:32" stamp cross-fades in when it changes (keyed render). */
+  .fade-in {
+    transition: opacity 150ms ease-out;
+  }
+  @starting-style {
+    .fade-in {
+      opacity: 0;
+    }
+  }
+
+  /* Changed row: a delta refresh flashes the rows it changed, once. */
+  .row-flash {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    opacity: 0;
+    transition: opacity 1200ms var(--ease-out);
+  }
+  @starting-style {
+    .row-flash {
+      opacity: 1;
+    }
+  }
+
+  /* Popover: menus, dropdowns and pickers grow from the trigger's corner. */
+  .popover {
+    transition:
+      opacity var(--dur-pop) var(--ease-out),
+      scale var(--dur-pop) var(--ease-out),
+      display var(--dur-pop) allow-discrete;
+  }
+  @starting-style {
+    .popover {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+  .popover[data-state="closed"] {
+    display: none;
+    opacity: 0;
+    transition:
+      opacity 120ms ease-out,
+      display 120ms allow-discrete;
+  }
+
+  /* Dialog and its backdrop. */
+  .scrim {
+    transition:
+      opacity 200ms var(--ease-out),
+      display 200ms allow-discrete;
+  }
+  @starting-style {
+    .scrim {
+      opacity: 0;
+    }
+  }
+  .scrim[data-state="closed"] {
+    display: none;
+    opacity: 0;
+    transition-duration: 150ms;
+  }
+  .dialog {
+    transition:
+      opacity var(--dur-modal) var(--ease-out),
+      scale var(--dur-modal) var(--ease-out),
+      display var(--dur-modal) allow-discrete;
+  }
+  @starting-style {
+    .dialog {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+  [data-state="closed"] .dialog {
+    display: none;
+    opacity: 0;
+    scale: 0.96;
+    transition-duration: 150ms;
+  }
+
+  /* Reader split: Text / Scan / Both resize the panes instead of jumping. */
+  .split-pane {
+    transition:
+      flex-grow 240ms var(--ease-in-out),
+      opacity 240ms var(--ease-in-out);
+  }
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+/* Reduced motion: press and the refresh spin stay (they carry state);
+   popovers, dialogs, the backdrop and the row flash become opacity-only; the
+   reader split changes instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .popover,
+  .dialog,
+  [data-state="closed"] .dialog {
+    scale: none;
+  }
+  @starting-style {
+    .popover,
+    .dialog {
+      scale: none;
+    }
+  }
+  .split-pane {
+    transition: none;
+  }
 }

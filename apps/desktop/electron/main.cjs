@@ -2,7 +2,7 @@
 // (or the dev server in development) — it talks to the Cloudflare Worker over
 // fetch, so the main process needs no IPC, just a window. Chosen over a system
 // webview because Chromium shapes Arabic far better than Linux WebKitGTK.
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, nativeTheme, shell } = require("electron");
 const path = require("node:path");
 
 // The app name becomes the window identity Linux uses to match the window to its
@@ -26,7 +26,8 @@ const createWindow = () => {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: "#0C0D10",
+    // --bg from tokens.css, so the window doesn't flash before the renderer paints.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#0f0e0c" : "#f5f0e6",
     title: "رقمنة",
     autoHideMenuBar: true,
     webPreferences: {
