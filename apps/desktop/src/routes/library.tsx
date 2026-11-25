@@ -2,7 +2,6 @@ import type { BookWithStatus, WorkWithCounts } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
-  Check,
   CloudOff,
   Pencil,
   Plug,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ProgressRing } from "@/components/progress-ring";
 import {
   Button,
   CheckOption,
@@ -30,42 +30,10 @@ import { useConfigState } from "@/lib/config-context";
 import { errorMessage } from "@/lib/errors";
 import { count, plural } from "@/lib/format";
 
-const doneShare = (b: BookWithStatus): number => {
-  const done = (b.counts.done ?? 0) + (b.counts.approved ?? 0);
-  return b.files_total > 0 ? done / b.files_total : 0;
-};
-
 const inQueue = (b: BookWithStatus): number =>
   (b.counts.queued ?? 0) +
   (b.counts.processing ?? 0) +
   (b.counts.rate_limited ?? 0);
-
-const ProgressRing = ({ book }: { book: BookWithStatus }) => {
-  const failed = (book.counts.failed ?? 0) > 0;
-  const pct = Math.floor(doneShare(book) * 100);
-  const complete = !failed && book.files_total > 0 && pct === 100;
-  const color = failed
-    ? "var(--danger)"
-    : complete
-      ? "var(--ok)"
-      : "var(--accent)";
-  return (
-    <div
-      className="flex size-11 shrink-0 items-center justify-center rounded-full"
-      style={{
-        background: `conic-gradient(${color} 0 ${pct}%, var(--surface-2) ${pct}% 100%)`,
-      }}
-    >
-      <div className="flex size-9 items-center justify-center rounded-full bg-surface">
-        {complete ? (
-          <Check size={16} className="text-ok" />
-        ) : (
-          <span className="text-small font-semibold text-ink">{pct}%</span>
-        )}
-      </div>
-    </div>
-  );
-};
 
 const BookCard = ({ book }: { book: BookWithStatus }) => {
   const failed = book.counts.failed ?? 0;

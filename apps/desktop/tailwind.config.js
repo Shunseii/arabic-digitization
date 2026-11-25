@@ -39,7 +39,8 @@ export default {
       fontFamily: {
         display: ['"Newsreader Variable"', "serif"],
         body: ['"Inter Variable"', "sans-serif"],
-        ar: ['"Noto Naskh Arabic"', "serif"],
+        // Arabic-only subset; Latin inside Arabic fields falls through to Inter.
+        ar: ['"Noto Naskh Arabic"', '"Inter Variable"', "sans-serif"],
       },
       // The desktop type scale (designs/desktop-components "Tokens" board):
       // six sizes, one role each.
