@@ -12,10 +12,34 @@ export const DEFAULT_REVIEW_EFFORT: ReviewEffort = "low";
 // Anthropic doesn't bill these requests, so retrying costs nothing but time.
 export const REVIEW_MAX_ATTEMPTS = 3;
 
+// A request's custom_id: the instance id, then the page's file id, so a
+// batch's results prove which instance submitted them (a batch adopted by
+// mistake has foreign ids). Anthropic allows ^[a-zA-Z0-9_-]{1,64}$; a file id
+// is a 36-character UUID, leaving 27 for the instance (kept from the end,
+// where an instance id's timestamp is).
+const CUSTOM_ID_MAX = 64;
+
+export function reviewCustomId({
+  instanceId,
+  fileId,
+}: {
+  instanceId: string;
+  fileId: string;
+}): string {
+  const room = Math.max(CUSTOM_ID_MAX - fileId.length - 1, 0);
+  const prefix = instanceId.replace(/[^a-zA-Z0-9_-]/g, "").slice(-room);
+  return `${prefix}-${fileId}`;
+}
+
+export const isValidCustomId = (customId: string) =>
+  /^[a-zA-Z0-9_-]{1,64}$/.test(customId);
+
 export interface ReviewApplyMessage {
   kind: "review_apply";
   batchId: string;
   fileId: string;
+  // The page's custom_id in the batch (reviewCustomId).
+  customId: string;
   bookId: string;
   effort: ReviewEffort;
   // Earlier tries of this page that ended without a review (server error,

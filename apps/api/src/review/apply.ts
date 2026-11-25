@@ -144,10 +144,10 @@ function readError(raw: unknown): { errorType: string; error: string } {
 // One line of the results JSONL: {"custom_id": ..., "result": {...}}.
 export function readBatchResult({
   line,
-  fileId,
+  customId,
 }: {
   line: string;
-  fileId: string;
+  customId: string;
 }): BatchResult {
   let raw: unknown;
   try {
@@ -159,7 +159,7 @@ export function readBatchResult({
       error: "results line is not JSON",
     };
   }
-  if (!isRecord(raw) || raw.custom_id !== fileId || !isRecord(raw.result)) {
+  if (!isRecord(raw) || raw.custom_id !== customId || !isRecord(raw.result)) {
     return {
       type: "errored",
       errorType: "unreadable_result",
@@ -333,7 +333,7 @@ export function applyReview(
     }
     const result = readBatchResult({
       line: new TextDecoder().decode(bytes),
-      fileId: msg.fileId,
+      customId: msg.customId,
     });
     if (result.type === "expired" || result.type === "canceled") {
       return yield* retryLater({

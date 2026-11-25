@@ -5,7 +5,7 @@ import { REVIEW_MODEL, reviewCostUsd } from "../src/lib/cost";
 import { sha256Hex } from "../src/lib/ocrRuns";
 import { transcribe } from "../src/ocr";
 import { applyReview, applyReviewEdits } from "../src/review/apply";
-import type { ReviewApplyMessage } from "../src/review/message";
+import { type ReviewApplyMessage, reviewCustomId } from "../src/review/message";
 import { workflowSteps } from "../src/review/poll";
 import type { ReviewEdit } from "../src/review/prompt";
 import {
@@ -132,6 +132,10 @@ const revisions = (world: TestWorld) =>
     prev_key: string;
   }[];
 
+// Every test batch is instance review-1's.
+const customIdOf = (fileId: string) =>
+  reviewCustomId({ instanceId: "review-1", fileId });
+
 const USAGE = {
   input_tokens: 5200,
   cache_creation_input_tokens: 0,
@@ -147,7 +151,7 @@ function succeededLine({
   edits: ReviewEdit[];
 }): string {
   return JSON.stringify({
-    custom_id: fileId,
+    custom_id: customIdOf(fileId),
     result: {
       type: "succeeded",
       message: {
@@ -172,7 +176,7 @@ const erroredLine = (
   message = "image unreachable",
 ) =>
   JSON.stringify({
-    custom_id: fileId,
+    custom_id: customIdOf(fileId),
     result: {
       type: "errored",
       error: { type: "error", error: { type: errorType, message } },
@@ -180,7 +184,10 @@ const erroredLine = (
   });
 
 const expiredLine = (fileId: string) =>
-  JSON.stringify({ custom_id: fileId, result: { type: "expired" } });
+  JSON.stringify({
+    custom_id: customIdOf(fileId),
+    result: { type: "expired" },
+  });
 
 describe("applyReviewEdits", () => {
   it("applies an exact, unique match", () => {
@@ -244,11 +251,9 @@ describe("indexResultLines", () => {
     ];
     const bytes = new TextEncoder().encode(`${lines.join("\n")}\n`);
     const index = indexResultLines(bytes);
-    expect(index.map((line) => line.customId)).toEqual([
-      "file-a",
-      "file-b",
-      "file-c",
-    ]);
+    expect(index.map((line) => line.customId)).toEqual(
+      ["file-a", "file-b", "file-c"].map(customIdOf),
+    );
     const decoder = new TextDecoder();
     for (const [i, line] of index.entries()) {
       expect(
@@ -277,7 +282,7 @@ async function reviewThroughDispatch({
   world.batches.results = new TextEncoder().encode(
     resultLines(claimed).join("\n"),
   );
-  await run(world, storeResults({ instanceId, batchId }));
+  await run(world, storeResults({ instanceId, batchId, parts: 1 }));
   await run(world, releaseClaims({ instanceId, retry: false }));
   await run(world, dispatchApplies({ instanceId, batchId, parts: 1 }));
   return world.sent;
@@ -327,7 +332,7 @@ describe("review batch", () => {
     };
     expect(body.requests).toHaveLength(1);
     const request = body.requests[0];
-    expect(request?.custom_id).toBe("file-a");
+    expect(request?.custom_id).toBe("review-1-file-a");
     expect(request?.params.model).toBe("claude-opus-5-5");
     expect(request?.params.thinking).toEqual({ type: "adaptive" });
     expect(request?.params.output_config.effort).toBe("low");
@@ -762,7 +767,7 @@ describe("results that end without a review", () => {
   for (const type of ["expired", "canceled"] as const) {
     it(`queues a ${type} page again and fails it on the third try`, async () => {
       const line = (id: string) =>
-        JSON.stringify({ custom_id: id, result: { type } });
+        JSON.stringify({ custom_id: customIdOf(id), result: { type } });
       const first = await tryPage({ attempts: 0, line });
       expect(first.status).toBe(type);
       expect(queueAttempts(first.world)).toEqual([

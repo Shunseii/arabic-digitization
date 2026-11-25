@@ -29,6 +29,7 @@ import { Effect, type Layer } from "effect";
 import { type AppServices, liveLayer } from "../effect/services";
 import { pollUntilEnded, workflowSteps } from "./poll";
 import {
+  abandonForeignBatch,
   type BatchCheck,
   checkBatch,
   claimPages,
@@ -152,8 +153,14 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
       }
 
       const results = await step.do("results", () =>
-        run(storeResults({ instanceId, batchId })),
+        run(storeResults({ instanceId, batchId, parts })),
       );
+      if (!results.own) {
+        // A retried submit adopted a batch that isn't ours: apply nothing,
+        // and give the pages back untouched (no try counted).
+        await step.do("release", () => run(abandonForeignBatch(instanceId)));
+        return { pages, batchId, ended: true, dispatched: 0 };
+      }
       await step.do("release", () =>
         run(releaseClaims({ instanceId, retry: false })),
       );

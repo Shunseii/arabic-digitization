@@ -9,12 +9,15 @@ import { sha256Hex } from "../src/lib/ocrRuns";
 import { reviewHistoryKey } from "../src/lib/pageText";
 import { transcribe } from "../src/ocr";
 import { applyReview } from "../src/review/apply";
-import type { ReviewApplyMessage } from "../src/review/message";
+import { type ReviewApplyMessage, reviewCustomId } from "../src/review/message";
 import {
+  abandonForeignBatch,
   claimPages,
   dispatchApplies,
+  FOREIGN_BATCH,
   preparePart,
   releaseClaims,
+  resultsAreOwn,
   storeResults,
   submitBatch,
 } from "../src/review/steps";
@@ -78,9 +81,15 @@ function seedReviewBook(world: TestWorld, pages: string[]): void {
 const count = (world: TestWorld, sql: string) =>
   (world.sqlite.prepare(sql).get() as { n: number }).n;
 
-const succeededLine = (fileId: string) =>
+const succeededLine = ({
+  instanceId = "review-1",
+  fileId,
+}: {
+  instanceId?: string;
+  fileId: string;
+}) =>
   JSON.stringify({
-    custom_id: fileId,
+    custom_id: reviewCustomId({ instanceId, fileId }),
     result: {
       type: "succeeded",
       message: {
@@ -115,8 +124,10 @@ async function dispatchedMessage(
     world,
     submitBatch({ instanceId, parts: 1, pages: claimed.length }),
   );
-  world.batches.results = new TextEncoder().encode(succeededLine("file-a"));
-  await run(world, storeResults({ instanceId, batchId }));
+  world.batches.results = new TextEncoder().encode(
+    succeededLine({ fileId: "file-a" }),
+  );
+  await run(world, storeResults({ instanceId, batchId, parts: 1 }));
   await run(world, releaseClaims({ instanceId, retry: false }));
   await run(world, dispatchApplies({ instanceId, batchId, parts: 1 }));
   const [message] = world.sent;
@@ -195,6 +206,117 @@ describe("submit", () => {
     );
     expect(batchId).toBe("msgbatch_1");
     expect(world.batches.created).toHaveLength(1);
+  });
+});
+
+describe("a foreign batch", () => {
+  it("is never applied when a retried submit adopted a stranger's same-size batch", async () => {
+    const world = makeWorld();
+    seedReviewBook(world, ["file-a"]);
+    const claimed = await run(world, claimPages("review-1"));
+    await run(
+      world,
+      preparePart({ instanceId: "review-1", index: 0, fileIds: claimed }),
+    );
+    // Our first attempt failed before reaching Anthropic; meanwhile someone
+    // else in the workspace created a one-request batch.
+    const attemptedAt = 1_700_000_000_000;
+    world.sqlite
+      .prepare(
+        "UPDATE review_batches SET stage = 'submitting', submit_attempted_at = ?",
+      )
+      .run(attemptedAt);
+    world.batches.others.push({
+      id: "msgbatch_stranger",
+      createdAt: attemptedAt + 1000,
+      requests: 1,
+    });
+    const { batchId } = await run(
+      world,
+      submitBatch({ instanceId: "review-1", parts: 1, pages: 1 }),
+    );
+    expect(batchId).toBe("msgbatch_stranger");
+
+    // Its results carry the stranger's custom_ids.
+    world.batches.results = new TextEncoder().encode(
+      succeededLine({ instanceId: "someone-else", fileId: "req-1" }),
+    );
+    const stored = await run(
+      world,
+      storeResults({ instanceId: "review-1", batchId, parts: 1 }),
+    );
+    expect(stored.own).toBe(false);
+    await run(world, abandonForeignBatch("review-1"));
+
+    expect(world.sent).toEqual([]);
+    expect(world.bucket.text(textKeyOf("file-a"))).toBe(PAGE);
+    expect(
+      world.sqlite
+        .prepare("SELECT file_id, instance_id, attempts FROM review_queue")
+        .all(),
+    ).toEqual([{ file_id: "file-a", instance_id: null, attempts: 0 }]);
+    expect(
+      world.sqlite.prepare("SELECT stage, error FROM review_batches").get(),
+    ).toEqual({ stage: "failed", error: FOREIGN_BATCH });
+  });
+
+  it("is told apart by its custom_ids: foreign, missing or extra lines", () => {
+    const manifest = [
+      {
+        fileId: "file-a",
+        bookId: BOOK_ID,
+        effort: "low" as const,
+        textSha: "x",
+        attempt: 0,
+      },
+      {
+        fileId: "file-b",
+        bookId: BOOK_ID,
+        effort: "low" as const,
+        textSha: "x",
+        attempt: 0,
+      },
+    ];
+    const bytes = (lines: string[]) =>
+      new TextEncoder().encode(lines.join("\n"));
+    const own = (fileId: string) => succeededLine({ fileId });
+    const check = (lines: string[]) =>
+      resultsAreOwn({ instanceId: "review-1", bytes: bytes(lines), manifest });
+    expect(check([own("file-a"), own("file-b")])).toBe(true);
+    expect(check([own("file-a")])).toBe(false);
+    expect(check([own("file-a"), own("file-b"), own("file-c")])).toBe(false);
+    expect(
+      check([
+        own("file-a"),
+        succeededLine({ instanceId: "review-2", fileId: "file-b" }),
+      ]),
+    ).toBe(false);
+  });
+
+  it("isn't adopted when it was created long after the failed attempt", async () => {
+    const world = makeWorld();
+    seedReviewBook(world, ["file-a"]);
+    const claimed = await run(world, claimPages("review-1"));
+    await run(
+      world,
+      preparePart({ instanceId: "review-1", index: 0, fileIds: claimed }),
+    );
+    const attemptedAt = 1_600_000_000_000;
+    world.sqlite
+      .prepare(
+        "UPDATE review_batches SET stage = 'submitting', submit_attempted_at = ?",
+      )
+      .run(attemptedAt);
+    world.batches.others.push({
+      id: "msgbatch_later",
+      createdAt: attemptedAt + 11 * 60_000,
+      requests: 1,
+    });
+    const { batchId } = await run(
+      world,
+      submitBatch({ instanceId: "review-1", parts: 1, pages: 1 }),
+    );
+    expect(batchId).toBe("msgbatch_1");
   });
 });
 

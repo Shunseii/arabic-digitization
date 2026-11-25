@@ -23,9 +23,11 @@ import { REVIEW_MODEL } from "../lib/cost";
 import { sha256Hex } from "../lib/ocrRuns";
 import {
   DEFAULT_REVIEW_EFFORT,
+  isValidCustomId,
   REVIEW_EFFORTS,
   type ReviewApplyMessage,
   type ReviewEffort,
+  reviewCustomId,
 } from "./message";
 import { reviewRequestParams } from "./prompt";
 
@@ -39,8 +41,6 @@ export const PREPARE_CHUNK_PAGES = 25;
 // The scan link must outlive the batch: Anthropic fetches the image when it
 // processes the request, up to 24 hours after submission.
 export const REVIEW_SCAN_LINK_TTL_SECONDS = 48 * 60 * 60;
-
-const CUSTOM_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
 export const reviewKeys = (instanceId: string) => {
   const base = `reviews/${instanceId}`;
@@ -186,7 +186,7 @@ export function preparePart({
         row.text_key !== null &&
         row.text_edited_at === null &&
         row.review_enabled === 1 &&
-        CUSTOM_ID.test(row.file_id);
+        isValidCustomId(reviewCustomId({ instanceId, fileId: row.file_id }));
       const text =
         eligible && row.text_key ? yield* bucket.getText(row.text_key) : null;
       if (!text) continue;
@@ -197,7 +197,7 @@ export function preparePart({
       });
       requests.push(
         JSON.stringify({
-          custom_id: row.file_id,
+          custom_id: reviewCustomId({ instanceId, fileId: row.file_id }),
           params: reviewRequestParams({
             text,
             imageUrl,
@@ -239,6 +239,9 @@ export function preparePart({
 // Clock skew allowed between our submit_attempted_at and Anthropic's
 // created_at when matching a batch that a failed attempt may have created.
 const ADOPT_SKEW_MS = 5 * 60 * 1000;
+// A create returns within seconds; a batch created later than this after the
+// attempt isn't the attempt's.
+const ADOPT_WITHIN_MS = 10 * 60 * 1000;
 
 export interface Submitted {
   batchId: string;
@@ -253,9 +256,10 @@ interface SubmitRow {
 }
 
 // The batch a failed submit attempt created, if one can be found: created
-// since that attempt (with skew), holding exactly `pages` requests, and not
+// within minutes of that attempt, holding exactly `pages` requests, and not
 // already another instance's batch. Creating a batch has no idempotency key,
-// so this match is the guard against submitting the same pages twice.
+// so this is a best guess; the results step proves ownership from the
+// custom_ids before anything is applied (resultsAreOwn).
 function findOwnBatch({
   attemptedAt,
   pages,
@@ -272,7 +276,8 @@ function findOwnBatch({
     const db = yield* Database;
     const candidates = (yield* batches.list()).filter(
       (batch) =>
-        batch.createdAt >= attemptedAt - ADOPT_SKEW_MS &&
+        batch.createdAt > attemptedAt - ADOPT_SKEW_MS &&
+        batch.createdAt < attemptedAt + ADOPT_WITHIN_MS &&
         batch.requests === pages,
     );
     if (candidates.length === 0) return null;
@@ -457,15 +462,76 @@ export function checkBatch({
 
 // ---- ingest ----------------------------------------------------------------------
 
-// Copy the results JSONL into R2 as it came, without parsing it.
+function readManifest({
+  instanceId,
+  parts,
+}: {
+  instanceId: string;
+  parts: number;
+}): Effect.Effect<ManifestEntry[], StorageError, Bucket> {
+  return Effect.gen(function* () {
+    const bucket = yield* Bucket;
+    const keys = reviewKeys(instanceId);
+    const entries: ManifestEntry[] = [];
+    for (let index = 0; index < parts; index++) {
+      const manifest = yield* bucket.getText(keys.manifest(index));
+      if (manifest) entries.push(...(JSON.parse(manifest) as ManifestEntry[]));
+    }
+    return entries;
+  });
+}
+
+// Whether the results are exactly this instance's requests: every line's
+// custom_id is one this instance sent, and every page it sent has a line.
+// False means the batch isn't ours (a retried submit adopted a stranger's).
+export function resultsAreOwn({
+  instanceId,
+  bytes,
+  manifest,
+}: {
+  instanceId: string;
+  bytes: Uint8Array;
+  manifest: readonly ManifestEntry[];
+}): boolean {
+  const expected = new Set(
+    manifest.map((entry) =>
+      reviewCustomId({ instanceId, fileId: entry.fileId }),
+    ),
+  );
+  const seen = new Set<string>();
+  for (const line of indexResultLines(bytes)) {
+    if (!expected.has(line.customId)) return false;
+    seen.add(line.customId);
+  }
+  return seen.size === expected.size;
+}
+
+export const FOREIGN_BATCH = "adopted_foreign_batch";
+
+// For a batch that turned out not to be ours: apply nothing, give the pages
+// back to the queue untouched (no try counted), and fail the batch.
+export function abandonForeignBatch(
+  instanceId: string,
+): Effect.Effect<void, StorageError, Database | WallClock> {
+  return releaseClaims({ instanceId, retry: true }).pipe(
+    Effect.andThen(
+      endBatch({ instanceId, stage: "failed", error: FOREIGN_BATCH }),
+    ),
+  );
+}
+
+// Copy the results JSONL into R2 as it came (never parsed whole), and check
+// it belongs to this instance before anything is applied.
 export function storeResults({
   instanceId,
   batchId,
+  parts,
 }: {
   instanceId: string;
   batchId: string;
+  parts: number;
 }): Effect.Effect<
-  { key: string; bytes: number },
+  { key: string; bytes: number; own: boolean },
   StorageError | TransportError,
   Bucket | AnthropicBatches
 > {
@@ -479,7 +545,12 @@ export function storeResults({
       bytes,
       contentType: "application/x-ndjson",
     });
-    return { key, bytes: bytes.byteLength };
+    const manifest = yield* readManifest({ instanceId, parts });
+    return {
+      key,
+      bytes: bytes.byteLength,
+      own: resultsAreOwn({ instanceId, bytes, manifest }),
+    };
   });
 }
 
@@ -567,24 +638,23 @@ export function dispatchApplies({
         { offset: line.offset, length: line.length },
       ]),
     );
-    const messages: ReviewApplyMessage[] = [];
-    for (let index = 0; index < parts; index++) {
-      const manifest = yield* bucket.getText(keys.manifest(index));
-      const entries: ManifestEntry[] = manifest ? JSON.parse(manifest) : [];
-      for (const entry of entries) {
-        messages.push({
+    const messages = (yield* readManifest({ instanceId, parts })).map(
+      (entry): ReviewApplyMessage => {
+        const customId = reviewCustomId({ instanceId, fileId: entry.fileId });
+        return {
           kind: "review_apply",
           batchId,
           fileId: entry.fileId,
+          customId,
           bookId: entry.bookId,
           effort: entry.effort,
           textSha: entry.textSha,
           attempt: entry.attempt,
           resultsKey: keys.results,
-          line: lineOf.get(entry.fileId) ?? null,
-        });
-      }
-    }
+          line: lineOf.get(customId) ?? null,
+        };
+      },
+    );
     yield* queue.send(messages);
     return messages.length;
   });
