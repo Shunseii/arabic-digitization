@@ -22,19 +22,3 @@ export const statusLabel: Record<FileState, string> = {
   approved: "approved",
   failed: "failed",
 };
-
-// TEMP(migration): old palette names still used by routes not yet redesigned.
-export const colors = {
-  accent: "var(--accent)",
-  textSecondary: "var(--ink-2)",
-  textMuted: "var(--ink-3)",
-  hairline: "var(--line)",
-  border: "var(--line)",
-  ink: "var(--ink)",
-  surface: "var(--surface)",
-  surfaceAlt: "var(--surface-2)",
-  bg: "var(--bg)",
-  accentInk: "var(--on-accent)",
-  accentSoft: "var(--accent-soft)",
-} as const;
-export const statusColors: Record<FileState, string> = statusLabel;

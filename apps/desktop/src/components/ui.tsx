@@ -679,30 +679,3 @@ export const MenuItem = ({
     {children}
   </button>
 );
-
-// TEMP(migration): old-theme helpers still used by routes not yet redesigned.
-export const Centered = ({ children }: { children: ReactNode }) => (
-  <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-    {children}
-  </div>
-);
-export const Loading = () => (
-  <div className="flex flex-1 items-center justify-center py-16">
-    <LoaderCircle className="animate-spin text-accent" size={22} />
-  </div>
-);
-export const RefreshButton = ({
-  onRefresh,
-  refreshing,
-}: {
-  onRefresh: () => void;
-  refreshing: boolean;
-}) => (
-  <RefreshControl onRefresh={onRefresh} refreshing={refreshing} updatedAt={0} />
-);
-export const StatusBadge = ({ state }: { state: string }) => (
-  <StatusPill tone="neutral">{state}</StatusPill>
-);
-export const StatusDot = (_: { state: string; size?: number }) => (
-  <span className="inline-block size-2 rounded-full bg-ink-3" />
-);

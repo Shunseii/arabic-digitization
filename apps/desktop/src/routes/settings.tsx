@@ -1,184 +1,227 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { ApiError, api } from "@/lib/api";
+import { Trash2 } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
+import {
+  Badge,
+  Button,
+  Dialog,
+  ErrorBanner,
+  PageHeader,
+  TextField,
+} from "@/components/ui";
+import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
-import { colors } from "@/theme";
+import { errorMessage } from "@/lib/errors";
+
+const noAutocorrect = {
+  autoCapitalize: "none",
+  autoCorrect: "off",
+  spellCheck: false,
+} as const;
+
+const Card = ({
+  title,
+  sub,
+  children,
+}: {
+  title: string;
+  sub: string;
+  children: ReactNode;
+}) => (
+  <section className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-6">
+    <div className="flex flex-col gap-0.5">
+      <h2 className="font-display text-section font-semibold leading-[1.2] tracking-[-0.01em] text-ink">
+        {title}
+      </h2>
+      <p className="text-small text-ink-2">{sub}</p>
+    </div>
+    {children}
+  </section>
+);
+
+type Problem =
+  | { kind: "rejected" }
+  | { kind: "unreachable"; message: string }
+  | { kind: "missing" };
 
 export const SettingsScreen = () => {
-  const { config, configured, save, clear } = useConfigState();
+  const { config, configured, ready, save, clear } = useConfigState();
   const queryClient = useQueryClient();
 
   const [endpoint, setEndpoint] = useState(config?.endpoint ?? "");
   const [key, setKey] = useState(config?.key ?? "");
   const [meiliUrl, setMeiliUrl] = useState(config?.meiliUrl ?? "");
   const [meiliKey, setMeiliKey] = useState(config?.meiliKey ?? "");
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{
-    kind: "ok" | "err";
-    text: string;
-  } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const [clearing, setClearing] = useState(false);
+
+  // The saved config loads asynchronously; fill the fields once it arrives
+  // (opening Settings first thing would otherwise show them empty).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once, when ready
+  useEffect(() => {
+    if (!ready || !config) return;
+    setEndpoint(config.endpoint);
+    setKey(config.key);
+    setMeiliUrl(config.meiliUrl ?? "");
+    setMeiliKey(config.meiliKey ?? "");
+  }, [ready]);
 
   const onSave = async () => {
     if (!endpoint.trim() || !key.trim()) {
-      setNotice({ kind: "err", text: "Enter both the API endpoint and key." });
+      setProblem({ kind: "missing" });
       return;
     }
-    setBusy(true);
-    setNotice(null);
+    setTesting(true);
+    setProblem(null);
     try {
       const ok = await api.ping({ endpoint, key });
       if (!ok) {
-        setNotice({
-          kind: "err",
-          text: "The endpoint responded but rejected the key. Check both values.",
-        });
+        setProblem({ kind: "rejected" });
         return;
       }
       await save({ endpoint, key, meiliUrl, meiliKey });
       await queryClient.invalidateQueries();
-      setNotice({ kind: "ok", text: "Connected. Your API is set up." });
     } catch (err) {
-      const msg =
-        err instanceof ApiError ? `${err.status}: ${err.message}` : String(err);
-      setNotice({ kind: "err", text: `Connection failed — ${msg}` });
+      setProblem({ kind: "unreachable", message: errorMessage(err) });
     } finally {
-      setBusy(false);
+      setTesting(false);
     }
   };
 
   const onClear = async () => {
-    if (!window.confirm("Clear API key? You will need to re-enter it.")) return;
+    setClearing(false);
     await clear();
-    await queryClient.clear();
+    queryClient.clear();
     setEndpoint("");
     setKey("");
     setMeiliUrl("");
     setMeiliKey("");
-    setNotice(null);
+    setProblem(null);
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-10 py-8">
-      <div className="mx-auto max-w-xl">
-        <h1 className="text-[30px] font-semibold text-ink">Settings</h1>
-
-        <p className="mt-6 text-xs font-bold tracking-wide text-text-muted">
-          CONNECTION
-        </p>
-
-        <span className="mt-3 mb-2 block text-xs font-medium text-text-secondary">
-          API endpoint
-        </span>
-        <input
-          value={endpoint}
-          onChange={(e) => setEndpoint(e.target.value)}
-          placeholder="https://your-worker.workers.dev"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
-        />
-
-        <span className="mt-4 mb-2 block text-xs font-medium text-text-secondary">
-          API key
-        </span>
-        <input
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder="master key"
-          type="password"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
-        />
-
-        {configured && (
-          <div className="mt-4 flex w-fit flex-row items-center gap-1.5 rounded-full bg-[#16271E] px-3 py-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-st-done" />
-            <span className="text-xs font-semibold text-st-done">
-              Connected · key saved
-            </span>
-          </div>
-        )}
-
-        <p className="mt-8 text-xs font-bold tracking-wide text-text-muted">
-          SEARCH (OPTIONAL)
-        </p>
-        <p className="mt-1 text-xs text-text-muted">
-          Meilisearch URL + read-only key to enable the Search tab.
-        </p>
-
-        <span className="mt-3 mb-2 block text-xs font-medium text-text-secondary">
-          Meilisearch URL
-        </span>
-        <input
-          value={meiliUrl}
-          onChange={(e) => setMeiliUrl(e.target.value)}
-          placeholder="https://your-search.fly.dev"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
-        />
-
-        <span className="mt-4 mb-2 block text-xs font-medium text-text-secondary">
-          Search key (read-only)
-        </span>
-        <input
-          value={meiliKey}
-          onChange={(e) => setMeiliKey(e.target.value)}
-          placeholder="read-only search key"
-          type="password"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
-        />
-
-        {config?.meiliUrl && config?.meiliKey && (
-          <div className="mt-4 flex w-fit flex-row items-center gap-1.5 rounded-full bg-[#16271E] px-3 py-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-st-done" />
-            <span className="text-xs font-semibold text-st-done">
-              Search enabled · key saved
-            </span>
-          </div>
-        )}
-
-        {notice && (
-          <p
-            className="mt-4 text-sm"
-            style={{
-              color: notice.kind === "ok" ? colors.accent : "#EE6A4D",
-            }}
-          >
-            {notice.text}
-          </p>
-        )}
-
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={busy}
-          className="mt-6 flex w-full items-center justify-center rounded-xl bg-accent py-4 disabled:opacity-60"
+    <>
+      <PageHeader title="Settings" />
+      <div className="flex min-h-0 flex-1 justify-center overflow-y-auto">
+        <form
+          className="flex w-[640px] flex-col gap-5 pb-10"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave();
+          }}
         >
-          <span className="text-base font-bold text-accent-ink">
-            {busy ? "Testing…" : "Test & save"}
-          </span>
-        </button>
-
-        {configured && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="mt-3 flex h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-st-fail"
+          <Card
+            title="API"
+            sub="The Cloudflare Worker that stores books and runs OCR"
           >
-            <span className="text-sm font-semibold text-st-fail">
-              Clear API key
-            </span>
-          </button>
-        )}
+            <TextField
+              label="Endpoint"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+              placeholder="https://your-worker.workers.dev"
+              error={problem?.kind === "missing" && !endpoint.trim()}
+              {...noAutocorrect}
+            />
+            <TextField
+              label="Key"
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="master key"
+              error={
+                problem?.kind === "rejected" ||
+                (problem?.kind === "missing" && !key.trim())
+              }
+              helper={
+                problem?.kind === "rejected"
+                  ? "The endpoint responded but rejected the key. Check both values."
+                  : problem?.kind === "missing"
+                    ? "Enter both the endpoint and the key."
+                    : undefined
+              }
+              {...noAutocorrect}
+            />
+            {configured && !problem && (
+              <div className="self-start">
+                <Badge tone="ok">Connected</Badge>
+              </div>
+            )}
+          </Card>
+
+          <Card
+            title="Search"
+            sub="Meilisearch, for full-text search. Optional."
+          >
+            <TextField
+              label="Search URL"
+              value={meiliUrl}
+              onChange={(e) => setMeiliUrl(e.target.value)}
+              placeholder="https://your-search.fly.dev"
+              {...noAutocorrect}
+            />
+            <TextField
+              label="Search key"
+              type="password"
+              value={meiliKey}
+              onChange={(e) => setMeiliKey(e.target.value)}
+              placeholder="read-only search key"
+              {...noAutocorrect}
+            />
+          </Card>
+
+          {problem?.kind === "rejected" && (
+            <ErrorBanner title="The API rejected the key">
+              Check the key, then test again.
+            </ErrorBanner>
+          )}
+          {problem?.kind === "unreachable" && (
+            <ErrorBanner title="Couldn't reach the API">
+              {problem.message}
+            </ErrorBanner>
+          )}
+
+          <div className="flex items-center gap-3">
+            <Button type="submit" className="w-[200px]" loading={testing}>
+              {testing ? "Testing…" : "Test & save"}
+            </Button>
+            {configured && (
+              <Button
+                variant="danger"
+                icon={Trash2}
+                className="ml-auto"
+                onClick={() => setClearing(true)}
+              >
+                Clear API key
+              </Button>
+            )}
+          </div>
+        </form>
       </div>
-    </div>
+
+      <Dialog
+        open={clearing}
+        onClose={() => setClearing(false)}
+        title="Clear the API key?"
+        width="w-[420px]"
+      >
+        <p className="text-body text-ink-2">
+          You'll need to enter it again to use the app.
+        </p>
+        <div className="mt-2 flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setClearing(false)}
+          >
+            Cancel
+          </Button>
+          <Button size="sm" variant="danger" icon={Trash2} onClick={onClear}>
+            Clear API key
+          </Button>
+        </div>
+      </Dialog>
+    </>
   );
 };
