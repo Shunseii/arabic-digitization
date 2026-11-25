@@ -4,8 +4,8 @@ Reads data/sample.json (rows: file_id, book_id, book_title, page_number,
 ocr_instructions) and writes data/pages/<file_id>.jpg and
 data/out/gemini-3.1-pro-preview/<file_id>.md.
 
-API URL and key come from the `corpus` CLI's RAM cache (run `corpus auth login`
-first) or the ARABIC_OCR_URL / ARABIC_OCR_KEY environment variables.
+API URL and key come from the ARABIC_OCR_URL / ARABIC_OCR_KEY environment
+variables (the same values `corpus auth login` stores in the OS keychain).
 """
 import json, os, urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -16,11 +16,9 @@ DATA = os.path.join(HERE, "data")
 
 def secrets():
     url, key = os.environ.get("ARABIC_OCR_URL"), os.environ.get("ARABIC_OCR_KEY")
-    if url and key:
-        return url, key
-    cache = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/dev/shm"), "qiraa-corpus/secrets.json")
-    s = json.load(open(cache))["secrets"]
-    return s["apiUrl"], s["apiKey"]
+    if not (url and key):
+        raise SystemExit("Set ARABIC_OCR_URL and ARABIC_OCR_KEY (see README.md, Setup).")
+    return url, key
 
 
 BASE, KEY = secrets()

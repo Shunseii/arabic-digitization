@@ -9,7 +9,9 @@ T188's notes.
 ```sh
 uv venv .venv --python 3.12
 uv pip install -p .venv nuqta-ocr rapidfuzz anthropic numpy opencv-python-headless pillow
-corpus auth login          # API URL + key for fetch.py
+# API URL + key for fetch.py, read once from 1Password into this shell:
+export ARABIC_OCR_URL="$(op read --account my.1password.com 'op://Arabic Digitization/API Connection Vars/ARABIC_OCR_URL')"
+export ARABIC_OCR_KEY="$(op read --account my.1password.com 'op://Arabic Digitization/API Connection Vars/ARABIC_OCR_KEY')"
 ```
 
 `data/` (scans, outputs, overlays) is git-ignored.

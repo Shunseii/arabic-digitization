@@ -93,10 +93,23 @@ Secrets, never committed:
 
 `MEILI_URL` is a non-secret var in `wrangler.jsonc` (the Meilisearch instance URL).
 
-**Command line:** the `corpus` CLI (`packages/cli`) reads the API key and Meilisearch read key from 1Password once and caches them in RAM, so scripts and agents don't prompt on every call. Setup in [`packages/cli/README.md`](packages/cli/README.md).
+**Command line:** the `corpus` CLI keeps the API URL/key and the Meilisearch URL/read-only key in the OS keychain (or reads them from env vars); see [Command line](#command-line-corpus).
 
 **Local** (`wrangler dev`): put the secrets in `.dev.vars` (gitignored; see `.dev.vars.example`).
 **Production**: `pnpm wrangler secret put <NAME>` for each. These are separate stores — keep them in sync manually if you rotate.
+
+## Command line (`corpus`)
+
+`corpus` (`packages/cli`) manages books, OCR, edits, review, spend and search from a terminal, for you and for agents. Each `v*` release ships it as a standalone binary for Linux, macOS and Windows:
+
+```sh
+curl -fsSL https://github.com/Shunseii/arabic-digitization/releases/latest/download/install.sh | sh      # Linux / macOS
+irm https://github.com/Shunseii/arabic-digitization/releases/latest/download/install.ps1 | iex            # Windows (PowerShell)
+corpus auth login     # store the API URL/key and Meilisearch URL/key in the OS keychain
+corpus books
+```
+
+Install details, non-interactive auth, env vars, update, uninstall and building from source: [`packages/cli/README.md`](packages/cli/README.md).
 
 ## Develop
 
