@@ -1,4 +1,4 @@
-import { loadSecrets, type Secrets } from "./secrets.ts";
+import { loadServiceSecrets } from "./secrets.ts";
 
 export type Service = "api" | "meili";
 
@@ -18,17 +18,14 @@ interface RequestOptions {
 }
 
 const send = async ({
-  secrets,
-  service,
+  credentials: { url: base, key },
   path,
   method,
   body,
-}: Required<Omit<RequestOptions, "body">> & {
-  secrets: Secrets;
+}: Required<Omit<RequestOptions, "body" | "service">> & {
+  credentials: { url: string; key: string };
   body?: unknown;
 }): Promise<Response> => {
-  const base = service === "api" ? secrets.apiUrl : secrets.meiliUrl;
-  const key = service === "api" ? secrets.apiKey : secrets.meiliKey;
   const attempt = () =>
     fetch(`${base.replace(/\/$/, "")}${path}`, {
       method,
@@ -49,20 +46,15 @@ const send = async ({
   }
 };
 
-// A 401/403 usually means a rotated key: re-read from 1Password once, retry,
-// then fail. Error text never includes the key or URL.
+// Error text never includes the key or URL.
 export const requestText = async ({
   service,
   path,
   method = "GET",
   body,
 }: RequestOptions): Promise<string> => {
-  let { secrets, source } = await loadSecrets();
-  let res = await send({ secrets, service, path, method, body });
-  if ((res.status === 401 || res.status === 403) && source === "cache") {
-    ({ secrets, source } = await loadSecrets({ refresh: true }));
-    res = await send({ secrets, service, path, method, body });
-  }
+  const credentials = await loadServiceSecrets(service);
+  const res = await send({ credentials, path, method, body });
   const text = await res.text();
   if (!res.ok) {
     let detail = text.slice(0, 300);
@@ -70,9 +62,13 @@ export const requestText = async ({
       const parsed = JSON.parse(text) as { error?: unknown; message?: unknown };
       detail = String(parsed.error ?? parsed.message ?? detail);
     } catch {}
+    const hint =
+      res.status === 401 || res.status === 403
+        ? " (key rejected: if it was rotated, run `corpus auth login` again)"
+        : "";
     throw new HttpError({
       status: res.status,
-      message: `${method} ${path} → ${res.status}: ${detail}`,
+      message: `${method} ${path} → ${res.status}: ${detail}${hint}`,
     });
   }
   return text;

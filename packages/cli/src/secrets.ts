@@ -1,22 +1,11 @@
-// Secret resolution for the corpus CLI.
+// Credentials for the corpus CLI.
 //
-// Each `op read` can trigger a 1Password biometric prompt, so the CLI reads
-// every secret once and caches them in a RAM-backed, owner-only file under
-// $XDG_RUNTIME_DIR (tmpfs, per user, cleared on logout/reboot). Later calls,
-// including separate processes started by an agent, read the cache instead of
-// calling `op`. Nothing is ever written to persistent disk.
+// Each value is looked up on its own: an environment variable wins, otherwise
+// the OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret
+// Service via libsecret) through Bun.secrets. `corpus auth login` writes the
+// keychain; nothing is ever written to a file.
 
 import { execFile } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -28,90 +17,175 @@ export interface Secrets {
   meiliKey: string;
 }
 
-interface CacheFile {
-  expiresAt: number;
-  secrets: Secrets;
-}
+export type SecretName = keyof Secrets;
 
 const VAULT = "Arabic Digitization";
 
-// 1Password reference and env-var override for each secret.
-const SOURCES: Record<keyof Secrets, { ref: string; env: string }> = {
+// The env var name doubles as the keychain entry name.
+export const SOURCES: Record<
+  SecretName,
+  { env: string; label: string; opRef: string; hidden: boolean }
+> = {
   apiUrl: {
-    ref: `op://${VAULT}/API Connection Vars/ARABIC_OCR_URL`,
     env: "ARABIC_OCR_URL",
+    label: "API URL",
+    opRef: `op://${VAULT}/API Connection Vars/ARABIC_OCR_URL`,
+    hidden: false,
   },
   apiKey: {
-    ref: `op://${VAULT}/API Connection Vars/ARABIC_OCR_KEY`,
     env: "ARABIC_OCR_KEY",
+    label: "API key",
+    opRef: `op://${VAULT}/API Connection Vars/ARABIC_OCR_KEY`,
+    hidden: true,
   },
-  meiliUrl: { ref: `op://${VAULT}/Meilisearch/url`, env: "MEILI_URL" },
+  meiliUrl: {
+    env: "MEILI_URL",
+    label: "Meilisearch URL",
+    opRef: `op://${VAULT}/Meilisearch/url`,
+    hidden: false,
+  },
   // Read-only search key: the CLI never needs Meilisearch write access.
   meiliKey: {
-    ref: `op://${VAULT}/Meilisearch/client read key`,
     env: "MEILI_SEARCH_KEY",
+    label: "Meilisearch search key",
+    opRef: `op://${VAULT}/Meilisearch/client read key`,
+    hidden: true,
   },
 };
 
-const SECRET_NAMES = Object.keys(SOURCES) as (keyof Secrets)[];
+export const SECRET_NAMES = Object.keys(SOURCES) as SecretName[];
+
+export const keychainService = (): string =>
+  process.env.CORPUS_KEYCHAIN_SERVICE || "qiraa-corpus";
+
+const ENV_HINT = SECRET_NAMES.map((n) => SOURCES[n].env).join(", ");
+
+export class KeychainUnavailableError extends Error {
+  constructor(cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    const linux =
+      process.platform === "linux"
+        ? " On Linux this needs a Secret Service (gnome-keyring or KWallet) running in your session and libsecret installed; headless servers usually have neither."
+        : "";
+    super(
+      `The OS keychain is not available (${detail}).${linux} Set the environment variables ${ENV_HINT} instead.`,
+    );
+  }
+}
+
+const keychain = async <T>(op: () => Promise<T>): Promise<T> => {
+  try {
+    return await op();
+  } catch (err) {
+    throw new KeychainUnavailableError(err);
+  }
+};
+
+const keychainGet = (name: SecretName): Promise<string | null> =>
+  keychain(() =>
+    Bun.secrets.get({ service: keychainService(), name: SOURCES[name].env }),
+  );
+
+export const keychainSet = ({
+  name,
+  value,
+}: {
+  name: SecretName;
+  value: string;
+}): Promise<void> =>
+  keychain(() =>
+    Bun.secrets.set({
+      service: keychainService(),
+      name: SOURCES[name].env,
+      value,
+    }),
+  );
+
+export const keychainDelete = (name: SecretName): Promise<boolean> =>
+  keychain(() =>
+    Bun.secrets.delete({ service: keychainService(), name: SOURCES[name].env }),
+  );
+
+export type SecretSource = "env" | "keychain";
+
+export const resolveSecret = async (
+  name: SecretName,
+): Promise<{ value: string; source: SecretSource } | null> => {
+  const env = process.env[SOURCES[name].env];
+  if (env) return { value: env, source: "env" };
+  const stored = await keychainGet(name);
+  return stored ? { value: stored, source: "keychain" } : null;
+};
+
+const NEEDED: Record<"api" | "meili", [SecretName, SecretName]> = {
+  api: ["apiUrl", "apiKey"],
+  meili: ["meiliUrl", "meiliKey"],
+};
+
+// The URL and key one service needs. Env vars are checked first, so a machine
+// with both set never touches the keychain.
+export const loadServiceSecrets = async (
+  service: "api" | "meili",
+): Promise<{ url: string; key: string }> => {
+  const [urlName, keyName] = NEEDED[service];
+  const url = await resolveSecret(urlName);
+  const key = await resolveSecret(keyName);
+  if (!url || !key) {
+    const missing = [!url && urlName, !key && keyName]
+      .filter((n): n is SecretName => Boolean(n))
+      .map((n) => SOURCES[n].env);
+    const what = service === "api" ? "the API" : "search (Meilisearch)";
+    throw new Error(
+      `Not configured for ${what}: ${missing.join(" and ")} missing. Run \`corpus auth login\` or set the environment variable(s). \`corpus auth status\` shows what is set.`,
+    );
+  }
+  return { url: url.value, key: key.value };
+};
+
+export interface AuthStatus {
+  service: string;
+  keychain: "available" | "unavailable";
+  keychainError?: string;
+  values: Record<string, SecretSource | null>;
+  ready: { api: boolean; search: boolean };
+}
+
+// Never includes a value, only where each one comes from.
+export const authStatus = async (): Promise<AuthStatus> => {
+  const values: Record<string, SecretSource | null> = {};
+  let keychainError: string | undefined;
+  for (const name of SECRET_NAMES) {
+    const { env } = SOURCES[name];
+    if (process.env[env]) {
+      values[env] = "env";
+      continue;
+    }
+    if (keychainError) {
+      values[env] = null;
+      continue;
+    }
+    try {
+      values[env] = (await keychainGet(name)) ? "keychain" : null;
+    } catch (err) {
+      keychainError = (err as Error).message;
+      values[env] = null;
+    }
+  }
+  const set = (name: SecretName) => values[SOURCES[name].env] != null;
+  return {
+    service: keychainService(),
+    keychain: keychainError ? "unavailable" : "available",
+    ...(keychainError ? { keychainError } : {}),
+    values,
+    ready: {
+      api: set("apiUrl") && set("apiKey"),
+      search: set("meiliUrl") && set("meiliKey"),
+    },
+  };
+};
 
 const opAccount = (): string =>
   process.env.CORPUS_OP_ACCOUNT ?? "my.1password.com";
-
-const ttlMs = (): number => {
-  const hours = Number(process.env.CORPUS_SECRET_TTL_HOURS ?? "12");
-  return (Number.isFinite(hours) && hours > 0 ? hours : 12) * 3_600_000;
-};
-
-// tmpfs only. Refuse rather than fall back to a disk-backed temp dir.
-export const cacheDir = (): string => {
-  const base = process.env.XDG_RUNTIME_DIR ?? "/dev/shm";
-  if (!existsSync(base)) {
-    throw new Error(
-      `No RAM-backed directory for the secret cache ($XDG_RUNTIME_DIR unset and /dev/shm missing). Set the env vars ${SECRET_NAMES.map((n) => SOURCES[n].env).join(", ")} instead.`,
-    );
-  }
-  return join(base, "qiraa-corpus");
-};
-
-const cachePath = (): string => join(cacheDir(), "secrets.json");
-
-const fromEnv = (): Secrets | null => {
-  const values = SECRET_NAMES.map((n) => process.env[SOURCES[n].env]);
-  if (values.some((v) => !v)) return null;
-  return Object.fromEntries(
-    SECRET_NAMES.map((n, i) => [n, values[i]]),
-  ) as unknown as Secrets;
-};
-
-// Only trust a cache file we own that nobody else can read.
-const readCache = (): CacheFile | null => {
-  const path = cachePath();
-  if (!existsSync(path)) return null;
-  const st = statSync(path);
-  if (st.uid !== process.getuid?.() || (st.mode & 0o077) !== 0) {
-    rmSync(path, { force: true });
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as CacheFile;
-    if (parsed.expiresAt <= Date.now()) return null;
-    if (SECRET_NAMES.some((n) => !parsed.secrets?.[n])) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
-const writeCache = (secrets: Secrets): CacheFile => {
-  const dir = cacheDir();
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  chmodSync(dir, 0o700);
-  const file: CacheFile = { expiresAt: Date.now() + ttlMs(), secrets };
-  writeFileSync(cachePath(), JSON.stringify(file), { mode: 0o600 });
-  chmodSync(cachePath(), 0o600);
-  return file;
-};
 
 const opRead = async (ref: string): Promise<string> => {
   try {
@@ -124,7 +198,9 @@ const opRead = async (ref: string): Promise<string> => {
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { killed?: boolean };
     if (e.code === "ENOENT") {
-      throw new Error("1Password CLI `op` not found on PATH.");
+      throw new Error(
+        "1Password CLI `op` not found on PATH. Use `corpus auth login` without --1password, or set the environment variables.",
+      );
     }
     if (e.killed) {
       throw new Error(
@@ -132,57 +208,17 @@ const opRead = async (ref: string): Promise<string> => {
       );
     }
     throw new Error(
-      `\`op read\` failed for ${ref}. Check that 1Password is unlocked and the account (${opAccount()}) holds the "${VAULT}" vault.`,
+      `\`op read\` failed for ${ref}. Check that 1Password is unlocked and the account (${opAccount()}) holds the "${VAULT}" vault (set CORPUS_OP_ACCOUNT for another account).`,
     );
   }
 };
 
 // Sequential on purpose: the first read unlocks the op session, so the rest
 // ride the same authorization instead of racing four prompts at once.
-const fetchFromOp = async (): Promise<Secrets> => {
+export const readFrom1Password = async (): Promise<Secrets> => {
   const out: Partial<Secrets> = {};
   for (const name of SECRET_NAMES) {
-    out[name] = await opRead(SOURCES[name].ref);
+    out[name] = await opRead(SOURCES[name].opRef);
   }
   return out as Secrets;
-};
-
-export type SecretSource = "env" | "cache" | "1password";
-
-export const loadSecrets = async ({
-  refresh = false,
-}: {
-  refresh?: boolean;
-} = {}): Promise<{ secrets: Secrets; source: SecretSource }> => {
-  const env = fromEnv();
-  if (env) return { secrets: env, source: "env" };
-  if (!refresh) {
-    const cached = readCache();
-    if (cached) return { secrets: cached.secrets, source: "cache" };
-  }
-  const secrets = await fetchFromOp();
-  writeCache(secrets);
-  return { secrets, source: "1password" };
-};
-
-export const cacheStatus = (): {
-  path: string;
-  cached: boolean;
-  expiresAt: string | null;
-  envOverride: boolean;
-} => {
-  const cached = readCache();
-  return {
-    path: cachePath(),
-    cached: cached != null,
-    expiresAt: cached ? new Date(cached.expiresAt).toISOString() : null,
-    envOverride: fromEnv() != null,
-  };
-};
-
-export const clearCache = (): boolean => {
-  const path = cachePath();
-  const existed = existsSync(path);
-  rmSync(path, { force: true });
-  return existed;
 };

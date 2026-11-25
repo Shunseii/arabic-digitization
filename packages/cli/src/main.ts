@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --no-warnings
+#!/usr/bin/env bun
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
@@ -31,18 +31,28 @@ import {
   type TextHistoryResponse,
   type UpdateBookResponse,
 } from "@qiraa/shared";
+import { authCommand, UsageError } from "./auth.ts";
 import { HttpError, request, requestText } from "./http.ts";
-import { cacheStatus, clearCache, loadSecrets } from "./secrets.ts";
+
+// Replaced at compile time (bun build --define CORPUS_VERSION='"1.2.3"').
+declare const CORPUS_VERSION: string | undefined;
+const VERSION = typeof CORPUS_VERSION === "string" ? CORPUS_VERSION : "dev";
 
 const USAGE = `corpus: the Arabic digitization corpus from the command line
 
-Secrets come from 1Password once, then a RAM-only cache (see \`corpus auth\`).
+Credentials come from env vars (ARABIC_OCR_URL, ARABIC_OCR_KEY, MEILI_URL,
+MEILI_SEARCH_KEY), otherwise the OS keychain (see \`corpus auth\`).
 <book> is a book id or (part of) its title.
 
 Auth
-  corpus auth login               read secrets from 1Password and cache them
-  corpus auth status              show whether secrets are cached and until when
-  corpus auth logout              wipe the cache
+  corpus auth login               prompt for the API URL/key and Meilisearch URL/key,
+                                  store them in the OS keychain
+  corpus auth login --url <u> --key-stdin [--meili-url <u> --meili-key-stdin]
+                                  non-interactive; key(s) on stdin, one per line
+                                  (API key first)
+  corpus auth login --1password   read all four from 1Password once (needs \`op\`)
+  corpus auth status              which values are set and where (env/keychain)
+  corpus auth logout              delete the stored values from the keychain
 
 Books
   corpus books                    list books with per-state page counts
@@ -104,8 +114,9 @@ Search
                                   hybrid search; ratio 0 = keyword, 1 = semantic
 
 Options
-  --json    machine-readable output (every command)
-  --help    this help
+  --json     machine-readable output (every command)
+  --version  print the version
+  --help     this help
 `;
 
 const { values: opts, positionals } = parseArgs({
@@ -114,6 +125,12 @@ const { values: opts, positionals } = parseArgs({
     json: { type: "boolean", default: false },
     yes: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
+    version: { type: "boolean", short: "v", default: false },
+    url: { type: "string" },
+    "key-stdin": { type: "boolean", default: false },
+    "meili-url": { type: "string" },
+    "meili-key-stdin": { type: "boolean", default: false },
+    "1password": { type: "boolean", default: false },
     title: { type: "string" },
     id: { type: "string" },
     instructions: { type: "string" },
@@ -134,8 +151,6 @@ const { values: opts, positionals } = parseArgs({
     "new-only": { type: "boolean", default: false },
   },
 });
-
-class UsageError extends Error {}
 
 // Edits from --old/--new, or a JSON array from --edits <file> ("-" = stdin).
 const readEdits = (): TextEdit[] => {
@@ -698,40 +713,18 @@ const pageReviews = async ({
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   async auth([sub]) {
-    if (sub === "login") {
-      const { source } = await loadSecrets({ refresh: true });
-      const status = cacheStatus();
-      print({
-        data: { source, ...status },
-        human: () =>
-          source === "env"
-            ? "Using secrets from environment variables; nothing cached."
-            : `Secrets cached in RAM until ${status.expiresAt}.`,
-      });
-      return;
-    }
-    if (sub === "status") {
-      const status = cacheStatus();
-      print({
-        data: status,
-        human: () =>
-          status.envOverride
-            ? "Secrets come from environment variables."
-            : status.cached
-              ? `Cached until ${status.expiresAt} (${status.path}).`
-              : "Not cached. The next command reads 1Password once (or run `corpus auth login`).",
-      });
-      return;
-    }
-    if (sub === "logout") {
-      const removed = clearCache();
-      print({
-        data: { removed },
-        human: () => (removed ? "Secret cache wiped." : "Nothing cached."),
-      });
-      return;
-    }
-    throw new UsageError("usage: corpus auth login|status|logout");
+    print(
+      await authCommand({
+        sub,
+        options: {
+          url: opts.url,
+          keyStdin: opts["key-stdin"],
+          meiliUrl: opts["meili-url"],
+          meiliKeyStdin: opts["meili-key-stdin"],
+          onePassword: opts["1password"],
+        },
+      }),
+    );
   },
 
   async books() {
@@ -1209,6 +1202,10 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 
 const main = async () => {
   const [name, ...args] = positionals;
+  if (opts.version) {
+    console.log(VERSION);
+    return;
+  }
   if (opts.help || !name) {
     console.log(USAGE);
     return;
@@ -1223,7 +1220,7 @@ main().catch((err: unknown) => {
     console.error(`corpus: ${err.message}\nRun \`corpus --help\` for usage.`);
     process.exit(2);
   }
-  // Node's fetch reports network errors as "fetch failed"; the cause says why.
+  // Some fetch network errors carry the reason in `cause`.
   const cause =
     err instanceof Error && err.cause instanceof Error
       ? ` (${(err.cause as NodeJS.ErrnoException).code ?? err.cause.message})`
