@@ -57,12 +57,12 @@ export const Button = ({
       type={type}
       disabled={disabled || loading}
       className={cx(
-        "press inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md font-semibold disabled:cursor-default disabled:opacity-40",
+        "press inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md font-semibold disabled:cursor-default",
         size === "sm"
           ? "h-9 gap-1.5 px-3.5 text-small"
           : "h-12 gap-2 px-5 text-body",
         buttonVariants[variant],
-        loading && "disabled:opacity-100",
+        !loading && "disabled:opacity-40",
         className,
       )}
       {...rest}
@@ -213,7 +213,7 @@ export const EmptyState = ({
   children,
 }: {
   icon: LucideIcon;
-  tone?: "neutral" | "danger";
+  tone?: "neutral" | "danger" | "ok";
   title: ReactNode;
   body?: ReactNode;
   children?: ReactNode;
@@ -222,7 +222,13 @@ export const EmptyState = ({
     <div className="flex size-14 items-center justify-center rounded-full bg-surface-2">
       <Icon
         size={24}
-        className={tone === "danger" ? "text-danger" : "text-ink-3"}
+        className={
+          tone === "danger"
+            ? "text-danger"
+            : tone === "ok"
+              ? "text-ok"
+              : "text-ink-3"
+        }
       />
     </div>
     <h2 className="font-display text-number font-semibold tracking-tight text-ink">

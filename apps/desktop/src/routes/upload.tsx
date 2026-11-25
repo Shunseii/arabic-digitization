@@ -1,17 +1,34 @@
 import { UPLOAD_CONTENT_TYPES, type UploadContentType } from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronLeft, FileImage, Upload, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  CircleCheck,
+  ImagePlus,
+  RotateCw,
+  Upload,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loading } from "@/components/ui";
-import { ApiError, api } from "@/lib/api";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  ErrorBanner,
+  FieldLabel,
+  IconButton,
+  Skeleton,
+} from "@/components/ui";
+import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/errors";
+import { count, plural } from "@/lib/format";
 import { loadStatus, recentKey, statusKey } from "@/lib/status";
-import { colors } from "@/theme";
 
 type ItemState = "pending" | "uploading" | "done" | "error";
 interface QueueItem {
   id: string;
   file: File;
+  preview: string;
   state: ItemState;
   error?: string;
 }
@@ -22,6 +39,38 @@ const isUploadable = (file: File): boolean =>
 const mimeFor = (file: File): UploadContentType =>
   isUploadable(file) ? (file.type as UploadContentType) : "image/jpeg";
 
+const megabytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+const FileRow = ({
+  item,
+  page,
+  trailing,
+}: {
+  item: QueueItem;
+  page: number;
+  trailing: React.ReactNode;
+}) => (
+  <div className="flex items-center gap-4 border-b border-line py-3 last:border-b-0">
+    <img
+      src={item.preview}
+      alt=""
+      className="h-12 w-9 shrink-0 rounded-[3px] bg-paper object-cover shadow-sm"
+    />
+    <span className="w-16 shrink-0 font-display text-section font-semibold leading-[1.2] tabular-nums tracking-[-0.01em] text-ink">
+      {page}
+    </span>
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-small">
+      <span className="truncate text-ink">{item.file.name}</span>
+      {item.state === "error" ? (
+        <span className="truncate text-danger">{item.error}</span>
+      ) : (
+        <span className="text-ink-3">{megabytes(item.file.size)}</span>
+      )}
+    </div>
+    {trailing}
+  </div>
+);
+
 export const UploadScreen = () => {
   const navigate = useNavigate();
   const { bookId = "" } = useParams<{ bookId: string }>();
@@ -30,6 +79,16 @@ export const UploadScreen = () => {
 
   const [items, setItems] = useState<QueueItem[]>([]);
   const [startPage, setStartPage] = useState("");
+
+  // Revoke thumbnail URLs when the screen goes away.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  useEffect(
+    () => () => {
+      for (const it of itemsRef.current) URL.revokeObjectURL(it.preview);
+    },
+    [],
+  );
 
   const bookQuery = useQuery({
     queryKey: ["book", bookId],
@@ -60,48 +119,54 @@ export const UploadScreen = () => {
       .map<QueueItem>((file) => ({
         id: crypto.randomUUID(),
         file,
+        preview: URL.createObjectURL(file),
         state: "pending",
       }));
     setItems((prev) => [...prev, ...next]);
   };
+  const remove = (id: string) =>
+    setItems((prev) =>
+      prev.filter((it) => {
+        if (it.id === id) URL.revokeObjectURL(it.preview);
+        return it.id !== id;
+      }),
+    );
+  const reset = () => {
+    for (const it of items) URL.revokeObjectURL(it.preview);
+    setItems([]);
+    setStartPage("");
+    upload.reset();
+  };
+
+  const setItem = (index: number, patch: Partial<QueueItem>) =>
+    setItems((prev) =>
+      prev.map((it, j) => (j === index ? { ...it, ...patch } : it)),
+    );
 
   const upload = useMutation({
-    mutationFn: async () => {
-      let page = effectiveStart;
+    mutationFn: async (only?: number) => {
       for (let i = 0; i < items.length; i += 1) {
-        if (items[i].state === "done") {
-          page += 1;
-          continue;
-        }
-        setItems((prev) =>
-          prev.map((it, j) =>
-            j === i ? { ...it, state: "uploading", error: undefined } : it,
-          ),
-        );
+        if (items[i].state === "done") continue;
+        if (only !== undefined && i !== only) continue;
+        setItem(i, { state: "uploading", error: undefined });
         try {
           await api.uploadPage({
             bookId,
             blob: items[i].file,
-            page,
+            page: effectiveStart + i,
             mime: mimeFor(items[i].file),
           });
-          setItems((prev) =>
-            prev.map((it, j) => (j === i ? { ...it, state: "done" } : it)),
-          );
-          page += 1;
+          setItem(i, { state: "done" });
         } catch (err) {
-          const msg =
-            err instanceof ApiError
-              ? `${err.status}: ${err.message}`
-              : String(err);
-          setItems((prev) =>
-            prev.map((it, j) =>
-              j === i ? { ...it, state: "error", error: msg } : it,
-            ),
-          );
+          setItem(i, {
+            state: "error",
+            error: `${errorMessage(err)} Retry this page.`,
+          });
         }
       }
     },
+    // Pin the start page: the refetch after upload moves "next page" on.
+    onMutate: () => setStartPage(String(effectiveStart)),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: statusKey(bookId) });
       queryClient.invalidateQueries({ queryKey: ["books"] });
@@ -109,170 +174,204 @@ export const UploadScreen = () => {
     },
   });
 
-  if (statusQuery.isLoading) return <Loading />;
+  const uploaded = items.filter((it) => it.state === "done").length;
+  const failed = items.filter((it) => it.state === "error").length;
+  const working = upload.isPending;
+  const allDone = items.length > 0 && uploaded === items.length;
+  const started = items.some((it) => it.state !== "pending");
 
-  const allDone = items.length > 0 && items.every((it) => it.state === "done");
+  const header = (
+    <header className="flex shrink-0 items-center gap-4 px-10 pb-6 pt-8">
+      <IconButton
+        icon={ChevronLeft}
+        label="Back to book"
+        variant="tonal"
+        onClick={() => navigate(`/book/${bookId}`)}
+      />
+      <div className="flex items-baseline gap-4">
+        <h1 className="font-display text-title font-semibold text-ink">
+          Upload pages
+        </h1>
+        <span
+          dir="rtl"
+          className="font-ar text-body font-bold leading-[1.6] text-ink-2"
+        >
+          {bookQuery.data?.title}
+        </span>
+      </div>
+    </header>
+  );
+
+  if (allDone && !working)
+    return (
+      <>
+        {header}
+        <EmptyState
+          icon={CircleCheck}
+          tone="ok"
+          title={`${plural({ n: uploaded, one: "page", many: "pages" })} uploaded`}
+          body={`${
+            uploaded === 1
+              ? `Page ${count(effectiveStart)} is`
+              : `Pages ${count(effectiveStart)}–${count(effectiveStart + uploaded - 1)} are`
+          } queued for OCR. Refresh the book to see them land.`}
+        >
+          <Button onClick={() => navigate(`/book/${bookId}`)}>
+            Back to book
+          </Button>
+          <Button variant="secondary" onClick={reset}>
+            Upload more
+          </Button>
+        </EmptyState>
+      </>
+    );
+
+  const trailingFor = (it: QueueItem, i: number) => {
+    if (it.state === "done") return <Badge tone="ok">uploaded</Badge>;
+    if (it.state === "uploading") return <Badge tone="accent">uploading</Badge>;
+    if (it.state === "error")
+      return (
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={RotateCw}
+          disabled={working}
+          onClick={() => upload.mutate(i)}
+        >
+          Retry
+        </Button>
+      );
+    if (working)
+      return <span className="text-small font-medium text-ink-3">waiting</span>;
+    return (
+      <IconButton
+        icon={X}
+        label="Remove"
+        className="size-8 text-ink-3"
+        onClick={() => remove(it.id)}
+      />
+    );
+  };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-row items-center gap-3 px-8 py-4">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <ChevronLeft size={18} color={colors.textSecondary} />
-        </button>
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <h1 className="text-xl text-ink">Upload pages</h1>
-          <span className="truncate text-xs text-text-muted" dir="rtl">
-            {bookQuery.data?.title ?? "…"}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-8 pb-28">
-        <div className="mx-auto max-w-2xl">
-          <div className="flex flex-row items-end gap-4">
-            <div className="flex flex-col">
-              <span className="mb-2 block text-xs font-bold tracking-wide text-text-muted">
-                STARTING PAGE
-              </span>
-              <input
-                value={startPage}
-                onChange={(e) =>
-                  setStartPage(e.target.value.replace(/[^0-9]/g, ""))
-                }
-                placeholder={String(nextPage)}
-                className="w-28 rounded-xl border border-border bg-surface px-4 py-3 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
-              />
-            </div>
-            <p className="pb-3 text-xs text-text-secondary">
-              Pages number up from {effectiveStart} in the order listed below.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              addFiles(e.dataTransfer.files);
-            }}
-            className="mt-5 flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-surface py-12 transition-colors hover:border-accent/50"
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft">
-              <FileImage size={22} color={colors.accent} />
-            </span>
-            <span className="text-sm font-semibold text-ink">
-              Drop scans here or click to choose
-            </span>
-            <span className="text-xs text-text-muted">
-              JPEG, PNG, or WebP · added in selection order
-            </span>
-          </button>
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={(e) => {
-              addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-
-          {items.length > 0 && (
-            <div className="mt-6">
-              {items.map((it, i) => (
-                <div
-                  key={it.id}
-                  className="flex flex-row items-center gap-3 py-3"
-                  style={{
-                    borderTop:
-                      i > 0 ? `1px solid ${colors.hairline}` : undefined,
-                  }}
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-alt">
-                    <span className="text-sm font-semibold text-ink">
-                      {effectiveStart + i}
-                    </span>
-                  </span>
-                  <div className="flex flex-1 flex-col overflow-hidden">
-                    <span className="truncate text-sm text-ink">
-                      {it.file.name}
-                    </span>
-                    {it.error && (
-                      <span className="truncate text-xs text-st-fail">
-                        {it.error}
-                      </span>
-                    )}
-                  </div>
-                  <ItemStatus state={it.state} />
-                  {it.state === "pending" && !upload.isPending && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setItems((prev) => prev.filter((_, j) => j !== i))
+    <>
+      {header}
+      <div className="flex min-h-0 flex-1 justify-center overflow-y-auto">
+        <div className="flex w-[760px] flex-col gap-5 pb-10">
+          {failed > 0 && !working && (
+            <ErrorBanner title="Some uploads failed">
+              {count(failed)} of {count(items.length)} pages didn't upload.
+              {uploaded > 0 && " The others are queued for OCR."}
+            </ErrorBanner>
+          )}
+          {!started && (
+            <>
+              <div className="flex items-end gap-4">
+                <label className="flex w-40 flex-col gap-2">
+                  <FieldLabel>Start at page</FieldLabel>
+                  {statusQuery.isLoading ? (
+                    <Skeleton className="h-[50px] rounded-md" />
+                  ) : (
+                    <input
+                      value={startPage}
+                      inputMode="numeric"
+                      onChange={(e) =>
+                        setStartPage(e.target.value.replace(/[^0-9]/g, ""))
                       }
-                      className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-surface-alt"
-                    >
-                      <X size={15} color={colors.textMuted} />
-                    </button>
+                      placeholder={String(nextPage)}
+                      className="h-[50px] rounded-md border border-line bg-surface px-3.5 text-body text-ink outline-none placeholder:text-ink focus:border-accent"
+                    />
                   )}
-                </div>
+                </label>
+                <p className="pb-4 text-small text-ink-2">
+                  Pages are numbered from here in the order shown.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  addFiles(e.dataTransfer.files);
+                }}
+                className="flex flex-col items-center gap-2 rounded-lg border-[1.5px] border-dashed border-line bg-surface py-14 hover:border-accent"
+              >
+                <span className="flex size-12 items-center justify-center rounded-full bg-accent-soft">
+                  <ImagePlus size={22} className="text-accent" />
+                </span>
+                <span className="text-body font-semibold text-ink">
+                  Drop scans here, or click to choose
+                </span>
+                <span className="text-small text-ink-3">JPEG, PNG or WebP</span>
+              </button>
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </>
+          )}
+          {items.length > 0 && (
+            <div className="flex flex-col rounded-lg border border-line bg-surface px-5 py-1">
+              {items.map((it, i) => (
+                <FileRow
+                  key={it.id}
+                  item={it}
+                  page={effectiveStart + i}
+                  trailing={trailingFor(it, i)}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
-
-      <div
-        className="absolute bottom-0 left-0 right-0 border-t border-hairline bg-surface px-8 py-4"
-        style={{ marginLeft: 0 }}
-      >
-        <div className="mx-auto flex max-w-2xl flex-row gap-3">
-          {allDone ? (
-            <button
-              type="button"
+      <footer className="flex shrink-0 items-center gap-4 border-t border-line bg-surface px-10 py-4">
+        {working && (
+          <span className="flex-1 text-small text-ink-2">
+            Keep Qiraa open until uploads finish.
+          </span>
+        )}
+        {failed > 0 && !working ? (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto"
               onClick={() => navigate(`/book/${bookId}`)}
-              className="flex flex-1 items-center justify-center rounded-xl bg-accent py-4"
             >
-              <span className="text-base font-bold text-accent-ink">
-                Done · back to book
-              </span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => upload.mutate()}
-              disabled={items.length === 0 || upload.isPending}
-              className="flex flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-accent py-4 disabled:opacity-50"
+              Back to book
+            </Button>
+            <Button
+              className="w-[280px]"
+              icon={Upload}
+              onClick={() => upload.mutate(undefined)}
             >
-              <Upload size={18} color={colors.accentInk} />
-              <span className="text-base font-bold text-accent-ink">
-                {upload.isPending
-                  ? "Uploading…"
-                  : `Upload ${items.length || ""} ${items.length === 1 ? "page" : "pages"}`}
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+              Retry {plural({ n: failed, one: "page", many: "pages" })}
+            </Button>
+          </>
+        ) : (
+          <Button
+            className="ml-auto w-[280px]"
+            icon={working ? undefined : Upload}
+            disabled={items.length === 0}
+            loading={working}
+            onClick={() => upload.mutate(undefined)}
+          >
+            {working
+              ? `Uploading… ${count(Math.min(uploaded + failed + 1, items.length))} of ${count(items.length)}`
+              : items.length === 0
+                ? "Upload pages"
+                : `Upload ${plural({ n: items.length, one: "page", many: "pages" })}`}
+          </Button>
+        )}
+      </footer>
+    </>
   );
-};
-
-const ItemStatus = ({ state }: { state: ItemState }) => {
-  if (state === "done") return <Check size={18} color="#46B97D" />;
-  if (state === "error") return <X size={18} color="#EE6A4D" />;
-  if (state === "uploading")
-    return (
-      <span className="text-xs font-semibold" style={{ color: colors.accent }}>
-        …
-      </span>
-    );
-  return <span className="text-xs text-text-muted">queued</span>;
 };
