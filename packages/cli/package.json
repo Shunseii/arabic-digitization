@@ -3,15 +3,18 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "corpus: command-line access to the Arabic digitization API and search, with cached secrets",
+  "description": "corpus: command-line access to the Arabic digitization API and search, with credentials in the OS keychain",
   "bin": {
     "corpus": "./src/main.ts"
   },
   "scripts": {
+    "build": "bun build src/main.ts --compile --minify --outfile dist/corpus",
+    "build:release": "sh scripts/compile.sh",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@qiraa/shared": "workspace:*",
+    "@types/bun": "1.4.0",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.3"
   }

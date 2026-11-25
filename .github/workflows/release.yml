@@ -6,7 +6,14 @@ name: release
 #     the rolling `desktop-latest` release;
 #   - mobile: publishes an over-the-air update to the EAS `preview` channel,
 #     unless native code changed since the last release (then it fails and asks
-#     for a new EAS build, because an OTA can't carry native changes).
+#     for a new EAS build, because an OTA can't carry native changes);
+#   - cli: compiles the `corpus` CLI with Bun for Linux, macOS and Windows and
+#     uploads the binaries, their checksums, and the install.sh / install.ps1
+#     one-line installers to that release.
+#
+# The installers download from /releases/latest/download/, so the newest v*
+# release must be GitHub's "Latest": don't publish it as a pre-release, and
+# desktop-latest is created with --latest=false.
 #
 # Create the release with: gh release create v1.2.3 --title "v1.2.3" --notes "..."
 # The release notes become the OTA message. The API deploy and remote D1
@@ -118,11 +125,64 @@ jobs:
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir latest-assets \
             --pattern '*.AppImage' --pattern '*.deb' --pattern '*.exe'
           gh release delete desktop-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          # --latest=false keeps the v* release as GitHub's "Latest", which
+          # the CLI installers' /releases/latest/download/ URLs rely on.
           gh release create desktop-latest latest-assets/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SHA" \
+            --latest=false \
             --title "رقمنة — Desktop (latest)" \
             --notes "Latest desktop installers (currently v$VERSION, see release $TAG). Windows (.exe) and Linux (.deb / .AppImage)."
+
+  # Every target cross-compiles from one Linux runner.
+  cli:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Only the CLI and its workspace deps (@qiraa/shared), not the apps.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter @qiraa/cli...
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Compile corpus for every target
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: sh packages/cli/scripts/compile.sh "$VERSION" cli-dist
+
+      - name: Smoke-test the Linux binary
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          test "$(cli-dist/corpus-linux-x64 --version)" = "$VERSION"
+          cli-dist/corpus-linux-x64 --help > /dev/null
+
+      - name: Upload binaries and installers to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cp scripts/install.sh scripts/install.ps1 cli-dist/
+          cd cli-dist
+          ls -l
+          gh release upload "$TAG" corpus-* install.sh install.ps1 \
+            --repo "$GITHUB_REPOSITORY" --clobber
 
   mobile-ota:
     needs: prepare
