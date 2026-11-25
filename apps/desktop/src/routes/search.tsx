@@ -342,19 +342,20 @@ const HitRow = ({
       dir="rtl"
       className="block truncate text-right font-ar text-body font-medium leading-[1.6] text-ink-2"
     >
-      {snippetParts(hit._snippetResult?.text?.value ?? hit.text ?? "").map((p, i) =>
-        p.match ? (
-          <mark
+      {snippetParts(hit._snippetResult?.text?.value ?? hit.text ?? "").map(
+        (p, i) =>
+          p.match ? (
+            <mark
+              // biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+              key={i}
+              className="rounded bg-warn-soft px-1 font-bold text-ink"
+            >
+              {p.text}
+            </mark>
+          ) : (
             // biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
-            key={i}
-            className="rounded bg-warn-soft px-1 font-bold text-ink"
-          >
-            {p.text}
-          </mark>
-        ) : (
-          // biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
-          <span key={i}>{p.text}</span>
-        ),
+            <span key={i}>{p.text}</span>
+          ),
       )}
     </span>
   </button>

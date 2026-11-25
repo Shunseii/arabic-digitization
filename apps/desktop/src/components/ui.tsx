@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Check,
   ChevronDown,
+  CircleAlert,
   CircleX,
   LoaderCircle,
   RefreshCw,
@@ -403,8 +404,10 @@ export const Chip = ({
   const className = cx(
     "inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-small font-medium",
     selected
-      ? "border-transparent bg-accent-soft text-accent"
-      : "border-line bg-surface text-ink-2",
+      ? "border-ink bg-ink text-bg"
+      : onRemove
+        ? "border-transparent bg-accent-soft text-accent"
+        : "border-line bg-surface text-ink-2",
   );
   if (onRemove)
     return (
@@ -414,7 +417,7 @@ export const Chip = ({
           type="button"
           aria-label="Remove"
           onClick={onRemove}
-          className="press -mr-1 text-ink-3"
+          className="press -mr-1"
         >
           <X size={14} />
         </button>
@@ -425,13 +428,32 @@ export const Chip = ({
       <button
         type="button"
         onClick={onClick}
+        aria-pressed={selected}
         className={cx("press", className)}
       >
+        {selected && <Check size={14} />}
         {children}
       </button>
     );
   return <span className={className}>{children}</span>;
 };
+
+/** An inline error: what failed and what to do about it. */
+export const ErrorBanner = ({
+  title,
+  children,
+}: {
+  title: ReactNode;
+  children?: ReactNode;
+}) => (
+  <div className="flex shrink-0 items-center gap-3 rounded-md bg-danger-soft px-4 py-3">
+    <CircleAlert size={18} className="shrink-0 text-danger" />
+    <div className="flex flex-1 flex-col gap-0.5 text-ink">
+      <span className="text-body font-semibold">{title}</span>
+      {children && <span className="text-small">{children}</span>}
+    </div>
+  </div>
+);
 
 // --- Status ----------------------------------------------------------------
 
