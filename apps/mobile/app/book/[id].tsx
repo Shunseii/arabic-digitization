@@ -47,6 +47,7 @@ import {
 } from "@/components/work-fields";
 import { api } from "@/lib/api";
 import { useGoBack } from "@/lib/navigation";
+import { pageReviewBlockedReason, usePageReview } from "@/lib/page-review";
 import { loadStatus } from "@/lib/status";
 import { type Palette, useColors } from "@/theme";
 
@@ -176,37 +177,7 @@ export default function BookScreen() {
     onError: (err) => Alert.alert("Could not queue pages", String(err)),
   });
 
-  const reviewAll = useMutation({
-    mutationFn: () => api.queueReview({ bookId: id, all: true }),
-    onSuccess: ({ queued, skipped_hand_edited, already_queued }) =>
-      Alert.alert(
-        "Queued for review",
-        [
-          `${queued} queued`,
-          skipped_hand_edited
-            ? `${skipped_hand_edited} hand-edited skipped`
-            : null,
-          already_queued ? `${already_queued} already queued` : null,
-        ]
-          .filter((part) => part !== null)
-          .join(" · "),
-      ),
-    onError: (err) => Alert.alert("Could not queue pages", String(err)),
-  });
-
-  const confirmReviewAll = async () => {
-    const pages = bookQuery.data?.counts.done ?? 0;
-    if (pages === 0) return;
-    const estimate = await estimateReview(pages);
-    Alert.alert(
-      `Review ${pages} ${pages === 1 ? "page" : "pages"} again?`,
-      `About ${estimate} (estimate). Hand-edited pages are skipped.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Review", onPress: () => reviewAll.mutate() },
-      ],
-    );
-  };
+  const pageReview = usePageReview(id);
 
   const offerExistingPages = async (pages: number) => {
     const estimate = await estimateReview(pages);
@@ -686,6 +657,19 @@ export default function BookScreen() {
               onPress={() => rerun(menuPage.file)}
             />
             <ListRow
+              icon="eye"
+              title="Re-run review"
+              subtitle={
+                pageReviewBlockedReason(menuPage.file) ??
+                "Opus proofreads it against the scan again"
+              }
+              disabled={pageReviewBlockedReason(menuPage.file) !== null}
+              onPress={() => {
+                setMenuPage(null);
+                pageReview.ask(menuPage);
+              }}
+            />
+            <ListRow
               icon="trash-2"
               title="Delete page"
               subtitle="Removes the scan and its transcription"
@@ -851,14 +835,6 @@ export default function BookScreen() {
               ? "Pages that finish OCR are proofread against the scan. Applies now; costs money."
               : "Off. Pages already sent for review still finish."}
           </T>
-        </View>
-        <View className="pt-2">
-          <ListRow
-            icon="refresh-cw"
-            title="Review all pages"
-            subtitle="Once, now, including pages already reviewed"
-            onPress={confirmReviewAll}
-          />
         </View>
       </Sheet>
     </View>

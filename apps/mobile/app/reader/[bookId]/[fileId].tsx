@@ -31,6 +31,7 @@ import { ZoomableImage } from "@/components/zoomable-image";
 import { api } from "@/lib/api";
 import { Markdown } from "@/lib/markdown";
 import { useGoBack } from "@/lib/navigation";
+import { pageReviewBlockedReason, usePageReview } from "@/lib/page-review";
 import { loadStatus } from "@/lib/status";
 import { useColors } from "@/theme";
 
@@ -110,6 +111,7 @@ export default function ReaderScreen() {
       : null;
   // Swap the page in place: no slide animation, and back still returns to
   // whichever screen opened the reader.
+  const pageReview = usePageReview(bookId);
   const goToFile = (target: string) => {
     setScanZoomed(false);
     router.setParams({ fileId: target });
@@ -167,7 +169,28 @@ export default function ReaderScreen() {
             </T>
           ) : null}
         </View>
-        <View className="w-10" />
+        {currentFile ? (
+          <View
+            style={{
+              opacity: pageReviewBlockedReason(currentFile) ? 0.4 : 1,
+            }}
+          >
+            {/* Stays pressable when blocked, so a tap says why. */}
+            <IconButton
+              icon="eye"
+              variant="plain"
+              disabled={pageReview.pending}
+              onPress={() =>
+                pageReview.ask({
+                  file: currentFile,
+                  label: String(currentFile.page_number ?? currentIndex + 1),
+                })
+              }
+            />
+          </View>
+        ) : (
+          <View className="w-10" />
+        )}
       </View>
 
       <Animated.ScrollView
