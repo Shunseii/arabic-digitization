@@ -8,6 +8,7 @@ import { applyReview, applyReviewEdits } from "../src/review/apply";
 import type { ReviewApplyMessage } from "../src/review/message";
 import type { ReviewEdit } from "../src/review/prompt";
 import {
+  type BatchCheck,
   checkBatch,
   claimPages,
   dispatchApplies,
@@ -515,7 +516,7 @@ describe("review batch", () => {
 });
 
 describe("review_batches stages", () => {
-  it("records each stage and the live request counts on the instance's row", async () => {
+  it("records each stage, writing a check only when the counts moved or the batch ended", async () => {
     const world = makeWorld();
     seedBook(world);
     seedDonePage({ world, fileId: "file-a" });
@@ -525,29 +526,31 @@ describe("review_batches stages", () => {
     const row = () =>
       world.sqlite
         .prepare(
-          "SELECT stage, batch_id, pages, processing, succeeded, next_check_at, last_checked_at FROM review_batches WHERE instance_id = 'review-1'",
+          "SELECT stage, batch_id, pages, processing, succeeded, submitted_at, ended_at FROM review_batches WHERE instance_id = 'review-1'",
         )
         .get() as Record<string, unknown>;
+    const batchWrites: string[] = [];
+    world.faults.run = (sql) => {
+      if (sql.includes("UPDATE review_batches")) batchWrites.push(sql);
+      return false;
+    };
 
     await run(world, claimPages("review-1"));
     expect(row()).toMatchObject({ stage: "preparing", pages: 1 });
 
-    await run(
+    const submittedAt = await run(
       world,
-      recordBatch({
-        instanceId: "review-1",
-        batchId: "msgbatch_x",
-        pages: 1,
-        nextCheckInMs: 1000,
-      }),
+      recordBatch({ instanceId: "review-1", batchId: "msgbatch_x", pages: 1 }),
     );
     expect(row()).toMatchObject({
       stage: "processing",
       batch_id: "msgbatch_x",
+      submitted_at: submittedAt,
     });
+    batchWrites.length = 0;
 
     const counts = {
-      processing: 1,
+      processing: 2,
       succeeded: 0,
       errored: 0,
       canceled: 0,
@@ -555,38 +558,57 @@ describe("review_batches stages", () => {
     };
     world.batches.statuses = [
       { processingStatus: "in_progress", counts },
+      { processingStatus: "in_progress", counts },
+      {
+        processingStatus: "in_progress",
+        counts: { ...counts, processing: 1, succeeded: 1 },
+      },
       {
         processingStatus: "ended",
-        counts: { ...counts, processing: 0, succeeded: 1 },
+        counts: { ...counts, processing: 0, succeeded: 2 },
       },
     ];
-    const check = (nextCheckInMs: number | null) =>
-      run(
+    let previous: BatchCheck | null = null;
+    const check = async (): Promise<BatchCheck> => {
+      const result: BatchCheck = await run(
         world,
         checkBatch({
           instanceId: "review-1",
           batchId: "msgbatch_x",
-          nextCheckInMs,
+          previous: previous?.counts ?? null,
         }),
       );
-    expect((await check(5000)).ended).toBe(false);
-    const waiting = row();
-    expect(waiting).toMatchObject({ stage: "processing", processing: 1 });
-    expect(waiting.next_check_at).toBe(Number(waiting.last_checked_at) + 5000);
+      previous = result;
+      return result;
+    };
 
-    expect((await check(5000)).ended).toBe(true);
+    await check();
+    expect(row()).toMatchObject({ stage: "processing", processing: 2 });
+    await check();
+    expect(batchWrites).toHaveLength(1);
+    await check();
+    expect(row()).toMatchObject({ processing: 1, succeeded: 1 });
+    expect(batchWrites).toHaveLength(2);
+
+    const ended = await check();
+    expect(ended.ended).toBe(true);
+    expect(batchWrites).toHaveLength(3);
     expect(row()).toMatchObject({
       stage: "ingesting",
       processing: 0,
-      succeeded: 1,
-      next_check_at: null,
+      succeeded: 2,
+      ended_at: ended.checkedAt,
     });
 
+    // Finalize keeps the time the batch ended, for measuring its duration.
     await run(
       world,
       finalizeBatch({ instanceId: "review-1", ended: true, resultsKey: "k" }),
     );
-    expect(row()).toMatchObject({ stage: "applying" });
+    expect(row()).toMatchObject({
+      stage: "applying",
+      ended_at: ended.checkedAt,
+    });
   });
 });
 

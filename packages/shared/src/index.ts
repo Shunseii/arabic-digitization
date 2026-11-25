@@ -178,10 +178,9 @@ export interface ReviewBatchJob {
   reviewed: number;
   created_at: number;
   submitted_at: number | null;
-  last_checked_at: number | null;
-  next_check_at: number | null;
+  /** When a check saw the batch ended (ended_at - submitted_at = duration). */
   ended_at: number | null;
-  /** Anthropic's counts as of last_checked_at. */
+  /** Anthropic's counts as of the last check that saw them change. */
   request_counts: {
     processing: number;
     succeeded: number;

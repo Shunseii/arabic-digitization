@@ -71,8 +71,6 @@ const ReviewBatch = Schema.Struct({
   }),
   created_at: Schema.Int,
   submitted_at: Schema.NullOr(Schema.Int),
-  last_checked_at: Schema.NullOr(Schema.Int),
-  next_check_at: Schema.NullOr(Schema.Int),
   ended_at: Schema.NullOr(Schema.Int),
   request_counts: RequestCounts,
   edits_applied: Schema.Int,
@@ -154,8 +152,6 @@ interface BatchRow {
   pages: number;
   created_at: number;
   submitted_at: number | null;
-  last_checked_at: number | null;
-  next_check_at: number | null;
   ended_at: number | null;
   processing: number;
   succeeded: number;
@@ -232,7 +228,7 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
           ).bind(RECENT_RUNS, recentSince, PROBLEM_PAGES),
           env.DB.prepare(
             `SELECT instance_id, batch_id, stage, pages, created_at, submitted_at,
-                    last_checked_at, next_check_at, ended_at, processing, succeeded,
+                    ended_at, processing, succeeded,
                     errored, expired, canceled, error
                FROM review_batches ORDER BY created_at DESC LIMIT ?`,
           ).bind(RECENT_BATCHES),
@@ -367,8 +363,6 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
         reviewed,
         created_at: row.created_at,
         submitted_at: row.submitted_at,
-        last_checked_at: row.last_checked_at,
-        next_check_at: row.next_check_at,
         ended_at: row.ended_at,
         request_counts: {
           processing: row.processing,

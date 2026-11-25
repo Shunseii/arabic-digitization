@@ -30,8 +30,10 @@ CREATE TABLE review_queue (
 -- One row per review Workflow instance (one Message Batch), written at each
 -- stage so GET /api/jobs can show progress without asking Anthropic:
 --   preparing  pages claimed, requests being built
---   processing batch submitted; each status check stores Anthropic's counts
---   ingesting  batch ended, results being copied to R2
+--   processing batch submitted; a status check stores Anthropic's counts
+--              when they changed (most checks change nothing)
+--   ingesting  batch ended (ended_at: when a check first saw it), results
+--              being copied to R2
 --   applying   one queue message per page sent; pages are applied as they land
 --   empty      nothing eligible to send (no batch)
 --   timed_out  the batch didn't end within 26 hours; pages went back to the queue
@@ -49,8 +51,6 @@ CREATE TABLE review_batches (
                       'empty', 'timed_out', 'failed')),
   submitted_at      INTEGER,
   processing_status TEXT,
-  last_checked_at   INTEGER,
-  next_check_at     INTEGER,
   processing        INTEGER NOT NULL DEFAULT 0,
   succeeded         INTEGER NOT NULL DEFAULT 0,
   errored           INTEGER NOT NULL DEFAULT 0,

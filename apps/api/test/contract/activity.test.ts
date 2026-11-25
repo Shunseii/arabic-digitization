@@ -60,14 +60,11 @@ beforeAll(async () => {
     {
       sql: `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < ${BATCHES - 1})
             INSERT INTO review_batches (instance_id, batch_id, created_at, model, pages, stage,
-                                        submitted_at, last_checked_at, next_check_at, processing,
-                                        succeeded, ended_at)
+                                        submitted_at, processing, succeeded, ended_at)
             SELECT 'review-' || i, 'msgbatch_' || i, ${NOW} - (${BATCHES} - i) * 3 * ${HOUR},
                    'claude-opus-5-5', ${REVIEWS_PER_BATCH},
                    CASE WHEN i = ${BATCHES - 1} THEN 'processing' ELSE 'applying' END,
                    ${NOW} - (${BATCHES} - i) * 3 * ${HOUR} + 60000,
-                   ${NOW} - 10 * 60000,
-                   CASE WHEN i = ${BATCHES - 1} THEN ${NOW} + 20 * 60000 END,
                    CASE WHEN i = ${BATCHES - 1} THEN ${REVIEWS_PER_BATCH} ELSE 0 END,
                    CASE WHEN i = ${BATCHES - 1} THEN 0 ELSE ${REVIEWS_PER_BATCH} END,
                    CASE WHEN i = ${BATCHES - 1} THEN NULL ELSE ${NOW} - (${BATCHES} - i) * 3 * ${HOUR} + ${HOUR} END
@@ -149,7 +146,8 @@ describe("GET /api/jobs", () => {
           stage: string;
           reviewed: number;
           pages: number;
-          next_check_at: number | null;
+          submitted_at: number;
+          ended_at: number | null;
           request_counts: { processing: number };
         }[];
         waiting: { book_id: string; pages: number; retrying: number }[];
@@ -183,7 +181,7 @@ describe("GET /api/jobs", () => {
     ]);
     expect(body.review.in_flight[0]).toMatchObject({
       request_counts: { processing: 20 },
-      next_check_at: NOW + 20 * 60000,
+      ended_at: null,
     });
     expect(body.review.in_flight[1]).toMatchObject({ reviewed: 10, pages: 20 });
     expect(body.review.recent).toHaveLength(10);

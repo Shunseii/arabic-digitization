@@ -262,7 +262,7 @@ GET /api/jobs
       in_flight: [ Batch ], waiting: [ { book_id, title, pages, retrying } ],
       recent: [ Batch ] } }
   Batch = { instance_id, batch_id, stage, instance_status, pages, reviewed,
-            created_at, submitted_at, last_checked_at, next_check_at, ended_at,
+            created_at, submitted_at, ended_at,
             request_counts: { processing, succeeded, errored, expired, canceled },
             edits_applied, edits_failed, errors, cost_usd, error }
   // books: those with pages not done, or OCR runs in the recent window
@@ -270,8 +270,10 @@ GET /api/jobs
   // null for paused books. fell_back = runs finished by the fallback engine;
   // retried = runs on a redelivery. problem_pages: the latest runs that fell
   // back, failed, or ran on a third delivery or later.
-  // stage: preparing | processing (waiting on Anthropic; request_counts as of
-  // last_checked_at, next check at next_check_at) | ingesting | applying
+  // stage: preparing | processing (waiting on Anthropic; request_counts as
+  // of the last check that saw them change: checks run every minute for the
+  // first hour, every 10 minutes to 3 hours, then hourly) | ingesting (ended_at:
+  // when the batch ended, so ended_at - submitted_at is its duration) | applying
   // (pages being applied: reviewed of pages) | done | empty | timed_out |
   // failed. recent: the last 10 finished batches.
 

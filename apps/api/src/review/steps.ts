@@ -262,17 +262,18 @@ export function submitBatch({
   });
 }
 
+// Puts the batch id on the instance's row (stage 'processing') and returns
+// the submission time, which the poll loop's schedule and 26-hour cap count
+// from.
 export function recordBatch({
   batchId,
   instanceId,
   pages,
-  nextCheckInMs,
 }: {
   batchId: string;
   instanceId: string;
   pages: number;
-  nextCheckInMs: number | null;
-}): Effect.Effect<void, StorageError, Database | WallClock> {
+}): Effect.Effect<number, StorageError, Database | WallClock> {
   return Effect.gen(function* () {
     const db = yield* Database;
     const clock = yield* WallClock;
@@ -280,17 +281,12 @@ export function recordBatch({
     yield* db.run(
       statement(
         `UPDATE review_batches
-            SET batch_id = ?, pages = ?, stage = 'processing', submitted_at = ?, next_check_at = ?
+            SET batch_id = ?, pages = ?, stage = 'processing', submitted_at = ?
           WHERE instance_id = ?`,
-        [
-          batchId,
-          pages,
-          now,
-          nextCheckInMs === null ? null : now + nextCheckInMs,
-          instanceId,
-        ],
+        [batchId, pages, now, instanceId],
       ),
     );
+    return now;
   });
 }
 
@@ -298,20 +294,31 @@ export function recordBatch({
 
 export interface BatchCheck {
   ended: boolean;
+  // When the check ran (its own clock): the poll loop times the next wait
+  // from step results, so a replay times it the same way.
+  checkedAt: number;
   counts: BatchCounts;
 }
 
+const sameCounts = (a: BatchCounts, b: BatchCounts) =>
+  a.processing === b.processing &&
+  a.succeeded === b.succeeded &&
+  a.errored === b.errored &&
+  a.expired === b.expired &&
+  a.canceled === b.canceled;
+
 // Read the batch status and keep it on the instance's row (GET /api/jobs
-// shows it without calling Anthropic). An ended batch moves to 'ingesting'.
-// `nextCheckInMs` is when the Workflow will look again (null: it won't).
+// shows it without calling Anthropic). The row is written only when the
+// counts moved since `previous` (the last check's) or the batch ended, which
+// also stamps ended_at: polling is dense, and most checks change nothing.
 export function checkBatch({
   instanceId,
   batchId,
-  nextCheckInMs,
+  previous,
 }: {
   instanceId: string;
   batchId: string;
-  nextCheckInMs: number | null;
+  previous: BatchCounts | null;
 }): Effect.Effect<
   BatchCheck,
   StorageError | TransportError,
@@ -323,29 +330,30 @@ export function checkBatch({
     const clock = yield* WallClock;
     const status = yield* batches.retrieve(batchId);
     const ended = status.processingStatus === "ended";
-    const now = clock.now();
+    const checkedAt = clock.now();
     const { counts } = status;
-    yield* db.run(
-      statement(
-        `UPDATE review_batches
-            SET stage = ?, processing_status = ?, last_checked_at = ?, next_check_at = ?,
-                processing = ?, succeeded = ?, errored = ?, expired = ?, canceled = ?
-          WHERE instance_id = ?`,
-        [
-          ended ? "ingesting" : "processing",
-          status.processingStatus,
-          now,
-          ended || nextCheckInMs === null ? null : now + nextCheckInMs,
-          counts.processing,
-          counts.succeeded,
-          counts.errored,
-          counts.expired,
-          counts.canceled,
-          instanceId,
-        ],
-      ),
-    );
-    return { ended, counts };
+    if (ended || !previous || !sameCounts(previous, counts)) {
+      yield* db.run(
+        statement(
+          `UPDATE review_batches
+              SET stage = ?, processing_status = ?, ended_at = ?, processing = ?,
+                  succeeded = ?, errored = ?, expired = ?, canceled = ?
+            WHERE instance_id = ?`,
+          [
+            ended ? "ingesting" : "processing",
+            status.processingStatus,
+            ended ? checkedAt : null,
+            counts.processing,
+            counts.succeeded,
+            counts.errored,
+            counts.expired,
+            counts.canceled,
+            instanceId,
+          ],
+        ),
+      );
+    }
+    return { ended, checkedAt, counts };
   });
 }
 
@@ -502,7 +510,7 @@ export function finalizeBatch({
     yield* db.run(
       statement(
         `UPDATE review_batches
-            SET stage = ?, ended_at = ?, results_key = ?, next_check_at = NULL
+            SET stage = ?, ended_at = COALESCE(ended_at, ?), results_key = ?
           WHERE instance_id = ?`,
         [ended ? "applying" : "timed_out", clock.now(), resultsKey, instanceId],
       ),
