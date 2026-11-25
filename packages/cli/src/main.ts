@@ -1,22 +1,34 @@
 #!/usr/bin/env -S node --no-warnings
 import { readFileSync } from "node:fs";
+import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
-import type {
-  BookExportResponse,
-  BookStatusResponse,
-  BookWithStatus,
-  CreateBookResponse,
-  DeleteBookResponse,
-  EditTextResponse,
-  FetchBookResponse,
-  FileStatus,
-  ListBooksResponse,
-  OcrEngine,
-  PauseBookResponse,
-  ResumeBookResponse,
-  TextEdit,
-  TextHistoryResponse,
-  UpdateBookResponse,
+import {
+  type BookExportResponse,
+  type BookStatusResponse,
+  type BookWithStatus,
+  type CreateBookResponse,
+  DEFAULT_REVIEW_COST_PER_PAGE_USD,
+  type DeleteBookResponse,
+  type EditTextResponse,
+  type FetchBookResponse,
+  type FileStatus,
+  type JobsResponse,
+  type ListBooksResponse,
+  type OcrEngine,
+  type PageReview,
+  type PageReviewsResponse,
+  type PauseBookResponse,
+  type QueueReviewResponse,
+  REVIEW_CATEGORY_LABELS,
+  type ResumeBookResponse,
+  type ReviewBatchJob,
+  type ReviewCategory,
+  type ReviewSummaryResponse,
+  type SpendResponse,
+  type SpendTotals,
+  type TextEdit,
+  type TextHistoryResponse,
+  type UpdateBookResponse,
 } from "@qiraa/shared";
 import { HttpError, request, requestText } from "./http.ts";
 import { cacheStatus, clearCache, loadSecrets } from "./secrets.ts";
@@ -33,7 +45,8 @@ Auth
 
 Books
   corpus books                    list books with per-state page counts
-  corpus show <book>              one book: counts, OCR cost, paused, engine, instructions
+  corpus show <book>              one book: counts, OCR/review cost, review on/off,
+                                  paused, engine, instructions
   corpus create --title <t> [--id <slug>] [--instructions <text>] [--work <id>]
                 [--engine inkling|claude]
   corpus engine <book> <inkling|claude|default>
@@ -61,6 +74,29 @@ Editing (every change keeps the replaced text in the page's history)
                                   exact find-and-replace; each old must match once,
                                   all or nothing. JSON: [{"old": "...", "new": "..."}]
   corpus history <book> <fileId>          changes to a page's text, newest first
+
+Review (Opus proofreads OCR'd pages against the scan; costs money, ~$0.03/page)
+  corpus review <book> on [--yes | --new-only]
+                                  review pages as they finish OCR. If the book has
+                                  done pages, asks whether to queue them too (with a
+                                  cost estimate); --yes queues them, --new-only doesn't
+  corpus review <book> off        stop reviewing new pages
+  corpus review <book> --all [--yes]
+                                  re-review every done page, even with review off
+                                  (asks first, with page count and estimate)
+  corpus review <book> <fileId|page...>
+                                  review specific pages now (even with review off)
+  corpus reviews [--days n] [--book <book>]
+                                  review totals: pages, edits by category, cost,
+                                  batch timing
+  corpus reviews <book> <fileId|page>     a page's reviews and their edits
+                                  Reviews never touch hand-edited pages; each applied
+                                  review is a "review" entry in corpus history.
+
+Activity
+  corpus jobs                     live OCR per book, review batches, pages that gave up
+  corpus spend [--days n] [--book <book>]
+                                  OCR vs review cost: by model, daily, top books
 
 Search
   corpus search <query> [--book <book>] [--ratio 0..1] [--limit n]
@@ -92,6 +128,9 @@ const { values: opts, positionals } = parseArgs({
     new: { type: "string" },
     edits: { type: "string" },
     note: { type: "string" },
+    days: { type: "string" },
+    all: { type: "boolean", default: false },
+    "new-only": { type: "boolean", default: false },
   },
 });
 
@@ -204,6 +243,468 @@ const cleanSnippet = (text: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
+const usd = (n: number | null | undefined): string =>
+  n == null ? "-" : `$${n.toFixed(2)}`;
+
+const perPage = (n: number): string => `$${n.toFixed(3)}/page`;
+
+const formatDuration = (ms: number | null | undefined): string => {
+  if (ms == null) return "-";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  return h < 48 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`;
+};
+
+const ago = (at: number | null | undefined): string =>
+  at == null ? "-" : `${formatDuration(Date.now() - at)} ago`;
+
+const timestamp = (at: number): string =>
+  new Date(at).toISOString().slice(0, 16).replace("T", " ");
+
+const parseDays = (): number | undefined => {
+  if (opts.days === undefined) return undefined;
+  const days = Number(opts.days);
+  if (!Number.isInteger(days) || days < 1 || days > 90) {
+    throw new UsageError("--days is a whole number from 1 to 90");
+  }
+  return days;
+};
+
+// ?days=&book= for the summary and spend endpoints.
+const windowQuery = ({
+  days,
+  bookId,
+}: {
+  days: number | undefined;
+  bookId: string | undefined;
+}): string => {
+  const params = new URLSearchParams();
+  if (days !== undefined) params.set("days", String(days));
+  if (bookId) params.set("book", bookId);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+};
+
+// Billed spend split by kind; older API responses only have the OCR cost of
+// the current text.
+const costLine = (usage: BookWithStatus["usage"]): string | null => {
+  if (!usage) return null;
+  if (usage.ocr || usage.review) {
+    const part = (label: string, t: SpendTotals | undefined) =>
+      `${label} ${usd(t?.cost_usd ?? 0)}${t?.pages ? ` (${t.pages} pages)` : ""}`;
+    return `Cost ${usd(usage.total_cost_usd ?? (usage.ocr?.cost_usd ?? 0) + (usage.review?.cost_usd ?? 0))}: ${part("OCR", usage.ocr)} · ${part("review", usage.review)}`;
+  }
+  return usage.cost_usd != null ? `OCR cost ${usd(usage.cost_usd)}` : null;
+};
+
+const fetchStatus = async (bookId: string): Promise<FileStatus[]> =>
+  (
+    await request<BookStatusResponse>({
+      service: "api",
+      path: bookPath(bookId, "/status"),
+    })
+  ).files;
+
+// What the server will queue: done pages with text that nobody edited by hand.
+// Without `all`, only pages never reviewed (no review cost yet).
+const reviewablePages = ({
+  files,
+  all,
+}: {
+  files: FileStatus[];
+  all: boolean;
+}): FileStatus[] =>
+  files.filter(
+    (f) =>
+      f.state === "done" &&
+      f.preview !== "" &&
+      f.text_edited_at === null &&
+      (all || f.review_cost_usd == null),
+  );
+
+// Measured cost per page over the last 90 days, else the shared default.
+const reviewCostPerPage = async (): Promise<{
+  usd: number;
+  measured: boolean;
+}> => {
+  const summary = await request<ReviewSummaryResponse>({
+    service: "api",
+    path: "/api/reviews/summary?days=90",
+  });
+  return summary.cost_per_page_usd != null
+    ? { usd: summary.cost_per_page_usd, measured: true }
+    : { usd: DEFAULT_REVIEW_COST_PER_PAGE_USD, measured: false };
+};
+
+const estimateLine = async (pages: number): Promise<string> => {
+  const cost = await reviewCostPerPage();
+  return `${pages} page${pages === 1 ? "" : "s"} × ${perPage(cost.usd)}${cost.measured ? " (measured, last 90 days)" : " (default estimate)"} ≈ ${usd(pages * cost.usd)}`;
+};
+
+// --yes answers for agents; otherwise ask on a terminal, or refuse.
+const confirm = async ({
+  question,
+  refusal,
+}: {
+  question: string;
+  refusal: string;
+}): Promise<boolean> => {
+  if (opts.yes) return true;
+  if (!process.stdin.isTTY) throw new UsageError(refusal);
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const answer = await rl.question(`${question} [y/N] `);
+    return /^y(es)?$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
+};
+
+// Each ref is a file id or a printed page number (which may match several
+// fragments of one page).
+const resolvePages = ({
+  files,
+  refs,
+}: {
+  files: FileStatus[];
+  refs: string[];
+}): FileStatus[] => {
+  const picked = new Map<string, FileStatus>();
+  for (const ref of refs) {
+    const byId = files.find((f) => f.file_id === ref);
+    const matches = byId
+      ? [byId]
+      : /^\d+$/.test(ref)
+        ? files.filter((f) => f.page_number === Number(ref))
+        : [];
+    if (matches.length === 0) {
+      throw new UsageError(
+        `no page "${ref}" in this book (pass a file id or page number; see \`corpus status <book> --state done\`)`,
+      );
+    }
+    for (const f of matches) picked.set(f.file_id, f);
+  }
+  return [...picked.values()];
+};
+
+/** POST /api/books/:bookId/files/:fileId/review (202). */
+interface QueuePageReviewResponse {
+  success: true;
+  queued: boolean;
+  already_queued: boolean;
+  /** A review run was started because none was running. */
+  run_started: boolean;
+  instance_id: string | null;
+}
+
+type PageReviewResult = Omit<QueuePageReviewResponse, "success"> & {
+  file_id: string;
+  page_number: number | null;
+  success: boolean;
+  /** Why the page wasn't queued (404/409 from the API). */
+  error: string | null;
+};
+
+const pageLabel = (f: Pick<FileStatus, "page_number" | "file_id">): string =>
+  `p${f.page_number ?? "?"}  ${f.file_id}`;
+
+const batchLine = (b: ReviewBatchJob): string => {
+  const counts = Object.entries(b.request_counts)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${k} ${n}`)
+    .join(", ");
+  const duration =
+    b.submitted_at != null && b.anthropic_ended_at != null
+      ? `took ${formatDuration(b.anthropic_ended_at - b.submitted_at)}`
+      : b.submitted_at != null
+        ? `submitted ${ago(b.submitted_at)}`
+        : `created ${ago(b.created_at)}`;
+  return [
+    `  ${b.stage}${b.instance_status ? ` (${b.instance_status})` : ""}  ${b.reviewed}/${b.pages} pages reviewed`,
+    duration,
+    counts ? `anthropic: ${counts}` : null,
+    b.edits_applied || b.edits_failed
+      ? `edits ${b.edits_applied} applied, ${b.edits_failed} failed`
+      : null,
+    b.errors ? `${b.errors} without review` : null,
+    usd(b.cost_usd),
+    b.checks != null ? `${b.checks} checks / ${b.steps ?? "?"} steps` : null,
+    b.error ? `error: ${b.error.slice(0, 120)}` : null,
+    `\n      ${b.instance_id}${b.batch_id ? `  ${b.batch_id}` : ""}`,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+    .replace(" · \n", "\n");
+};
+
+const switchReview = async ({
+  book,
+  enabled,
+}: {
+  book: BookWithStatus;
+  enabled: boolean;
+}) => {
+  if (opts.yes && opts["new-only"]) {
+    throw new UsageError("pass --yes or --new-only, not both");
+  }
+  let pending: FileStatus[] = [];
+  let estimate = "";
+  let queueExisting = false;
+  if (enabled) {
+    pending = reviewablePages({
+      files: await fetchStatus(book.id),
+      all: false,
+    });
+    if (pending.length > 0 && !opts["new-only"]) {
+      estimate = await estimateLine(pending.length);
+      queueExisting = await confirm({
+        question: `${book.title} has ${pending.length} done pages not reviewed yet. Queue them too? ${estimate}`,
+        refusal: `${book.title} has ${pending.length} done pages not reviewed yet (${estimate}). Pass --yes to turn review on and queue them, or --new-only to review only pages OCR'd from now on.`,
+      });
+    }
+  }
+  const { book: updated } = await request<UpdateBookResponse>({
+    service: "api",
+    path: bookPath(book.id),
+    method: "PATCH",
+    body: { review_enabled: enabled },
+  });
+  const queuedRes = queueExisting
+    ? await request<QueueReviewResponse>({
+        service: "api",
+        path: bookPath(book.id, "/review"),
+        method: "POST",
+      })
+    : null;
+  print({
+    data: {
+      book_id: updated.id,
+      review_enabled: updated.review_enabled ?? false,
+      existing_pages: pending.length,
+      queued: queuedRes,
+    },
+    human: () =>
+      !enabled
+        ? `Review off for ${updated.title}. Waiting pages are dropped from the next batch (pages asked for one by one still run); a batch already submitted finishes.`
+        : [
+            `Review on for ${updated.title}: pages are reviewed as they finish OCR (a batch every 3 hours).`,
+            queuedRes
+              ? `Queued ${queuedRes.queued} existing pages${queuedRes.already_queued ? `, ${queuedRes.already_queued} already queued` : ""}${queuedRes.skipped_hand_edited ? `, ${queuedRes.skipped_hand_edited} hand-edited skipped` : ""}.`
+              : pending.length > 0
+                ? `${pending.length} done pages were not queued; \`corpus review ${updated.id} on --yes\` queues them.`
+                : null,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+  });
+};
+
+const reviewAll = async (book: BookWithStatus) => {
+  const files = await fetchStatus(book.id);
+  const pages = reviewablePages({ files, all: true });
+  const handEdited = files.filter(
+    (f) => f.state === "done" && f.text_edited_at !== null,
+  ).length;
+  if (pages.length === 0) {
+    print({
+      data: { queued: 0, skipped_hand_edited: handEdited, already_queued: 0 },
+      human: () => `${book.title} has no done pages to review.`,
+    });
+    return;
+  }
+  const estimate = await estimateLine(pages.length);
+  const go = await confirm({
+    question: `Re-review all ${pages.length} done pages of ${book.title}${handEdited ? ` (${handEdited} hand-edited left out)` : ""}? ${estimate}`,
+    refusal: `refusing to queue ${pages.length} pages of "${book.title}" for review without --yes (${estimate}).`,
+  });
+  if (!go) {
+    console.error("Nothing queued.");
+    return;
+  }
+  const res = await request<QueueReviewResponse>({
+    service: "api",
+    path: bookPath(book.id, "/review"),
+    method: "POST",
+    body: { all: true },
+  });
+  print({
+    data: res,
+    human: () =>
+      `Queued ${res.queued} pages of ${book.title} for review${res.already_queued ? `; ${res.already_queued} already queued` : ""}${res.skipped_hand_edited ? `; ${res.skipped_hand_edited} hand-edited skipped` : ""}. The next batch picks them up (up to 100 pages per batch); watch with corpus jobs.`,
+  });
+};
+
+const reviewPages = async ({
+  book,
+  refs,
+}: {
+  book: BookWithStatus;
+  refs: string[];
+}) => {
+  const pages = resolvePages({ files: await fetchStatus(book.id), refs });
+  const results: PageReviewResult[] = [];
+  for (const page of pages) {
+    try {
+      const res = await request<QueuePageReviewResponse>({
+        service: "api",
+        path: bookPath(
+          book.id,
+          `/files/${encodeURIComponent(page.file_id)}/review`,
+        ),
+        method: "POST",
+      });
+      results.push({
+        file_id: page.file_id,
+        page_number: page.page_number,
+        ...res,
+        error: null,
+      });
+    } catch (err) {
+      if (!(err instanceof HttpError) || ![404, 409].includes(err.status)) {
+        throw err;
+      }
+      results.push({
+        file_id: page.file_id,
+        page_number: page.page_number,
+        success: false,
+        queued: false,
+        already_queued: false,
+        run_started: false,
+        instance_id: null,
+        error: err.message.replace(/^.*?→ \d{3}: /, ""),
+      });
+    }
+  }
+  print({
+    data: results,
+    human: () =>
+      [
+        ...results.map(
+          (r) =>
+            `  ${pageLabel(r)}  ${r.error ? `not queued: ${r.error}` : r.already_queued ? "already queued" : "queued"}`,
+        ),
+        results.some((r) => r.run_started)
+          ? "Started a review run; watch it with corpus jobs."
+          : results.some((r) => r.queued || r.already_queued)
+            ? "A review run is already going; these pages join the next batch (corpus jobs)."
+            : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+  });
+  if (results.some((r) => r.error)) process.exitCode = 1;
+};
+
+const reviewSummary = async () => {
+  const book = opts.book ? await resolveBook(opts.book) : null;
+  const days = parseDays();
+  const s = await request<ReviewSummaryResponse>({
+    service: "api",
+    path: `/api/reviews/summary${windowQuery({ days, bookId: book?.id })}`,
+  });
+  const categories = (
+    Object.entries(s.by_category) as [
+      ReviewCategory,
+      ReviewSummaryResponse["by_category"][ReviewCategory],
+    ][]
+  )
+    .filter(([, c]) => c.proposed > 0)
+    .map(
+      ([k, c]) =>
+        `${REVIEW_CATEGORY_LABELS[k] ?? k} ${c.applied}/${c.proposed}${c.failed ? ` (${c.failed} failed)` : ""}`,
+    );
+  const statuses = Object.entries(s.by_status)
+    .map(([k, n]) => `${k} ${n}`)
+    .join(" / ");
+  const b = s.batches;
+  print({
+    data: s,
+    human: () =>
+      [
+        `Reviews since ${timestamp(s.since).slice(0, 10)} (${book ? book.title : "all books"})`,
+        `  ${s.pages_reviewed} pages reviewed · ${s.pages_changed} changed · ${s.pages_not_reviewed} tries without a review · ${s.pages_skipped} not applied (page changed meanwhile)`,
+        statuses ? `  status: ${statuses}` : null,
+        `  edits: ${s.edits.applied} applied of ${s.edits.proposed} proposed${s.edits.failed ? `, ${s.edits.failed} failed to apply` : ""}${s.text_changed_share != null ? ` · ${(s.text_changed_share * 100).toFixed(2)}% of text changed` : ""}`,
+        categories.length
+          ? `  by category (applied/proposed): ${categories.join(" · ")}`
+          : null,
+        `  cost ${usd(s.cost_usd)}${s.cost_per_page_usd != null ? ` (${perPage(s.cost_per_page_usd)})` : ""}${s.hand_edited_after_review ? ` · ${s.hand_edited_after_review} pages hand-edited after review` : ""}`,
+        `Batches started in the window (all books): ${b.count}${b.pages_avg != null ? `, avg ${b.pages_avg.toFixed(1)} pages` : ""}`,
+        b.count
+          ? [
+              `  duration p50 ${formatDuration(b.duration_ms.p50)} · p90 ${formatDuration(b.duration_ms.p90)} · max ${formatDuration(b.duration_ms.max)}`,
+              `  polling lag p50 ${formatDuration(b.polling_lag_ms.p50)} · max ${formatDuration(b.polling_lag_ms.max)}`,
+              `  checks avg ${b.checks.avg?.toFixed(1) ?? "-"} / max ${b.checks.max ?? "-"} · steps avg ${b.steps.avg?.toFixed(1) ?? "-"} / max ${b.steps.max ?? "-"}`,
+            ].join("\n")
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+  });
+};
+
+const pageReviews = async ({
+  book,
+  ref,
+}: {
+  book: BookWithStatus;
+  ref: string;
+}) => {
+  const pages = resolvePages({
+    files: await fetchStatus(book.id),
+    refs: [ref],
+  });
+  const histories: { page: FileStatus; reviews: PageReview[] }[] = [];
+  for (const page of pages) {
+    const res = await request<PageReviewsResponse>({
+      service: "api",
+      path: bookPath(
+        book.id,
+        `/files/${encodeURIComponent(page.file_id)}/reviews`,
+      ),
+    });
+    histories.push({ page, reviews: res.reviews });
+  }
+  print({
+    data: histories.map(({ page, reviews }) => ({
+      file_id: page.file_id,
+      page_number: page.page_number,
+      hand_edited: page.text_edited_at !== null,
+      reviews,
+    })),
+    human: () =>
+      histories
+        .map(({ page, reviews }) =>
+          [
+            `${pageLabel(page)}${page.text_edited_at !== null ? "  (hand-edited: no further reviews)" : ""}`,
+            reviews.length === 0
+              ? "  not reviewed yet"
+              : reviews
+                  .map((r) =>
+                    [
+                      `  ${timestamp(r.created_at)}  ${r.status}  ${r.model} (${r.effort})${r.attempt ? ` try ${r.attempt + 1}` : ""}  ${r.edits_applied}/${r.edits_proposed} edits applied${r.edits_failed ? `, ${r.edits_failed} failed` : ""}  ${usd(r.cost_usd)}${r.revision_id != null ? `  rev ${r.revision_id}` : ""}`,
+                      r.error
+                        ? `      ${r.error_type ? `${r.error_type}: ` : ""}${r.error.slice(0, 160)}`
+                        : null,
+                      ...r.edits.map(
+                        (e) =>
+                          `      ${e.applied ? "applied" : "skipped"}  [${e.category}]  ${JSON.stringify(e.find)} → ${JSON.stringify(e.replace)}`,
+                      ),
+                    ]
+                      .filter(Boolean)
+                      .join("\n"),
+                  )
+                  .join("\n"),
+          ].join("\n"),
+        )
+        .join("\n\n") +
+      "\n(text before a review: corpus text <book> <fileId> --rev <rev>)",
+  });
+};
+
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   async auth([sub]) {
     if (sub === "login") {
@@ -268,10 +769,9 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
         [
           `${book.title}  (${book.id})${book.paused ? "  [paused]" : ""}`,
           `${book.files_total} pages · ${countsLine(book.counts)}`,
-          book.usage?.cost_usd != null
-            ? `OCR cost $${book.usage.cost_usd.toFixed(2)}`
-            : null,
+          costLine(book.usage),
           `OCR engine ${engineLabel(book.ocr_engine)}`,
+          `Review ${book.review_enabled ? `on (effort ${book.review_effort ?? "low"})` : "off"}`,
           book.work_id ? `work ${book.work_id}` : null,
           book.ocr_instructions
             ? `instructions:\n  ${book.ocr_instructions.replace(/\n/g, "\n  ")}`
@@ -541,6 +1041,129 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
               )
               .join("\n") +
             "\n(each entry's text before the change: corpus text <book> <fileId> --rev <id>)",
+    });
+  },
+
+  async review([ref, ...rest]) {
+    const book = await resolveBook(need(ref, "<book>"));
+    const [first] = rest;
+    if (opts.all) {
+      if (rest.length > 0) {
+        throw new UsageError("--all reviews every page; don't list pages");
+      }
+      await reviewAll(book);
+      return;
+    }
+    if (rest.length === 1 && (first === "on" || first === "off")) {
+      await switchReview({ book, enabled: first === "on" });
+      return;
+    }
+    if (rest.length === 0) {
+      throw new UsageError(
+        "usage: corpus review <book> on|off | --all | <fileId|page...>",
+      );
+    }
+    await reviewPages({ book, refs: rest });
+  },
+
+  async reviews([ref, page]) {
+    if (!ref) {
+      await reviewSummary();
+      return;
+    }
+    const book = await resolveBook(ref);
+    await pageReviews({ book, ref: need(page, "<fileId|page>") });
+  },
+
+  async spend() {
+    const book = opts.book ? await resolveBook(opts.book) : null;
+    const s = await request<SpendResponse>({
+      service: "api",
+      path: `/api/spend${windowQuery({ days: parseDays(), bookId: book?.id })}`,
+    });
+    const byKind = (kind: "ocr" | "review") =>
+      s.by_model
+        .filter((m) => m.kind === kind)
+        .reduce((sum, m) => sum + m.cost_usd, 0);
+    print({
+      data: s,
+      human: () =>
+        [
+          `Spend since ${s.since_day} (${book ? book.title : "all books"}): ${usd(s.total_cost_usd)} · OCR ${usd(byKind("ocr"))} · review ${usd(byKind("review"))}`,
+          "By model",
+          ...s.by_model.map(
+            (m) =>
+              `  ${m.kind.padEnd(6)}  ${m.model.padEnd(28)}  ${usd(m.cost_usd).padStart(8)}  ${m.pages} pages · ${m.calls} calls · ${m.input_tokens + m.cache_read_input_tokens + m.cache_creation_input_tokens} in / ${m.output_tokens} out tokens`,
+          ),
+          "Daily (UTC)",
+          ...(s.daily.length === 0
+            ? ["  no spend"]
+            : s.daily.map(
+                (d) =>
+                  `  ${d.day}  OCR ${usd(d.ocr_cost_usd).padStart(7)}  review ${usd(d.review_cost_usd).padStart(7)}`,
+              )),
+          ...(s.top_books.length === 0
+            ? []
+            : [
+                "Top books",
+                ...s.top_books.map(
+                  (b) =>
+                    `  ${b.kind.padEnd(6)}  ${usd(b.cost_usd).padStart(8)}  ${b.pages} pages  ${b.title ?? b.book_id}  (${b.book_id})`,
+                ),
+              ]),
+        ].join("\n"),
+    });
+  },
+
+  async jobs() {
+    const j = await request<JobsResponse>({
+      service: "api",
+      path: "/api/jobs",
+    });
+    const { ocr, review, failed } = j;
+    print({
+      data: j,
+      human: () =>
+        [
+          `OCR (recent runs since ${ago(ocr.recent_since)})`,
+          ...(ocr.books.length === 0
+            ? ["  idle"]
+            : ocr.books.map(
+                (b) =>
+                  `  ${b.title}  (${b.book_id})${b.paused ? "  [paused]" : ""}\n    queued ${b.queued} · processing ${b.processing} · rate_limited ${b.rate_limited} · failed ${b.failed}${b.oldest_queued_at != null ? ` · oldest queued ${ago(b.oldest_queued_at)}` : ""} · done last hour ${b.done_last_hour} · runs ${b.recent_runs} (fell back ${b.fell_back}, retried ${b.retried})`,
+              )),
+          ...(ocr.problem_pages.length === 0
+            ? []
+            : [
+                "Problem OCR runs (fell back, failed, or third delivery+)",
+                ...ocr.problem_pages.map(
+                  (p) =>
+                    `  ${p.status}  ${p.file_id}  ${p.book_id}  ${ago(p.created_at)}${p.final_model ? `  ${p.final_model}` : ""}${p.fell_back ? `  fell back${p.fallback_reason ? `: ${p.fallback_reason}` : ""}` : ""}${p.delivery_attempt > 1 ? `  delivery ${p.delivery_attempt}` : ""}${p.error_type ? `  ${p.error_type}` : ""}`,
+                ),
+              ]),
+          "Review batches in flight",
+          ...(review.in_flight.length === 0
+            ? ["  none"]
+            : review.in_flight.map(batchLine)),
+          ...(review.waiting.length === 0
+            ? []
+            : [
+                "Waiting for the next batch",
+                ...review.waiting.map(
+                  (w) =>
+                    `  ${w.pages} pages  ${w.title}  (${w.book_id})${w.retrying ? `  ${w.retrying} retrying` : ""}`,
+                ),
+              ]),
+          "Recent review batches",
+          ...(review.recent.length === 0
+            ? ["  none"]
+            : review.recent.map(batchLine)),
+          `Gave up (${failed.count} unresolved)`,
+          ...failed.recent.map(
+            (f) =>
+              `  ${f.kind}  ${f.book_title ?? f.book_id ?? "-"}${f.page_number != null ? ` p${f.page_number}` : ""}${f.file_id ? `  ${f.file_id}` : ""}  ${f.attempts} attempts, last ${ago(f.last_failed_at)}${f.error ? `\n      ${shortError(f.error)}` : ""}`,
+          ),
+        ].join("\n"),
     });
   },
 
