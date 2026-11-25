@@ -18,6 +18,7 @@ import {
   type PageReview,
   type PageReviewsResponse,
   type PauseBookResponse,
+  type QueuePageReviewResponse,
   type QueueReviewResponse,
   REVIEW_CATEGORY_LABELS,
   type ResumeBookResponse,
@@ -389,16 +390,6 @@ const resolvePages = ({
   }
   return [...picked.values()];
 };
-
-/** POST /api/books/:bookId/files/:fileId/review (202). */
-interface QueuePageReviewResponse {
-  success: true;
-  queued: boolean;
-  already_queued: boolean;
-  /** A review run was started because none was running. */
-  run_started: boolean;
-  instance_id: string | null;
-}
 
 type PageReviewResult = Omit<QueuePageReviewResponse, "success"> & {
   file_id: string;
