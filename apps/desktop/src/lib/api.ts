@@ -20,6 +20,7 @@ import type {
   ListBooksResponse,
   ListTagsResponse,
   ListWorksResponse,
+  QueuePageReviewResponse,
   QueueReviewResponse,
   RecentFile,
   RecentFilesResponse,
@@ -316,24 +317,36 @@ export const api = {
     ),
 
   /**
-   * Queue the book's done pages for the Opus review. Without `all`, the pages
-   * done before review was switched on; with it, every done page (a one-off,
-   * even with review off). Hand-edited pages are always left out.
+   * Queue the pages done before the book's review was switched on.
+   * Hand-edited and blank pages are left out.
    */
   queueReview: async ({
     bookId,
-    all = false,
   }: {
     bookId: string;
-    all?: boolean;
   }): Promise<QueueReviewResponse> =>
     asJson<QueueReviewResponse>(
       await fetch(`${base()}/api/books/${bookId}/review`, {
         method: "POST",
-        headers: all
-          ? { ...authHeaders(), "Content-Type": "application/json" }
-          : authHeaders(),
-        body: all ? JSON.stringify({ all: true }) : undefined,
+        headers: authHeaders(),
+      }),
+    ),
+
+  /**
+   * Re-run one page's Opus review: queues it (even with the book's review
+   * off) and starts a review run unless one is already going.
+   */
+  reviewPage: async ({
+    bookId,
+    fileId,
+  }: {
+    bookId: string;
+    fileId: string;
+  }): Promise<QueuePageReviewResponse> =>
+    asJson<QueuePageReviewResponse>(
+      await fetch(`${base()}/api/books/${bookId}/files/${fileId}/review`, {
+        method: "POST",
+        headers: authHeaders(),
       }),
     ),
 

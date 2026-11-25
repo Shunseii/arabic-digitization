@@ -13,10 +13,18 @@ import {
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  ReviewIcon,
+  ReviewPageDialog,
+  reviewBlockedReason,
+  useNotice,
+} from "@/components/page-review";
+import {
   Badge,
   Button,
+  cx,
   EmptyState,
   IconButton,
+  Notice,
   Segmented,
   Skeleton,
 } from "@/components/ui";
@@ -88,6 +96,10 @@ export const ReaderScreen = () => {
       queryClient.invalidateQueries({ queryKey: recentKey });
     },
   });
+
+  const [reviewing, setReviewing] = useState(false);
+  const notice = useNotice();
+  const reviewBlocked = file ? reviewBlockedReason(file) : null;
 
   const goTo = (target: string) => navigate(`/reader/${bookId}/${target}`);
   const pageNumber =
@@ -180,8 +192,21 @@ export const ReaderScreen = () => {
         {file && (
           <Badge tone={statusTone[file.state]}>{statusLabel[file.state]}</Badge>
         )}
+        {file && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={ReviewIcon}
+            className="ml-auto"
+            disabled={reviewBlocked !== null}
+            title={reviewBlocked ?? "Have Opus proofread this page again"}
+            onClick={() => setReviewing(true)}
+          >
+            Re-run review
+          </Button>
+        )}
         <Segmented
-          className="ml-auto w-60"
+          className={cx("w-60", !file && "ml-auto")}
           value={view}
           onChange={setView}
           options={[
@@ -225,6 +250,14 @@ export const ReaderScreen = () => {
           <ZoomableImage bookId={bookId} fileId={fileId} />
         </section>
       </div>
+      <ReviewPageDialog
+        bookId={bookId}
+        file={reviewing && file ? file : null}
+        pageLabel={pageNumber}
+        onClose={() => setReviewing(false)}
+        onQueued={notice.show}
+      />
+      <Notice text={notice.notice} />
     </div>
   );
 };

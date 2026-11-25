@@ -20,6 +20,12 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  ReviewIcon,
+  ReviewPageDialog,
+  reviewBlockedReason,
+  useNotice,
+} from "@/components/page-review";
 import { HeaderCell, LeadCell } from "@/components/table";
 import {
   Button,
@@ -29,6 +35,7 @@ import {
   FieldLabel,
   IconButton,
   MenuItem,
+  Notice,
   Popover,
   RefreshControl,
   Segmented,
@@ -221,10 +228,10 @@ export const BookScreen = () => {
   const [bookTitle, setBookTitle] = useState("");
   const [bookInstructions, setBookInstructions] = useState("");
   const [goTo, setGoTo] = useState<string | null>(null);
-  const [confirmReview, setConfirmReview] = useState<"existing" | "all" | null>(
-    null,
-  );
+  const [confirmReview, setConfirmReview] = useState<"existing" | null>(null);
   const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<FileStatus | null>(null);
+  const pageNotice = useNotice();
   const [selected, setSelected] = useState<string | null>(null);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
 
@@ -322,7 +329,7 @@ export const BookScreen = () => {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["book", id] }),
   });
   const queueReview = useMutation({
-    mutationFn: (all: boolean) => api.queueReview({ bookId: id, all }),
+    mutationFn: () => api.queueReview({ bookId: id }),
     onSuccess: (res) => {
       setConfirmReview(null);
       setReviewNotice(
@@ -648,6 +655,17 @@ export const BookScreen = () => {
                         >
                           Re-run OCR
                         </MenuItem>
+                        <MenuItem
+                          icon={ReviewIcon}
+                          disabled={reviewBlockedReason(f) !== null}
+                          hint={reviewBlockedReason(f)}
+                          onClick={() => {
+                            setMenuFor(null);
+                            setReviewing(f);
+                          }}
+                        >
+                          Re-run review
+                        </MenuItem>
                         <div className="my-1 h-px bg-line" />
                         <MenuItem
                           icon={Trash2}
@@ -815,15 +833,6 @@ export const BookScreen = () => {
           {reviewNotice && (
             <span className="text-small text-ok">{reviewNotice}</span>
           )}
-          <Button
-            size="sm"
-            variant="secondary"
-            className="self-start"
-            disabled={donePages === 0}
-            onClick={() => setConfirmReview("all")}
-          >
-            Review all pages…
-          </Button>
         </div>
       </Dialog>
 
@@ -850,41 +859,21 @@ export const BookScreen = () => {
           <Button
             size="sm"
             loading={queueReview.isPending}
-            onClick={() => queueReview.mutate(false)}
+            onClick={() => queueReview.mutate()}
           >
             Review {plural({ n: donePages, one: "page", many: "pages" })}
           </Button>
         </div>
       </Dialog>
 
-      <Dialog
-        open={confirmReview === "all"}
-        onClose={() => setConfirmReview(null)}
-        title={`Review ${plural({ n: donePages, one: "page", many: "pages" })} again?`}
-        width="w-[420px]"
-      >
-        <p className="text-body text-ink-2">
-          About {reviewEstimate(donePages)} (estimate). Hand-edited pages are
-          skipped.
-        </p>
-        <div className="mt-2 flex items-center gap-3">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto"
-            onClick={() => setConfirmReview(null)}
-          >
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            loading={queueReview.isPending}
-            onClick={() => queueReview.mutate(true)}
-          >
-            Review
-          </Button>
-        </div>
-      </Dialog>
+      <ReviewPageDialog
+        bookId={id}
+        file={reviewing}
+        pageLabel={reviewing ? pageLabel(reviewing) : ""}
+        onClose={() => setReviewing(null)}
+        onQueued={pageNotice.show}
+      />
+      <Notice text={pageNotice.notice} />
 
       <Dialog
         open={errorFile !== null}

@@ -105,6 +105,26 @@ export interface QueuePageReviewResponse {
   instance_id: string | null;
 }
 
+/**
+ * Why a page can't be sent for review, or null if it can. Mirrors the API's
+ * 409s for POST .../files/:fileId/review.
+ */
+export const pageReviewBlockedReason = (
+  file: Pick<FileStatus, "state" | "preview" | "text_edited_at">,
+): string | null => {
+  if (file.state !== "done") return "Not transcribed yet";
+  if (file.preview?.trim() === "") return "Blank page, nothing to review";
+  if (file.text_edited_at !== null)
+    return "Hand-edited pages can't be reviewed";
+  return null;
+};
+
+/** The short notice shown after a page was sent for review. */
+export const pageReviewNotice = (res: QueuePageReviewResponse): string =>
+  res.run_started
+    ? "Queued; review started"
+    : "Queued; starts with the next run";
+
 /** Outcome of one page's review try (page_reviews.status). */
 export type PageReviewStatus =
   | "applied"

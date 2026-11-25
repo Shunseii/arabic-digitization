@@ -200,6 +200,23 @@
       },
       "type": "frame"
     },
+    "0I4CGHeB": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Back",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "XAPvzZus",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "0J4UMLPd": {
       "content": "The Cloudflare Worker that stores books and runs OCR",
       "index": "a1",
@@ -469,6 +486,22 @@
       },
       "type": "text"
     },
+    "0ZntWvCw": {
+      "content": "تفسير السعدي",
+      "index": "a0",
+      "name": "Book",
+      "parentId": "fFRlWIKq",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 700,
+        "line-height": 1.6,
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
     "0bEb0OoK": {
       "index": "a1",
       "name": "Chart",
@@ -581,6 +614,23 @@
       },
       "type": "text"
     },
+    "0kjlo1p5": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a5",
+      "name": "Previous",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "aSKs7npJ",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "0mBwfCaB": {
       "index": "a1",
       "name": "Main",
@@ -680,6 +730,23 @@
       },
       "type": "frame"
     },
+    "0sblVElL": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Back",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "aSKs7npJ",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "0tEFFbVV": {
       "index": "a2",
       "name": "Name",
@@ -703,36 +770,16 @@
       },
       "type": "frame"
     },
-    "0umeal8q": {
-      "componentId": "bIsnn3o6",
-      "index": "a7",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "416",
-        "m1": "now",
-        "metas": "1",
-        "primary": "Not transcribed yet",
-        "primaryStyle": "muted",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "state": "default",
-        "status": "queued",
-        "tone": "accent",
-        "trailing": "more"
-      },
+    "0vantP30": {
+      "index": "a0",
+      "name": "Table",
+      "parentId": "hV0dxASh",
       "style": {
-        "width": "100%"
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}"
       },
-      "type": "instance"
+      "type": "frame"
     },
     "0xZgilW4": {
       "index": "aH",
@@ -802,6 +849,20 @@
       },
       "type": "frame"
     },
+    "0zo0OzL1": {
+      "content": "Go to page",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "U4hl44iT",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "11gRPcDg": {
       "index": "a0",
       "name": "Title",
@@ -828,6 +889,25 @@
         "padding": "{spacing.0} {spacing.3}"
       },
       "type": "frame"
+    },
+    "15hhW2Mc": {
+      "componentId": "rBYFWXt7",
+      "index": "a1",
+      "name": "Cost split",
+      "parentId": "hV0dxASh",
+      "props": {
+        "line1": "OCR · $0.0031",
+        "line2": "Review · $0.0151",
+        "series": "two",
+        "title": "Page 410 · $0.0182"
+      },
+      "style": {
+        "position": "absolute",
+        "right": 130,
+        "top": 96,
+        "z-index": 2
+      },
+      "type": "instance"
     },
     "1ALARFHu": {
       "index": "a1",
@@ -883,6 +963,24 @@
       },
       "type": "instance"
     },
+    "1BRe6Qji": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Filter",
+      "parentId": "vUSQK66U",
+      "style": {
+        "align-items": "center",
+        "background": "{color.accent-soft}",
+        "border": "1px solid {color.accent-soft}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "1Crn5biI": {
       "index": "a0",
       "name": "Dot",
@@ -907,24 +1005,6 @@
         "position": "absolute",
         "top": -26,
         "transform": "translateX(6px)"
-      },
-      "type": "frame"
-    },
-    "1G5AqvdL": {
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a0",
-      "name": "Filter",
-      "parentId": "oF6WjGmY",
-      "style": {
-        "align-items": "center",
-        "background": "{color.accent-soft}",
-        "border": "1px solid {color.accent-soft}",
-        "border-radius": "{radius.full}",
-        "box-sizing": "border-box",
-        "display": "flex",
-        "gap": "{spacing.2}",
-        "height": 32,
-        "padding": "{spacing.0} {spacing.3}"
       },
       "type": "frame"
     },
@@ -1166,24 +1246,6 @@
       },
       "type": "frame"
     },
-    "1PmMShbW": {
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a1",
-      "name": "Filter",
-      "parentId": "oF6WjGmY",
-      "style": {
-        "align-items": "center",
-        "background": "transparent",
-        "border": "1px solid {color.line}",
-        "border-radius": "{radius.full}",
-        "box-sizing": "border-box",
-        "display": "flex",
-        "gap": "{spacing.2}",
-        "height": 32,
-        "padding": "{spacing.0} {spacing.3}"
-      },
-      "type": "frame"
-    },
     "1Q63fuCJ": {
       "content": "25 in queue",
       "index": "a1",
@@ -1273,6 +1335,20 @@
         "padding": "{spacing.2} {spacing.3}"
       },
       "type": "frame"
+    },
+    "1WQx4wrG": {
+      "content": "25 in queue",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "du3pVmjd",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "1WZwurbS": {
       "icon": "pencil",
@@ -1376,22 +1452,25 @@
       },
       "type": "text"
     },
-    "1jzzrpeB": {
-      "content": "تفسير السعدي",
-      "index": "a0",
-      "name": "Title",
-      "parentId": "QIsBBfZb",
-      "style": {
-        "color": "{color.ink}",
-        "direction": "rtl",
-        "font-family": "{font.ar}",
-        "font-size": 24,
-        "font-weight": 700,
-        "line-height": 1.5,
-        "text-align": "left",
-        "unicode-bidi": "isolate"
+    "1hYdzemJ": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "upload"
+        }
       },
-      "type": "text"
+      "parentId": "2NMGyWP6",
+      "props": {
+        "icon": true,
+        "label": "Upload pages",
+        "size": "sm",
+        "state": "default",
+        "variant": "primary"
+      },
+      "type": "instance"
     },
     "1l8HqQDZ": {
       "content": "OCR instructions · optional",
@@ -1450,6 +1529,22 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "1oiCDt0f": {
+      "componentId": "V7ihVuoQ",
+      "index": "a0",
+      "name": "Sidebar",
+      "parentId": "IUBS6yzi",
+      "props": {
+        "active": "library",
+        "connection": "online",
+        "failures": "5 failed",
+        "showFailures": true
+      },
+      "style": {
+        "height": "100%"
+      },
+      "type": "instance"
     },
     "1pYWQDGd": {
       "content": "ومن تيقن الطهارة وشك في الحدث بنى على",
@@ -1855,6 +1950,24 @@
       },
       "type": "frame"
     },
+    "2CwpJHcj": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Refresh",
+      "overrides": {
+        "7FTSPNV7": {
+          "css": "[data-state=\"loading\"] & { animation: spin 700ms linear infinite; }",
+          "icon": "refresh-cw"
+        }
+      },
+      "parentId": "L9FjKcEf",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "2E73gdM2": {
       "index": "a5",
       "name": "Option",
@@ -1974,6 +2087,22 @@
       },
       "type": "text"
     },
+    "2KuQkEYf": {
+      "componentId": "V7ihVuoQ",
+      "index": "a0",
+      "name": "Sidebar",
+      "parentId": "LgEWsu2j",
+      "props": {
+        "active": "library",
+        "connection": "online",
+        "failures": "5 failed",
+        "showFailures": true
+      },
+      "style": {
+        "height": "100%"
+      },
+      "type": "instance"
+    },
     "2L9sQO6Y": {
       "index": "a1",
       "name": "Heading",
@@ -2014,6 +2143,17 @@
         "height": 7,
         "opacity": 0.55,
         "width": "86%"
+      },
+      "type": "frame"
+    },
+    "2NMGyWP6": {
+      "index": "a0",
+      "name": "Bar",
+      "parentId": "K8byXg21",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.4}"
       },
       "type": "frame"
     },
@@ -2144,20 +2284,6 @@
       },
       "type": "text"
     },
-    "2WiBNKVG": {
-      "icon": "hash",
-      "index": "a0",
-      "name": "Icon",
-      "parentId": "k5Dj1zHL",
-      "set": "lucide",
-      "style": {
-        "color": "{color.accent}",
-        "flex-shrink": 0,
-        "height": 16,
-        "width": 16
-      },
-      "type": "icon"
-    },
     "2XI2yMEr": {
       "componentId": "bIsnn3o6",
       "index": "a4",
@@ -2190,6 +2316,19 @@
         "width": "100%"
       },
       "type": "instance"
+    },
+    "2XMTjE3S": {
+      "index": "a2",
+      "name": "Segment · failed",
+      "parentId": "EP6I5Dcz",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": 3,
+        "flex": 3,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
     },
     "2ZGKT4fQ": {
       "content": "",
@@ -2316,18 +2455,6 @@
         "white-space": "nowrap"
       },
       "type": "text"
-    },
-    "2gCj6vkC": {
-      "index": "a0",
-      "name": "Status Bar",
-      "parentId": "LP2vAoKh",
-      "style": {
-        "align-items": "center",
-        "display": "flex",
-        "gap": "{spacing.0.5}",
-        "width": "100%"
-      },
-      "type": "frame"
     },
     "2gQiOwnY": {
       "content": "1,122 done",
@@ -2573,6 +2700,23 @@
       },
       "type": "frame"
     },
+    "366Y4nQy": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a5",
+      "name": "Previous",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "bs6mHy0H",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "37OBaK8n": {
       "index": "a2",
       "name": "Actions",
@@ -2616,6 +2760,43 @@
       },
       "type": "text"
     },
+    "39FPFWUU": {
+      "componentId": "bIsnn3o6",
+      "index": "a8",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "417",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "processing",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "39NJvHQC": {
       "name": "Reader · Not transcribed",
       "style": {
@@ -2627,7 +2808,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 4840,
+      "x": 7880,
       "y": 5500
     },
     "3ApOu1zL": {
@@ -2849,6 +3030,18 @@
       },
       "type": "text"
     },
+    "3NmhQeTZ": {
+      "index": "a0",
+      "name": "Status Bar",
+      "parentId": "Cbd1zFH7",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.0.5}",
+        "width": "100%"
+      },
+      "type": "frame"
+    },
     "3PrnlyWI": {
       "componentId": "m6GU5N7j",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -2946,6 +3139,19 @@
         "height": 22,
         "margin-left": "auto",
         "width": 80
+      },
+      "type": "frame"
+    },
+    "3WkLE6qU": {
+      "index": "a0",
+      "name": "Segment · done",
+      "parentId": "3NmhQeTZ",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": 3,
+        "flex": 1122,
+        "height": 10,
+        "min-width": 6
       },
       "type": "frame"
     },
@@ -3107,6 +3313,20 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "3wIJ7mrR": {
+      "index": "a2",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "92%"
+      },
+      "type": "frame"
     },
     "3wodjYQo": {
       "content": "Go to page",
@@ -3279,6 +3499,20 @@
       },
       "type": "text"
     },
+    "49SSQPXB": {
+      "index": "a2",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "92%"
+      },
+      "type": "frame"
+    },
     "4AAqi64R": {
       "icon": "book-open",
       "index": "a0",
@@ -3399,19 +3633,17 @@
       },
       "type": "text"
     },
-    "4EyunU2Y": {
-      "content": "All 1,150",
-      "index": "a0",
-      "name": "Label",
-      "parentId": "1G5AqvdL",
+    "4EcwKFIL": {
+      "index": "a2",
+      "name": "Actions",
+      "parentId": "BTBcOWdP",
       "style": {
-        "color": "{color.accent}",
-        "font-family": "{font.body}",
-        "font-size": 13,
-        "font-weight": 600,
-        "line-height": 1.45
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.3}",
+        "margin-top": "{spacing.2}"
       },
-      "type": "text"
+      "type": "frame"
     },
     "4FE0U0SB": {
       "content": "tafsir",
@@ -3443,6 +3675,23 @@
         "width": 44
       },
       "type": "frame"
+    },
+    "4HMnrJm6": {
+      "content": "⁽²⁾ سقطت من الأصل، وأثبتناها من المطبوع.",
+      "index": "a7",
+      "name": "Footnote",
+      "parentId": "slaM4Iym",
+      "style": {
+        "color": "{color.ink-2}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.6,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
     },
     "4HUPgn6G": {
       "index": "a0",
@@ -3482,6 +3731,20 @@
       },
       "type": "frame"
     },
+    "4IDT2WBC": {
+      "content": "Go to page",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "kh9wo7ty",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "4IItBZYc": {
       "index": "aE",
       "name": "Bar",
@@ -3505,6 +3768,20 @@
         "gap": "{spacing.0.5}"
       },
       "type": "frame"
+    },
+    "4LyCqaS9": {
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
+      "index": "a1",
+      "name": "Sub",
+      "parentId": "TbzrasbR",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "4N4SUrap": {
       "componentId": "Oe7YEhqs",
@@ -3729,7 +4006,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 7880,
+      "x": 12440,
       "y": 3380
     },
     "4lb0HJRG": {
@@ -3782,6 +4059,23 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "4qHRYdod": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a6",
+      "name": "Next",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-right"
+        }
+      },
+      "parentId": "aSKs7npJ",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
     },
     "4qPz6fq0": {
       "componentId": "bIsnn3o6",
@@ -3950,19 +4244,6 @@
         "width": 120
       },
       "type": "instance"
-    },
-    "54KaX3jJ": {
-      "index": "a3",
-      "name": "Segment · in queue",
-      "parentId": "2gCj6vkC",
-      "style": {
-        "background": "{color.accent}",
-        "border-radius": 3,
-        "flex": 25,
-        "height": 10,
-        "min-width": 6
-      },
-      "type": "frame"
     },
     "569ShYEj": {
       "index": "a8",
@@ -4251,6 +4532,43 @@
       },
       "type": "instance"
     },
+    "5KxzcNh7": {
+      "componentId": "bIsnn3o6",
+      "index": "a5",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "414",
+        "m1": "$0.0029",
+        "m2": "1 h",
+        "metas": "2",
+        "primary": "Blank page",
+        "primaryStyle": "italic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "5L3vpELn": {
       "index": "a0",
       "name": "Dot",
@@ -4279,6 +4597,20 @@
         "flex": 1
       },
       "type": "instance"
+    },
+    "5MtauXjf": {
+      "index": "aH",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "50%"
+      },
+      "type": "frame"
     },
     "5NSW4Q6E": {
       "componentId": "bIsnn3o6",
@@ -4378,6 +4710,18 @@
         "width": 16
       },
       "type": "icon"
+    },
+    "5TtoI685": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "yXy6w3py",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
     },
     "5WjTrfYN": {
       "index": "a5",
@@ -4530,6 +4874,17 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "5eqbQHwh": {
+      "index": "a0",
+      "name": "Table",
+      "parentId": "KRCoNUGh",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
     },
     "5f621tMo": {
       "index": "a0",
@@ -4845,6 +5200,20 @@
         "width": 8
       },
       "type": "frame"
+    },
+    "60NoDVT4": {
+      "content": "fell back",
+      "index": "a0",
+      "name": "Label",
+      "parentId": "bKl1uFr2",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "618Aw0LH": {
       "index": "a0",
@@ -5258,6 +5627,20 @@
       },
       "type": "frame"
     },
+    "6XBcZjPG": {
+      "icon": "hash",
+      "index": "a0",
+      "name": "Icon",
+      "parentId": "U4hl44iT",
+      "set": "lucide",
+      "style": {
+        "color": "{color.accent}",
+        "flex-shrink": 0,
+        "height": 16,
+        "width": 16
+      },
+      "type": "icon"
+    },
     "6XQsxAdS": {
       "index": "a1",
       "name": "Bar",
@@ -5298,6 +5681,43 @@
       "props": {
         "state": "default",
         "variant": "tonal"
+      },
+      "type": "instance"
+    },
+    "6ZrrXhHs": {
+      "componentId": "bIsnn3o6",
+      "index": "a1",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "410",
+        "m1": "$0.0182",
+        "m2": "2 h",
+        "metas": "2",
+        "primary": "﴿وَمِنَ النَّاسِ مَنْ يَقُولُ آمَنَّا بِاللَّهِ﴾ اعلم أن النفاق هو: إظهار الخير وإبطان الشر، ويدخل في هذا التعريف النفاق الاعتقادي والعملي…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "hover",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
       },
       "type": "instance"
     },
@@ -5395,6 +5815,38 @@
       },
       "type": "instance"
     },
+    "6eevirqz": {
+      "index": "aE",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "90%"
+      },
+      "type": "frame"
+    },
+    "6fCh70Ri": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Filter",
+      "parentId": "ISJFHcI7",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "6hkVNmYY": {
       "content": "2.5 MB",
       "index": "a1",
@@ -5423,19 +5875,16 @@
       },
       "type": "frame"
     },
-    "6k3dw5dm": {
-      "componentId": "ZC9WELKS",
-      "index": "a1",
-      "name": "TableHeader",
-      "parentId": "P3mAl92p",
-      "props": {
-        "label": "Text",
-        "state": "default"
-      },
+    "6kcTa1bL": {
+      "index": "a3",
+      "name": "Refresh",
+      "parentId": "XAPvzZus",
       "style": {
-        "flex": 1
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.3}"
       },
-      "type": "instance"
+      "type": "frame"
     },
     "6nGETUtS": {
       "index": "aJ",
@@ -5503,6 +5952,28 @@
         "display": "flex",
         "gap": "{spacing.4}",
         "padding": "{spacing.3} {spacing.0}"
+      },
+      "type": "frame"
+    },
+    "6wOl0Tzx": {
+      "css": "transform-origin: top right;\ntransition:\n  opacity var(--dur-pop) var(--ease-out),\n  scale var(--dur-pop) var(--ease-out),\n  display 160ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition:\n    opacity 120ms ease-out,\n    display 120ms allow-discrete;\n}",
+      "index": "a2",
+      "name": "Menu",
+      "parentId": "IimsBQti",
+      "style": {
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.md}",
+        "box-shadow": "{shadow.md}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0.5}",
+        "padding": "{spacing.2}",
+        "position": "absolute",
+        "right": 48,
+        "top": 372,
+        "width": 268
       },
       "type": "frame"
     },
@@ -5627,6 +6098,20 @@
       },
       "type": "frame"
     },
+    "7BxA1tRj": {
+      "content": "3 failed",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "iuLmqXOD",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "7CIgy5rV": {
       "index": "a1",
       "name": "Controls",
@@ -5650,23 +6135,6 @@
         "height": "34.00%"
       },
       "type": "frame"
-    },
-    "7Do3D9FS": {
-      "componentId": "m6GU5N7j",
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a0",
-      "name": "Back",
-      "overrides": {
-        "7FTSPNV7": {
-          "icon": "chevron-left"
-        }
-      },
-      "parentId": "LCZypbby",
-      "props": {
-        "state": "default",
-        "variant": "tonal"
-      },
-      "type": "instance"
     },
     "7E3MBPek": {
       "content": "API",
@@ -5819,6 +6287,21 @@
       },
       "type": "text"
     },
+    "7RFLBreC": {
+      "content": "Queued; review started",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "fIRr73m1",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.5,
+        "white-space": "nowrap"
+      },
+      "type": "text"
+    },
     "7T78hjbe": {
       "componentId": "V7ihVuoQ",
       "index": "a0",
@@ -5892,6 +6375,37 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "7d1BRktv": {
+      "componentId": "bIsnn3o6",
+      "index": "a1",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "5eqbQHwh",
+      "props": {
+        "lead": "410",
+        "m1": "2 h",
+        "metas": "1",
+        "primary": "﴿وَمِنَ النَّاسِ مَنْ يَقُولُ آمَنَّا بِاللَّهِ﴾ اعلم أن النفاق هو: إظهار الخير وإبطان الشر، ويدخل في هذا التعريف النفاق الاعتقادي والعملي…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "7d3niTVQ": {
       "content": "تفسير السعدي",
@@ -6105,6 +6619,24 @@
       },
       "type": "frame"
     },
+    "7uGuPIA6": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Refresh",
+      "overrides": {
+        "7FTSPNV7": {
+          "css": "[data-state=\"loading\"] & { animation: spin 700ms linear infinite; }",
+          "icon": "refresh-cw"
+        }
+      },
+      "parentId": "tAoO1EAr",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "7vOlb6qG": {
       "index": "a3",
       "name": "Bar",
@@ -6131,6 +6663,43 @@
         "overflow": "hidden"
       },
       "type": "frame"
+    },
+    "7zpfa9j1": {
+      "componentId": "bIsnn3o6",
+      "index": "a1",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "410",
+        "m1": "$0.0182",
+        "m2": "2 h",
+        "metas": "2",
+        "primary": "﴿وَمِنَ النَّاسِ مَنْ يَقُولُ آمَنَّا بِاللَّهِ﴾ اعلم أن النفاق هو: إظهار الخير وإبطان الشر، ويدخل في هذا التعريف النفاق الاعتقادي والعملي…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "hover",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "80lVAvTl": {
       "componentId": "bIsnn3o6",
@@ -6445,6 +7014,23 @@
       },
       "type": "instance"
     },
+    "8JfMibcm": {
+      "content": "فصل في معنى الهداية",
+      "index": "a2",
+      "name": "Heading",
+      "parentId": "Rv8doTsv",
+      "style": {
+        "color": "{color.accent}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 24,
+        "font-weight": 700,
+        "line-height": 1.5,
+        "text-align": "center",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
     "8PaqhuUY": {
       "content": "25 in queue",
       "index": "a1",
@@ -6513,21 +7099,6 @@
       },
       "type": "frame"
     },
-    "8TEeMtkg": {
-      "content": "Updated 14:32",
-      "css": "transition: opacity 150ms ease-out;\n\n@starting-style {\n  opacity: 0;\n}",
-      "index": "a0",
-      "name": "As of",
-      "parentId": "KgRfYS7y",
-      "style": {
-        "color": "{color.ink-3}",
-        "font-family": "{font.body}",
-        "font-size": 13,
-        "font-weight": 400,
-        "line-height": 1.45
-      },
-      "type": "text"
-    },
     "8Uhp8MO3": {
       "index": "a1",
       "name": "Zoom",
@@ -6540,20 +7111,6 @@
         "padding": "{spacing.3} {spacing.6}"
       },
       "type": "frame"
-    },
-    "8V2H9HEc": {
-      "componentId": "ZC9WELKS",
-      "index": "a2",
-      "name": "TableHeader",
-      "parentId": "P3mAl92p",
-      "props": {
-        "label": "Status",
-        "state": "default"
-      },
-      "style": {
-        "width": 200
-      },
-      "type": "instance"
     },
     "8VDgplgr": {
       "index": "a0",
@@ -6650,6 +7207,18 @@
       },
       "type": "text"
     },
+    "8Z1ZfVis": {
+      "index": "a2",
+      "name": "Actions",
+      "parentId": "j3aAJcpD",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.3}",
+        "margin-top": "{spacing.2}"
+      },
+      "type": "frame"
+    },
     "8ZbqBDJS": {
       "content": "تفسير السعدي · المجلد الثاني",
       "index": "a1",
@@ -6680,6 +7249,23 @@
         "width": 70
       },
       "type": "instance"
+    },
+    "8cJvjfsI": {
+      "css": "transition:\n  opacity 200ms var(--ease-out),\n  display 200ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition-duration: 150ms;\n}",
+      "index": "z0",
+      "name": "Scrim",
+      "parentId": "u0pcPrB5",
+      "style": {
+        "align-items": "center",
+        "background": "{color.scrim}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "inset": 0,
+        "justify-content": "center",
+        "padding": "{spacing.0}",
+        "position": "absolute"
+      },
+      "type": "frame"
     },
     "8dCgETsl": {
       "index": "a5",
@@ -6900,6 +7486,37 @@
       },
       "type": "frame"
     },
+    "8nzO5wkE": {
+      "componentId": "ZC9WELKS",
+      "index": "a4",
+      "name": "TableHeader",
+      "parentId": "ewSrYDcI",
+      "props": {
+        "label": "",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 56
+      },
+      "type": "instance"
+    },
+    "8oVvhtPb": {
+      "componentId": "V7ihVuoQ",
+      "index": "a0",
+      "name": "Sidebar",
+      "parentId": "m9tkU8Pa",
+      "props": {
+        "active": "library",
+        "connection": "online",
+        "failures": "5 failed",
+        "showFailures": true
+      },
+      "style": {
+        "height": "100%"
+      },
+      "type": "instance"
+    },
     "8ofiLpRE": {
       "componentId": "m6GU5N7j",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -6984,6 +7601,26 @@
       },
       "style": {
         "width": "100%"
+      },
+      "type": "instance"
+    },
+    "8q4S6BmQ": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "4EcwKFIL",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "default",
+        "variant": "primary"
       },
       "type": "instance"
     },
@@ -7303,21 +7940,6 @@
       },
       "type": "frame"
     },
-    "99C5OO3j": {
-      "componentId": "ZC9WELKS",
-      "index": "a3",
-      "name": "TableHeader",
-      "parentId": "P3mAl92p",
-      "props": {
-        "label": "Updated",
-        "state": "default"
-      },
-      "style": {
-        "justify-content": "flex-end",
-        "width": 90
-      },
-      "type": "instance"
-    },
     "99KC2Cb6": {
       "index": "a0",
       "name": "Icon Disc",
@@ -7376,35 +7998,13 @@
       },
       "type": "text"
     },
-    "9GEPQB8t": {
+    "9I3llu4u": {
       "index": "a1",
-      "name": "Pages",
-      "parentId": "9GLXGFdG",
+      "name": "Rule",
+      "parentId": "Rv8doTsv",
       "style": {
-        "background": "{color.surface}",
-        "border": "1px solid {color.line}",
-        "border-radius": "{radius.lg}",
-        "box-sizing": "border-box",
-        "display": "flex",
-        "flex-direction": "column",
-        "gap": "{spacing.0}",
-        "padding": "{spacing.1} {spacing.2}"
-      },
-      "type": "frame"
-    },
-    "9GLXGFdG": {
-      "index": "a1",
-      "name": "Content",
-      "parentId": "MnLxwTGD",
-      "style": {
-        "box-sizing": "border-box",
-        "display": "flex",
-        "flex": 1,
-        "flex-direction": "column",
-        "gap": "{spacing.5}",
-        "min-height": 0,
-        "overflow": "hidden",
-        "padding": "{spacing.0} {spacing.10} {spacing.10}"
+        "background": "{color.line}",
+        "height": 1
       },
       "type": "frame"
     },
@@ -7436,6 +8036,23 @@
         "padding": "{spacing.3} {spacing.0}"
       },
       "type": "frame"
+    },
+    "9KsgVpvf": {
+      "content": "وهذه قاعدة مفيدة: أن النفي المقصود به المدح، لا بد أن يكون متضمنًا لضده، وهو الكمال؛ لأن النفي عدم، والعدم المحض لا مدح فيه. فلما اشتمل على اليقين، وكانت الهداية لا تحصل إلا باليقين، قال: ﴿هُدًى لِلْمُتَّقِينَ﴾⁽²⁾.",
+      "index": "a4",
+      "name": "Matn 2",
+      "parentId": "Rv8doTsv",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 20,
+        "font-weight": 400,
+        "line-height": 1.9,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
     },
     "9KxETHWP": {
       "css": "transition:\n  opacity 200ms var(--ease-out),\n  display 200ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition-duration: 150ms;\n}",
@@ -7721,6 +8338,24 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "9emADiVH": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Filter",
+      "parentId": "VgFK50St",
+      "style": {
+        "align-items": "center",
+        "background": "{color.accent-soft}",
+        "border": "1px solid {color.accent-soft}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
     },
     "9evMzHxF": {
       "index": "a0",
@@ -8147,6 +8782,20 @@
       },
       "type": "text"
     },
+    "A9VmUIYs": {
+      "index": "aB",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "89%"
+      },
+      "type": "frame"
+    },
     "AAOUunAl": {
       "index": "a0",
       "name": "Segment",
@@ -8238,6 +8887,18 @@
         "height": 7,
         "opacity": 0.55,
         "width": "70%"
+      },
+      "type": "frame"
+    },
+    "AJOD7yrC": {
+      "index": "a1",
+      "name": "Heading",
+      "parentId": "2NMGyWP6",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.1}",
+        "min-width": 0
       },
       "type": "frame"
     },
@@ -8378,6 +9039,34 @@
         "display": "flex",
         "flex-direction": "column",
         "gap": "{spacing.2}"
+      },
+      "type": "frame"
+    },
+    "AU9wwDbe": {
+      "index": "aG",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "85%"
+      },
+      "type": "frame"
+    },
+    "AV7Bzc7s": {
+      "index": "a6",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "70%"
       },
       "type": "frame"
     },
@@ -8606,6 +9295,23 @@
         "font-size": 13,
         "font-weight": 400,
         "line-height": 1.45
+      },
+      "type": "text"
+    },
+    "AhBV2427": {
+      "content": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة، المشتمل على ما لم تشتمل عليه كتب المتقدمين والمتأخرين من العلم العظيم، والحق المبين. فـ﴿لَا رَيْبَ فِيهِ﴾ ولا شك بوجه من الوجوه، ونفي الريب عنه يستلزم ضده، إذ ضد الريب والشك اليقين، فهذا الكتاب مشتمل على علم اليقين المزيل للشك والريب⁽¹⁾.",
+      "index": "a3",
+      "name": "Matn 1",
+      "parentId": "Rv8doTsv",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 20,
+        "font-weight": 400,
+        "line-height": 1.9,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
       },
       "type": "text"
     },
@@ -8879,6 +9585,20 @@
       },
       "type": "frame"
     },
+    "B3gpZHI9": {
+      "index": "a4",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "95%"
+      },
+      "type": "frame"
+    },
     "B4HS8jr8": {
       "index": "a1",
       "name": "Row",
@@ -9094,7 +9814,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 10920,
+      "x": 15480,
       "y": 3380
     },
     "BNDbPOnF": {
@@ -9151,6 +9871,24 @@
         "gap": "{spacing.2}",
         "height": 36,
         "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
+    "BTBcOWdP": {
+      "css": "transition:\n  opacity var(--dur-modal) var(--ease-out),\n  scale var(--dur-modal) var(--ease-out),\n  display 220ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n[data-state=\"closed\"] & {\n  display: none;\n  opacity: 0;\n  scale: 0.96;\n  transition-duration: 150ms;\n}",
+      "index": "a0",
+      "name": "Dialog",
+      "parentId": "XamvrJSm",
+      "style": {
+        "background": "{color.surface}",
+        "border-radius": "{radius.lg}",
+        "box-shadow": "{shadow.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.4}",
+        "padding": "{spacing.6}",
+        "width": 420
       },
       "type": "frame"
     },
@@ -9458,6 +10196,20 @@
       },
       "type": "text"
     },
+    "BncH4sg7": {
+      "index": "a3",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "88%"
+      },
+      "type": "frame"
+    },
     "Bnst0Q4n": {
       "componentId": "m6GU5N7j",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -9508,6 +10260,20 @@
         "width": 90
       },
       "type": "instance"
+    },
+    "BqoN4Bjr": {
+      "index": "a8",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "91%"
+      },
+      "type": "frame"
     },
     "Br2YMH0r": {
       "index": "a5",
@@ -9609,6 +10375,20 @@
         "width": 140
       },
       "type": "frame"
+    },
+    "BzYTFQ0B": {
+      "componentId": "ZC9WELKS",
+      "index": "a1",
+      "name": "TableHeader",
+      "parentId": "ewSrYDcI",
+      "props": {
+        "label": "Text",
+        "state": "default"
+      },
+      "style": {
+        "flex": 1
+      },
+      "type": "instance"
     },
     "C0FlHI2o": {
       "componentId": "bIsnn3o6",
@@ -9783,24 +10563,6 @@
       },
       "type": "instance"
     },
-    "CFixK6j0": {
-      "componentId": "M4dbV8TV",
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a0",
-      "name": "Button",
-      "parentId": "dzHMAaIV",
-      "props": {
-        "icon": false,
-        "label": "Cancel",
-        "size": "sm",
-        "state": "default",
-        "variant": "ghost"
-      },
-      "style": {
-        "margin-left": "auto"
-      },
-      "type": "instance"
-    },
     "CHWjpndg": {
       "index": "aE",
       "name": "Bar",
@@ -9927,18 +10689,6 @@
       },
       "type": "instance"
     },
-    "CR56XgYg": {
-      "index": "a0",
-      "name": "Dot",
-      "parentId": "b7MLvQ7T",
-      "style": {
-        "background": "{color.danger}",
-        "border-radius": "{radius.full}",
-        "height": 8,
-        "width": 8
-      },
-      "type": "frame"
-    },
     "CRBSho0R": {
       "content": "Fallback reasons",
       "index": "a0",
@@ -10018,6 +10768,17 @@
         "flex-direction": "column",
         "gap": "{spacing.1}",
         "min-width": 0
+      },
+      "type": "frame"
+    },
+    "Cbd1zFH7": {
+      "index": "a0",
+      "name": "Progress",
+      "parentId": "p1Xdeuda",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.3}"
       },
       "type": "frame"
     },
@@ -10196,6 +10957,24 @@
       },
       "type": "frame"
     },
+    "ClhBv8iF": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Button",
+      "parentId": "4EcwKFIL",
+      "props": {
+        "icon": false,
+        "label": "Cancel",
+        "size": "sm",
+        "state": "default",
+        "variant": "ghost"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
+    },
     "ClixeniF": {
       "index": "a3",
       "name": "Skeleton",
@@ -10246,6 +11025,23 @@
         "padding": "{spacing.8} {spacing.10} {spacing.6}"
       },
       "type": "frame"
+    },
+    "CpXpbWVU": {
+      "content": "وهذه قاعدة مفيدة: أن النفي المقصود به المدح، لا بد أن يكون متضمنًا لضده، وهو الكمال؛ لأن النفي عدم، والعدم المحض لا مدح فيه. فلما اشتمل على اليقين، وكانت الهداية لا تحصل إلا باليقين، قال: ﴿هُدًى لِلْمُتَّقِينَ﴾⁽²⁾.",
+      "index": "a4",
+      "name": "Matn 2",
+      "parentId": "slaM4Iym",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 20,
+        "font-weight": 400,
+        "line-height": 1.9,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
     },
     "CpbWc8xB": {
       "content": "Usage",
@@ -10324,18 +11120,6 @@
       },
       "type": "frame"
     },
-    "CxuXa1zU": {
-      "index": "a0",
-      "name": "Dot",
-      "parentId": "wPC3QEHP",
-      "style": {
-        "background": "{color.accent}",
-        "border-radius": "{radius.full}",
-        "height": 8,
-        "width": 8
-      },
-      "type": "frame"
-    },
     "Cy1DDwuO": {
       "index": "a0",
       "name": "API",
@@ -10410,6 +11194,20 @@
       },
       "type": "text"
     },
+    "D2VsURcq": {
+      "index": "a5",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "90%"
+      },
+      "type": "frame"
+    },
     "D2dMthHG": {
       "index": "a1",
       "name": "Heading",
@@ -10448,6 +11246,19 @@
       },
       "type": "frame"
     },
+    "D87wBCY7": {
+      "index": "a1",
+      "name": "Panes",
+      "parentId": "lDNiRVZd",
+      "style": {
+        "align-items": "stretch",
+        "display": "flex",
+        "flex": 1,
+        "gap": "{spacing.0}",
+        "min-height": 0
+      },
+      "type": "frame"
+    },
     "D8LOQXux": {
       "index": "a1",
       "name": "Main",
@@ -10459,6 +11270,22 @@
         "gap": "{spacing.0}",
         "min-width": 0,
         "overflow": "hidden"
+      },
+      "type": "frame"
+    },
+    "D8rFa6O8": {
+      "index": "a1",
+      "name": "Content",
+      "parentId": "iSxppMfL",
+      "style": {
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.5}",
+        "min-height": 0,
+        "overflow": "hidden",
+        "padding": "{spacing.0} {spacing.10} {spacing.10}"
       },
       "type": "frame"
     },
@@ -10491,6 +11318,43 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "DDlQcFfy": {
+      "componentId": "bIsnn3o6",
+      "index": "a2",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "411",
+        "m1": "$0.0177",
+        "m2": "2 h",
+        "metas": "2",
+        "primary": "ويدخل في هذا التعريف النفاق الاعتقادي، والنفاق العملي، كالذي ذكر النبي صلى الله عليه وسلم في قوله…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "DDoP0mVD": {
       "index": "a0",
@@ -10689,21 +11553,6 @@
       },
       "type": "text"
     },
-    "DV03jYwL": {
-      "content": "Review 1,122 pages again?",
-      "index": "a0",
-      "name": "Title",
-      "parentId": "vnujrk8B",
-      "style": {
-        "color": "{color.ink}",
-        "font-family": "{font.display}",
-        "font-size": 24,
-        "font-weight": 600,
-        "letter-spacing": "-0.01em",
-        "line-height": 1.2
-      },
-      "type": "text"
-    },
     "DVzaBiuH": {
       "content": "",
       "index": "aG",
@@ -10858,6 +11707,18 @@
       },
       "type": "frame"
     },
+    "Dm78PUN9": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "6fCh70Ri",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "Dn6UX0x4": {
       "index": "a0",
       "name": "Page",
@@ -10876,6 +11737,25 @@
         "width": "auto"
       },
       "type": "frame"
+    },
+    "DpxCZLQh": {
+      "componentId": "rBYFWXt7",
+      "index": "a1",
+      "name": "Cost split",
+      "parentId": "gMNSWtlh",
+      "props": {
+        "line1": "OCR · $0.0031",
+        "line2": "Review · $0.0151",
+        "series": "two",
+        "title": "Page 410 · $0.0182"
+      },
+      "style": {
+        "position": "absolute",
+        "right": 130,
+        "top": 96,
+        "z-index": 2
+      },
+      "type": "instance"
     },
     "Dqz2copB": {
       "index": "a0",
@@ -11359,6 +12239,18 @@
       },
       "type": "instance"
     },
+    "EP6I5Dcz": {
+      "index": "a0",
+      "name": "Status Bar",
+      "parentId": "l0uZxbpO",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.0.5}",
+        "width": "100%"
+      },
+      "type": "frame"
+    },
     "EPij1MJE": {
       "index": "a0",
       "name": "Skeleton",
@@ -11700,6 +12592,20 @@
       },
       "type": "frame"
     },
+    "EmfeHEgT": {
+      "icon": "hash",
+      "index": "a0",
+      "name": "Icon",
+      "parentId": "kh9wo7ty",
+      "set": "lucide",
+      "style": {
+        "color": "{color.accent}",
+        "flex-shrink": 0,
+        "height": 16,
+        "width": 16
+      },
+      "type": "icon"
+    },
     "Emk6xceE": {
       "index": "a0",
       "name": "Thumb",
@@ -11773,6 +12679,21 @@
         "height": "50.00%"
       },
       "type": "frame"
+    },
+    "Eqmjzp0l": {
+      "content": "Re-run the review of page 412?",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "BTBcOWdP",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.display}",
+        "font-size": 24,
+        "font-weight": 600,
+        "letter-spacing": "-0.01em",
+        "line-height": 1.2
+      },
+      "type": "text"
     },
     "EriHqWvC": {
       "content": "96%",
@@ -12054,37 +12975,6 @@
       },
       "type": "frame"
     },
-    "FBFco0Aq": {
-      "componentId": "bIsnn3o6",
-      "index": "a2",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "411",
-        "m1": "2 h",
-        "metas": "1",
-        "primary": "ويدخل في هذا التعريف النفاق الاعتقادي، والنفاق العملي، كالذي ذكر النبي صلى الله عليه وسلم في قوله…",
-        "primaryStyle": "arabic",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "state": "default",
-        "status": "done",
-        "tone": "ok",
-        "trailing": "more"
-      },
-      "style": {
-        "width": "100%"
-      },
-      "type": "instance"
-    },
     "FBQddpcJ": {
       "content": "26 Oct",
       "index": "a0",
@@ -12102,6 +12992,24 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "FCQ3PqC2": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Filter",
+      "parentId": "ISJFHcI7",
+      "style": {
+        "align-items": "center",
+        "background": "{color.accent-soft}",
+        "border": "1px solid {color.accent-soft}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
     },
     "FELeW0oI": {
       "css": "transition:\n  opacity var(--dur-modal) var(--ease-out),\n  scale var(--dur-modal) var(--ease-out),\n  display 220ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n[data-state=\"closed\"] & {\n  display: none;\n  opacity: 0;\n  scale: 0.96;\n  transition-duration: 150ms;\n}",
@@ -12257,6 +13165,18 @@
       },
       "type": "frame"
     },
+    "FNvDKIqY": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "iuLmqXOD",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "FPKgPdbY": {
       "content": "$0.05",
       "index": "a1",
@@ -12302,6 +13222,37 @@
         "min-height": 2
       },
       "type": "frame"
+    },
+    "FV99Eyvh": {
+      "content": "Page 412",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "6wOl0Tzx",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 11,
+        "font-weight": 600,
+        "letter-spacing": "0.08em",
+        "line-height": 1.2,
+        "padding": "{spacing.2} {spacing.3} {spacing.1}",
+        "text-transform": "uppercase"
+      },
+      "type": "text"
+    },
+    "FWtB7GSW": {
+      "componentId": "ZC9WELKS",
+      "index": "a0",
+      "name": "TableHeader",
+      "parentId": "W6Ydn3v1",
+      "props": {
+        "label": "Page",
+        "state": "default"
+      },
+      "style": {
+        "width": 80
+      },
+      "type": "instance"
     },
     "FZCRJWhm": {
       "content": "",
@@ -12474,6 +13425,18 @@
       },
       "type": "instance"
     },
+    "Few5t6KL": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "rNqIqY2Q",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "Fg6CupMa": {
       "content": "Usage",
       "index": "a0",
@@ -12612,6 +13575,24 @@
       },
       "type": "instance"
     },
+    "Fto6USLc": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Refresh",
+      "overrides": {
+        "7FTSPNV7": {
+          "css": "[data-state=\"loading\"] & { animation: spin 700ms linear infinite; }",
+          "icon": "refresh-cw"
+        }
+      },
+      "parentId": "6kcTa1bL",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "FuK5vJJM": {
       "componentId": "Fm1JH5xg",
       "index": "a1",
@@ -12644,7 +13625,6 @@
         "third": "Both"
       },
       "style": {
-        "margin-left": "auto",
         "width": 240
       },
       "type": "instance"
@@ -12876,7 +13856,6 @@
         "third": "Both"
       },
       "style": {
-        "margin-left": "auto",
         "width": 240
       },
       "type": "instance"
@@ -12984,6 +13963,23 @@
         "gap": "{spacing.4}"
       },
       "type": "frame"
+    },
+    "GCWvvYNL": {
+      "content": "تفسير السعدي",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "AJOD7yrC",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 24,
+        "font-weight": 700,
+        "line-height": 1.5,
+        "text-align": "left",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
     },
     "GDmFOIX5": {
       "index": "aI",
@@ -13137,7 +14133,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 9400,
+      "x": 13960,
       "y": 3380
     },
     "GLpA0ht5": {
@@ -13211,18 +14207,6 @@
         "flex-shrink": 0,
         "height": 12,
         "width": 110
-      },
-      "type": "frame"
-    },
-    "GRM244XO": {
-      "index": "a0",
-      "name": "Dot",
-      "parentId": "1PmMShbW",
-      "style": {
-        "background": "{color.ok}",
-        "border-radius": "{radius.full}",
-        "height": 8,
-        "width": 8
       },
       "type": "frame"
     },
@@ -13312,20 +14296,6 @@
       },
       "type": "frame"
     },
-    "GXSXP2wO": {
-      "content": "Go to page",
-      "index": "a1",
-      "name": "Label",
-      "parentId": "k5Dj1zHL",
-      "style": {
-        "color": "{color.accent}",
-        "font-family": "{font.body}",
-        "font-size": 13,
-        "font-weight": 600,
-        "line-height": 1.45
-      },
-      "type": "text"
-    },
     "GYaoNwKx": {
       "index": "a1",
       "name": "Skeleton",
@@ -13413,6 +14383,18 @@
         "flex-shrink": 0,
         "height": 48,
         "width": 36
+      },
+      "type": "frame"
+    },
+    "GfXZQCwh": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "WuWVy9mp",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
       },
       "type": "frame"
     },
@@ -13928,6 +14910,20 @@
       },
       "type": "frame"
     },
+    "HPnZu4JI": {
+      "content": "1,122 done",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "WuWVy9mp",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "HU0pcWi6": {
       "index": "a2",
       "name": "Refresh",
@@ -13988,6 +14984,23 @@
         "height": "56.67%"
       },
       "type": "frame"
+    },
+    "HYVamENy": {
+      "content": "سورة البقرة",
+      "index": "a0",
+      "name": "Running header",
+      "parentId": "Rv8doTsv",
+      "style": {
+        "color": "{color.ink-3}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 500,
+        "line-height": 1.6,
+        "text-align": "center",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
     },
     "HZhJ9WEl": {
       "index": "a0",
@@ -14209,6 +15222,19 @@
       },
       "type": "frame"
     },
+    "HrzTMY4p": {
+      "index": "a3",
+      "name": "Segment · in queue",
+      "parentId": "EP6I5Dcz",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": 3,
+        "flex": 25,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
+    },
     "HtgjKe8s": {
       "index": "a0",
       "name": "Segment",
@@ -14250,37 +15276,6 @@
         "width": "86%"
       },
       "type": "frame"
-    },
-    "HultIKtR": {
-      "componentId": "bIsnn3o6",
-      "index": "a1",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "410",
-        "m1": "2 h",
-        "metas": "1",
-        "primary": "﴿وَمِنَ النَّاسِ مَنْ يَقُولُ آمَنَّا بِاللَّهِ﴾ اعلم أن النفاق هو: إظهار الخير وإبطان الشر، ويدخل في هذا التعريف النفاق الاعتقادي والعملي…",
-        "primaryStyle": "arabic",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "state": "default",
-        "status": "done",
-        "tone": "ok",
-        "trailing": "more"
-      },
-      "style": {
-        "width": "100%"
-      },
-      "type": "instance"
     },
     "Hv3m41ZA": {
       "content": "1153",
@@ -14488,24 +15483,6 @@
       },
       "type": "frame"
     },
-    "IECrDf6y": {
-      "componentId": "m6GU5N7j",
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a1",
-      "name": "Refresh",
-      "overrides": {
-        "7FTSPNV7": {
-          "css": "[data-state=\"loading\"] & { animation: spin 700ms linear infinite; }",
-          "icon": "refresh-cw"
-        }
-      },
-      "parentId": "KgRfYS7y",
-      "props": {
-        "state": "default",
-        "variant": "tonal"
-      },
-      "type": "instance"
-    },
     "IEG1WUZW": {
       "index": "a1",
       "name": "Heading",
@@ -14659,6 +15636,19 @@
       },
       "type": "frame"
     },
+    "IQzT4bEF": {
+      "index": "a3",
+      "name": "Segment · in queue",
+      "parentId": "3NmhQeTZ",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": 3,
+        "flex": 25,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
+    },
     "IR67pE87": {
       "componentId": "ZC9WELKS",
       "index": "a3",
@@ -14694,6 +15684,17 @@
       },
       "type": "instance"
     },
+    "ISJFHcI7": {
+      "index": "a1",
+      "name": "Legend · Filters",
+      "parentId": "XJ8pzQq4",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}"
+      },
+      "type": "frame"
+    },
     "IU46G0KA": {
       "index": "a1",
       "name": "Recent",
@@ -14709,6 +15710,20 @@
         "padding": "{spacing.6}"
       },
       "type": "frame"
+    },
+    "IUBS6yzi": {
+      "name": "Book · Review queued",
+      "style": {
+        "background": "{color.bg}",
+        "display": "flex",
+        "height": 900,
+        "overflow": "hidden",
+        "position": "relative",
+        "width": 1440
+      },
+      "type": "frame",
+      "x": 9400,
+      "y": 3380
     },
     "IUM4S61V": {
       "css": "transform-origin: top right;\ntransition:\n  opacity var(--dur-pop) var(--ease-out),\n  scale var(--dur-pop) var(--ease-out),\n  display 160ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition:\n    opacity 120ms ease-out,\n    display 120ms allow-discrete;\n}",
@@ -14864,6 +15879,20 @@
       },
       "type": "text"
     },
+    "IimsBQti": {
+      "name": "Book · Page actions · Hand-edited",
+      "style": {
+        "background": "{color.bg}",
+        "display": "flex",
+        "height": 900,
+        "overflow": "hidden",
+        "position": "relative",
+        "width": 1440
+      },
+      "type": "frame",
+      "x": 6360,
+      "y": 3380
+    },
     "Io6evO8A": {
       "index": "a6",
       "name": "Cell · p95",
@@ -14968,6 +15997,21 @@
       },
       "type": "frame"
     },
+    "IsCJv5Ho": {
+      "componentId": "ZC9WELKS",
+      "index": "a4",
+      "name": "TableHeader",
+      "parentId": "tFuWJH5L",
+      "props": {
+        "label": "",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 56
+      },
+      "type": "instance"
+    },
     "Isk87AeN": {
       "index": "a1",
       "name": "Segment",
@@ -14988,6 +16032,20 @@
         "display": "flex",
         "flex-direction": "column",
         "gap": "{spacing.2}"
+      },
+      "type": "frame"
+    },
+    "Iu2JD3Hc": {
+      "css": "transition: flex-grow 240ms var(--ease-in-out);",
+      "index": "a0",
+      "name": "Text Pane",
+      "parentId": "luWx8aoy",
+      "style": {
+        "border-right": "1px solid {color.line}",
+        "display": "flex",
+        "flex": 1,
+        "justify-content": "center",
+        "overflow": "hidden"
       },
       "type": "frame"
     },
@@ -15089,6 +16147,18 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "J6cHTt3v": {
+      "index": "a1",
+      "name": "Heading",
+      "parentId": "lm86L2j4",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.1}",
+        "min-width": 0
+      },
+      "type": "frame"
     },
     "J9f0Hax1": {
       "index": "a0",
@@ -15285,6 +16355,21 @@
       },
       "type": "text"
     },
+    "JOcASZPR": {
+      "componentId": "ZC9WELKS",
+      "index": "a3",
+      "name": "TableHeader",
+      "parentId": "tFuWJH5L",
+      "props": {
+        "label": "Updated",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 90
+      },
+      "type": "instance"
+    },
     "JPBHRaVB": {
       "content": "32 pages",
       "index": "a2",
@@ -15369,6 +16454,18 @@
       },
       "type": "frame"
     },
+    "Jb6ZLfIw": {
+      "index": "a0",
+      "name": "Status Bar",
+      "parentId": "XJ8pzQq4",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.0.5}",
+        "width": "100%"
+      },
+      "type": "frame"
+    },
     "JchlMrmQ": {
       "content": "3 failed",
       "index": "a1",
@@ -15446,6 +16543,43 @@
         "gap": "{spacing.0.5}"
       },
       "type": "frame"
+    },
+    "JlkUIqzK": {
+      "componentId": "bIsnn3o6",
+      "index": "a8",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "417",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "processing",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "JnjvZqBg": {
       "content": "تفسير السعدي",
@@ -15575,6 +16709,26 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "JsOqDsVJ": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a2",
+      "name": "Edit",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "pencil"
+        }
+      },
+      "parentId": "2NMGyWP6",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
     },
     "JuiCUJEh": {
       "content": "Activity",
@@ -15845,6 +16999,19 @@
       },
       "type": "frame"
     },
+    "K8byXg21": {
+      "index": "a0",
+      "name": "Header",
+      "parentId": "zNQGoi5Q",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "flex-shrink": 0,
+        "gap": "{spacing.5}",
+        "padding": "{spacing.8} {spacing.10} {spacing.6}"
+      },
+      "type": "frame"
+    },
     "K8tAPNnM": {
       "index": "a0",
       "name": "Header",
@@ -16072,6 +17239,20 @@
       },
       "type": "icon"
     },
+    "KOysRMxa": {
+      "index": "a0",
+      "name": "Stage",
+      "parentId": "iSCnzxBL",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "flex": 1,
+        "justify-content": "center",
+        "min-height": 0,
+        "padding": "{spacing.6}"
+      },
+      "type": "frame"
+    },
     "KPLxLm62": {
       "index": "a0",
       "name": "Header",
@@ -16110,6 +17291,22 @@
       },
       "type": "frame"
     },
+    "KRCoNUGh": {
+      "index": "a1",
+      "name": "Pages",
+      "parentId": "hOe8h5y3",
+      "style": {
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "padding": "{spacing.1} {spacing.2}"
+      },
+      "type": "frame"
+    },
     "KVU7wDhx": {
       "index": "a1",
       "name": "Centered",
@@ -16140,6 +17337,23 @@
         "width": 100
       },
       "type": "text"
+    },
+    "KXBX8UwE": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Back",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "bs6mHy0H",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
     },
     "KY943fRg": {
       "content": "",
@@ -16243,17 +17457,6 @@
       },
       "type": "instance"
     },
-    "KgRfYS7y": {
-      "index": "a3",
-      "name": "Refresh",
-      "parentId": "LCZypbby",
-      "style": {
-        "align-items": "center",
-        "display": "flex",
-        "gap": "{spacing.3}"
-      },
-      "type": "frame"
-    },
     "KggdUWAt": {
       "index": "a0",
       "name": "Skeleton",
@@ -16277,6 +17480,33 @@
         "flex-direction": "column-reverse",
         "gap": "{spacing.0.5}",
         "height": "55.00%"
+      },
+      "type": "frame"
+    },
+    "KigKTZGb": {
+      "index": "aK",
+      "name": "Footnote",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 3,
+        "height": 5,
+        "opacity": 0.45,
+        "width": "64%"
+      },
+      "type": "frame"
+    },
+    "KkaCSsNR": {
+      "index": "a3",
+      "name": "Segment · in queue",
+      "parentId": "Jb6ZLfIw",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": 3,
+        "flex": 25,
+        "height": 10,
+        "min-width": 6
       },
       "type": "frame"
     },
@@ -16596,6 +17826,17 @@
       },
       "type": "text"
     },
+    "L9FjKcEf": {
+      "index": "a3",
+      "name": "Refresh",
+      "parentId": "lm86L2j4",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.3}"
+      },
+      "type": "frame"
+    },
     "L9brizZ6": {
       "content": "$0.00",
       "index": "a0",
@@ -16624,17 +17865,6 @@
         "border-radius": "4px 4px 0 0",
         "flex": 100,
         "min-height": 2
-      },
-      "type": "frame"
-    },
-    "LCZypbby": {
-      "index": "a0",
-      "name": "Bar",
-      "parentId": "ZVtzQphM",
-      "style": {
-        "align-items": "center",
-        "display": "flex",
-        "gap": "{spacing.4}"
       },
       "type": "frame"
     },
@@ -16684,19 +17914,21 @@
       },
       "type": "frame"
     },
-    "LHZvJuBJ": {
-      "componentId": "ZC9WELKS",
+    "LIVwdoRH": {
+      "content": "تفسير السعدي",
       "index": "a0",
-      "name": "TableHeader",
-      "parentId": "P3mAl92p",
-      "props": {
-        "label": "Page",
-        "state": "default"
-      },
+      "name": "Book",
+      "parentId": "yy6QwT5d",
       "style": {
-        "width": 80
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 700,
+        "line-height": 1.6,
+        "unicode-bidi": "isolate"
       },
-      "type": "instance"
+      "type": "text"
     },
     "LJ7jopoK": {
       "index": "a0",
@@ -16738,17 +17970,6 @@
         "align-items": "center",
         "display": "flex",
         "gap": "{spacing.2}"
-      },
-      "type": "frame"
-    },
-    "LP2vAoKh": {
-      "index": "a0",
-      "name": "Progress",
-      "parentId": "9GLXGFdG",
-      "style": {
-        "display": "flex",
-        "flex-direction": "column",
-        "gap": "{spacing.3}"
       },
       "type": "frame"
     },
@@ -17003,6 +18224,20 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "LgEWsu2j": {
+      "name": "Reader · Review queued",
+      "style": {
+        "background": "{color.bg}",
+        "display": "flex",
+        "height": 900,
+        "overflow": "hidden",
+        "position": "relative",
+        "width": 1440
+      },
+      "type": "frame",
+      "x": 4840,
+      "y": 5500
     },
     "LjYTqMk7": {
       "index": "a0",
@@ -17268,6 +18503,20 @@
       },
       "type": "frame"
     },
+    "M3JThH2y": {
+      "content": "3 failed",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "yXy6w3py",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "M3mxMeUO": {
       "index": "a0",
       "name": "Segment",
@@ -17373,6 +18622,16 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "MBGU8UZ5": {
+      "index": "a1",
+      "name": "Rule",
+      "parentId": "slaM4Iym",
+      "style": {
+        "background": "{color.line}",
+        "height": 1
+      },
+      "type": "frame"
     },
     "MDAW9KxC": {
       "index": "a0",
@@ -17706,20 +18965,6 @@
       },
       "type": "frame"
     },
-    "MnLxwTGD": {
-      "index": "a1",
-      "name": "Main",
-      "parentId": "s9rtnqrd",
-      "style": {
-        "display": "flex",
-        "flex": 1,
-        "flex-direction": "column",
-        "gap": "{spacing.0}",
-        "min-width": 0,
-        "overflow": "hidden"
-      },
-      "type": "frame"
-    },
     "MoBZrJzY": {
       "componentId": "eIJYzftw",
       "index": "a3",
@@ -17888,6 +19133,38 @@
         "gap": "{spacing.2}"
       },
       "type": "frame"
+    },
+    "N5B7E3Zu": {
+      "index": "aG",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "85%"
+      },
+      "type": "frame"
+    },
+    "N6IcQTSq": {
+      "componentId": "TVPQCjiM",
+      "css": "& > * {\n  transition: scale var(--dur-press) var(--ease-out);\n}\n\n& > *:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Segmented",
+      "parentId": "bs6mHy0H",
+      "props": {
+        "first": "Text",
+        "second": "Scan",
+        "segments": "three",
+        "selected": "third",
+        "third": "Both"
+      },
+      "style": {
+        "width": 240
+      },
+      "type": "instance"
     },
     "N7Q8CXXh": {
       "index": "a1",
@@ -18198,6 +19475,23 @@
       },
       "type": "text"
     },
+    "NVQnDES7": {
+      "content": "⁽¹⁾ في نسخة: «فهذا الكتاب مشتمل على علم اليقين».",
+      "index": "a6",
+      "name": "Footnote",
+      "parentId": "Rv8doTsv",
+      "style": {
+        "color": "{color.ink-2}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.6,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
     "NVnzx67Y": {
       "componentId": "ZC9WELKS",
       "index": "a4",
@@ -18395,6 +19689,23 @@
         "gap": "{spacing.2}"
       },
       "type": "frame"
+    },
+    "NjnM27gu": {
+      "content": "تفسير السعدي",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "TbzrasbR",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 24,
+        "font-weight": 700,
+        "line-height": 1.5,
+        "text-align": "left",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
     },
     "Nk2F0aRo": {
       "index": "a9",
@@ -18785,6 +20096,26 @@
       },
       "type": "frame"
     },
+    "OJ8oHuUw": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "8Z1ZfVis",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "default",
+        "variant": "primary"
+      },
+      "type": "instance"
+    },
     "OKiY5KJs": {
       "index": "a3",
       "name": "Segment · in queue",
@@ -19146,6 +20477,20 @@
       },
       "type": "frame"
     },
+    "OoFfRARh": {
+      "componentId": "ZC9WELKS",
+      "index": "a0",
+      "name": "TableHeader",
+      "parentId": "ewSrYDcI",
+      "props": {
+        "label": "Page",
+        "state": "default"
+      },
+      "style": {
+        "width": 80
+      },
+      "type": "instance"
+    },
     "OoVR8P8Z": {
       "index": "a7",
       "name": "Line",
@@ -19387,18 +20732,6 @@
       "x": 0,
       "y": 7620
     },
-    "P3mAl92p": {
-      "index": "a0",
-      "name": "Head",
-      "parentId": "kWAAS9tm",
-      "style": {
-        "align-items": "center",
-        "border-bottom": "1px solid {color.line}",
-        "display": "flex",
-        "gap": "{spacing.0}"
-      },
-      "type": "frame"
-    },
     "P5BDCAK1": {
       "index": "a0",
       "name": "Bar",
@@ -19491,6 +20824,35 @@
       },
       "type": "frame"
     },
+    "PER6zL9q": {
+      "content": "Updated 14:32",
+      "css": "transition: opacity 150ms ease-out;\n\n@starting-style {\n  opacity: 0;\n}",
+      "index": "a0",
+      "name": "As of",
+      "parentId": "tAoO1EAr",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
+    "PF1mv9oY": {
+      "index": "a1",
+      "name": "Main",
+      "parentId": "LgEWsu2j",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "min-width": 0,
+        "overflow": "hidden"
+      },
+      "type": "frame"
+    },
     "PFNUHrpU": {
       "index": "a3",
       "name": "Cell · Time",
@@ -19534,7 +20896,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 12440,
+      "x": 17000,
       "y": 3380
     },
     "PGWCffQD": {
@@ -19568,6 +20930,37 @@
       },
       "type": "text"
     },
+    "PKhgaWxO": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a3",
+      "name": "Filter",
+      "parentId": "VgFK50St",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
+    "PMbF2T6w": {
+      "index": "a2",
+      "name": "Segment · failed",
+      "parentId": "3NmhQeTZ",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": 3,
+        "flex": 3,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
+    },
     "POeJrqes": {
       "content": "سورة البقرة",
       "index": "a0",
@@ -19584,6 +20977,20 @@
         "unicode-bidi": "isolate"
       },
       "type": "text"
+    },
+    "PPt5ikpq": {
+      "index": "aJ",
+      "name": "Footnote",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 3,
+        "height": 5,
+        "opacity": 0.45,
+        "width": "80%"
+      },
+      "type": "frame"
     },
     "PQK9F65L": {
       "componentId": "M4dbV8TV",
@@ -19643,6 +21050,17 @@
       },
       "type": "frame"
     },
+    "PaK2XVMR": {
+      "index": "a1",
+      "name": "Rule",
+      "parentId": "houOjytW",
+      "style": {
+        "background": "{color.paper-ink}",
+        "height": 1,
+        "opacity": 0.5
+      },
+      "type": "frame"
+    },
     "PanL6KdM": {
       "index": "a2",
       "name": "Skeleton",
@@ -19681,6 +21099,43 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "PfB0crBw": {
+      "componentId": "bIsnn3o6",
+      "index": "a5",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "414",
+        "m1": "$0.0029",
+        "m2": "1 h",
+        "metas": "2",
+        "primary": "Blank page",
+        "primaryStyle": "italic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "PfmQ1FR6": {
       "index": "a1",
@@ -19722,20 +21177,6 @@
         "padding": "{spacing.3} {spacing.0}"
       },
       "type": "frame"
-    },
-    "PiYORIKg": {
-      "content": "1,122 done",
-      "index": "a1",
-      "name": "Label",
-      "parentId": "1PmMShbW",
-      "style": {
-        "color": "{color.ink-2}",
-        "font-family": "{font.body}",
-        "font-size": 13,
-        "font-weight": 400,
-        "line-height": 1.45
-      },
-      "type": "text"
     },
     "Pjnn1tIw": {
       "index": "a0",
@@ -19789,6 +21230,23 @@
         "min-width": 0
       },
       "type": "frame"
+    },
+    "PnNtBlC4": {
+      "componentId": "N74jC8SJ",
+      "index": "a5",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "trash-2"
+        }
+      },
+      "parentId": "6wOl0Tzx",
+      "props": {
+        "label": "Delete page",
+        "state": "default",
+        "tone": "danger"
+      },
+      "type": "instance"
     },
     "PoNTD9kw": {
       "icon": "hash",
@@ -20100,15 +21558,17 @@
       },
       "type": "text"
     },
-    "QIsBBfZb": {
-      "index": "a1",
-      "name": "Heading",
-      "parentId": "LCZypbby",
+    "QIsZoW7P": {
+      "index": "a0",
+      "name": "Stage",
+      "parentId": "onjMLfEK",
       "style": {
+        "align-items": "center",
         "display": "flex",
-        "flex-direction": "column",
-        "gap": "{spacing.1}",
-        "min-width": 0
+        "flex": 1,
+        "justify-content": "center",
+        "min-height": 0,
+        "padding": "{spacing.6}"
       },
       "type": "frame"
     },
@@ -20344,6 +21804,24 @@
         "width": 270
       },
       "type": "frame"
+    },
+    "QWXK3ipF": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Button",
+      "parentId": "8Z1ZfVis",
+      "props": {
+        "icon": false,
+        "label": "Cancel",
+        "size": "sm",
+        "state": "default",
+        "variant": "ghost"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
     },
     "QYoH4S48": {
       "index": "aI",
@@ -20924,6 +22402,20 @@
       },
       "type": "frame"
     },
+    "RXrUun5t": {
+      "icon": "hash",
+      "index": "a0",
+      "name": "Icon",
+      "parentId": "p5uBlSbM",
+      "set": "lucide",
+      "style": {
+        "color": "{color.accent}",
+        "flex-shrink": 0,
+        "height": 16,
+        "width": 16
+      },
+      "type": "icon"
+    },
     "RZ1ZM67k": {
       "content": "Claude",
       "index": "a1",
@@ -21018,6 +22510,23 @@
       },
       "type": "text"
     },
+    "RdAH0TwC": {
+      "componentId": "N74jC8SJ",
+      "index": "a1",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "hash"
+        }
+      },
+      "parentId": "6wOl0Tzx",
+      "props": {
+        "label": "Change page number",
+        "state": "default",
+        "tone": "default"
+      },
+      "type": "instance"
+    },
     "RgjEjWne": {
       "index": "a1",
       "name": "Zoom",
@@ -21046,6 +22555,20 @@
         "text-align": "center"
       },
       "type": "text"
+    },
+    "RmzYqUGx": {
+      "index": "aF",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "92%"
+      },
+      "type": "frame"
     },
     "Rn9JWPS0": {
       "content": "Dashed lines mark a change to a book's OCR instructions.",
@@ -21127,6 +22650,19 @@
         "variant": "tonal"
       },
       "type": "instance"
+    },
+    "Rv8doTsv": {
+      "index": "a0",
+      "name": "Column",
+      "parentId": "Iu2JD3Hc",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.4}",
+        "padding": "{spacing.8} {spacing.0}",
+        "width": 560
+      },
+      "type": "frame"
     },
     "RwSYqask": {
       "index": "a1",
@@ -21270,6 +22806,23 @@
       },
       "type": "instance"
     },
+    "S6Y6KUUj": {
+      "content": "سورة البقرة",
+      "index": "a0",
+      "name": "Running header",
+      "parentId": "slaM4Iym",
+      "style": {
+        "color": "{color.ink-3}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 500,
+        "line-height": 1.6,
+        "text-align": "center",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
     "S6cat3Un": {
       "name": "Usage · Instruction change",
       "style": {
@@ -21339,6 +22892,45 @@
       },
       "type": "frame"
     },
+    "S9kYo24K": {
+      "componentId": "bIsnn3o6",
+      "index": "a3",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "412",
+        "m1": "$0.0031",
+        "m2": "2 h",
+        "metas": "2",
+        "primary": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "default",
+        "status": "done",
+        "tag": "Claude",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "S9uU2IZV": {
       "content": "New book",
       "index": "a0",
@@ -21351,6 +22943,20 @@
         "font-weight": 600,
         "letter-spacing": "-0.02em",
         "line-height": 1.1
+      },
+      "type": "text"
+    },
+    "SFSVlNC9": {
+      "content": "Page 412 of 1,150",
+      "index": "a1",
+      "name": "Page",
+      "parentId": "fFRlWIKq",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45
       },
       "type": "text"
     },
@@ -21563,25 +23169,19 @@
       },
       "type": "text"
     },
-    "SboLS1Sz": {
-      "componentId": "m6GU5N7j",
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a2",
-      "name": "Edit",
-      "overrides": {
-        "7FTSPNV7": {
-          "icon": "pencil"
-        }
-      },
-      "parentId": "LCZypbby",
-      "props": {
-        "state": "default",
-        "variant": "tonal"
-      },
+    "Sdq41ec7": {
+      "css": "transition: flex-grow 240ms var(--ease-in-out);",
+      "index": "a0",
+      "name": "Text Pane",
+      "parentId": "D87wBCY7",
       "style": {
-        "margin-left": "auto"
+        "border-right": "1px solid {color.line}",
+        "display": "flex",
+        "flex": 1,
+        "justify-content": "center",
+        "overflow": "hidden"
       },
-      "type": "instance"
+      "type": "frame"
     },
     "SeKd5Ldr": {
       "icon": "x",
@@ -21734,6 +23334,18 @@
         "padding": "{spacing.2} {spacing.3}"
       },
       "type": "frame"
+    },
+    "St0duys8": {
+      "componentId": "eIJYzftw",
+      "index": "a2",
+      "name": "Badge",
+      "parentId": "bs6mHy0H",
+      "props": {
+        "dot": true,
+        "label": "done",
+        "tone": "ok"
+      },
+      "type": "instance"
     },
     "SugmzBe1": {
       "componentId": "Fm1JH5xg",
@@ -22067,6 +23679,20 @@
       },
       "type": "frame"
     },
+    "TOA9tNPP": {
+      "componentId": "ZC9WELKS",
+      "index": "a2",
+      "name": "TableHeader",
+      "parentId": "tFuWJH5L",
+      "props": {
+        "label": "Status",
+        "state": "default"
+      },
+      "style": {
+        "width": 200
+      },
+      "type": "instance"
+    },
     "TONJg4SO": {
       "content": "The Cloudflare Worker that stores books and runs OCR",
       "index": "a1",
@@ -22321,6 +23947,26 @@
       },
       "type": "frame"
     },
+    "TangEGZz": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "upload"
+        }
+      },
+      "parentId": "XAPvzZus",
+      "props": {
+        "icon": true,
+        "label": "Upload pages",
+        "size": "sm",
+        "state": "default",
+        "variant": "primary"
+      },
+      "type": "instance"
+    },
     "TazkbFjZ": {
       "index": "a0",
       "name": "Column",
@@ -22338,6 +23984,18 @@
       "index": "a1",
       "name": "Heading",
       "parentId": "AcgSrE2D",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.1}",
+        "min-width": 0
+      },
+      "type": "frame"
+    },
+    "TbzrasbR": {
+      "index": "a1",
+      "name": "Heading",
+      "parentId": "XAPvzZus",
       "style": {
         "display": "flex",
         "flex-direction": "column",
@@ -22408,37 +24066,6 @@
       },
       "type": "instance"
     },
-    "Tfgh7jT7": {
-      "componentId": "bIsnn3o6",
-      "index": "a6",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "415",
-        "m1": "now",
-        "metas": "1",
-        "primary": "Not transcribed yet",
-        "primaryStyle": "muted",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "state": "default",
-        "status": "queued",
-        "tone": "accent",
-        "trailing": "more"
-      },
-      "style": {
-        "width": "100%"
-      },
-      "type": "instance"
-    },
     "TfjxaNc6": {
       "componentId": "v1jZsQMV",
       "index": "a1",
@@ -22495,6 +24122,20 @@
         "gap": "{spacing.0}"
       },
       "type": "frame"
+    },
+    "TmwU2Mh7": {
+      "content": "Opus proofreads the page against its scan again. About $0.03 (estimate). Hand-edited pages can't be reviewed.",
+      "index": "a1",
+      "name": "Body",
+      "parentId": "j3aAJcpD",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.5
+      },
+      "type": "text"
     },
     "TnCOoUhi": {
       "index": "a0",
@@ -22613,6 +24254,18 @@
         "flex-shrink": 0,
         "height": 14,
         "width": 60
+      },
+      "type": "frame"
+    },
+    "U4hl44iT": {
+      "index": "a5",
+      "name": "Go to page",
+      "parentId": "VgFK50St",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "margin-left": "auto"
       },
       "type": "frame"
     },
@@ -22933,6 +24586,20 @@
       },
       "type": "frame"
     },
+    "UWXGkBIL": {
+      "index": "aF",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "92%"
+      },
+      "type": "frame"
+    },
     "UY8omj7h": {
       "index": "a1",
       "name": "Content",
@@ -22978,20 +24645,6 @@
         "gap": "{spacing.3}"
       },
       "type": "frame"
-    },
-    "UcVMEEFJ": {
-      "content": "3 failed",
-      "index": "a1",
-      "name": "Label",
-      "parentId": "b7MLvQ7T",
-      "style": {
-        "color": "{color.ink-2}",
-        "font-family": "{font.body}",
-        "font-size": 13,
-        "font-weight": 400,
-        "line-height": 1.45
-      },
-      "type": "text"
     },
     "Ud7spPWt": {
       "index": "a1",
@@ -23049,6 +24702,20 @@
         "text-transform": "uppercase"
       },
       "type": "text"
+    },
+    "UhWa2xyC": {
+      "index": "a0",
+      "name": "Header Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "center",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 9,
+        "opacity": 0.7,
+        "width": "30%"
+      },
+      "type": "frame"
     },
     "UinTKCx3": {
       "componentId": "KcdxBl18",
@@ -23200,6 +24867,20 @@
       },
       "type": "frame"
     },
+    "UscS3Bz1": {
+      "index": "a3",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "88%"
+      },
+      "type": "frame"
+    },
     "Uwk7LRYY": {
       "index": "a5",
       "name": "Hover Column",
@@ -23331,6 +25012,37 @@
       },
       "type": "frame"
     },
+    "VEKpy4dt": {
+      "content": "⁽¹⁾ في نسخة: «فهذا الكتاب مشتمل على علم اليقين».",
+      "index": "a6",
+      "name": "Footnote",
+      "parentId": "slaM4Iym",
+      "style": {
+        "color": "{color.ink-2}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.6,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
+    "VFmYJTeN": {
+      "index": "a7",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "94%"
+      },
+      "type": "frame"
+    },
     "VG6mg5su": {
       "index": "a0",
       "name": "Heading",
@@ -23342,6 +25054,20 @@
         "min-width": 0
       },
       "type": "frame"
+    },
+    "VGEhAduf": {
+      "componentId": "ZC9WELKS",
+      "index": "a2",
+      "name": "TableHeader",
+      "parentId": "ewSrYDcI",
+      "props": {
+        "label": "Status",
+        "state": "default"
+      },
+      "style": {
+        "width": 200
+      },
+      "type": "instance"
     },
     "VHtfMLHU": {
       "index": "a0",
@@ -23509,6 +25235,21 @@
       },
       "type": "frame"
     },
+    "VVvuEYkJ": {
+      "componentId": "ZC9WELKS",
+      "index": "a4",
+      "name": "TableHeader",
+      "parentId": "W6Ydn3v1",
+      "props": {
+        "label": "",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 56
+      },
+      "type": "instance"
+    },
     "VXHof2eM": {
       "index": "a0",
       "name": "Progress Ring",
@@ -23641,6 +25382,28 @@
       },
       "type": "text"
     },
+    "VfBsI6cI": {
+      "index": "a0",
+      "name": "Table",
+      "parentId": "gMNSWtlh",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
+    "VgFK50St": {
+      "index": "a1",
+      "name": "Legend · Filters",
+      "parentId": "Cbd1zFH7",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}"
+      },
+      "type": "frame"
+    },
     "VgLnfrYZ": {
       "index": "a0",
       "name": "Top Bar",
@@ -23765,6 +25528,23 @@
       },
       "type": "instance"
     },
+    "VnkSi2Qd": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a3",
+      "name": "Fell back",
+      "parentId": "bs6mHy0H",
+      "style": {
+        "align-items": "center",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.0.5}",
+        "height": 24,
+        "padding": "{spacing.0} {spacing.2} {spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "VoBiJCc5": {
       "index": "a0",
       "name": "Skeleton",
@@ -23818,6 +25598,45 @@
       "style": {
         "justify-content": "flex-end",
         "width": 100
+      },
+      "type": "instance"
+    },
+    "VtJURNSi": {
+      "componentId": "bIsnn3o6",
+      "index": "a4",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "413",
+        "m1": "$0.0042",
+        "m2": "1 h",
+        "metas": "2",
+        "primary": "Inkling cut off at 4,096 tokens; Claude fallback rate-limited (429)",
+        "primaryStyle": "danger",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "default",
+        "status": "failed",
+        "tag": "Claude",
+        "tone": "danger",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
       },
       "type": "instance"
     },
@@ -23923,6 +25742,18 @@
       },
       "type": "frame"
     },
+    "W6Ydn3v1": {
+      "index": "a0",
+      "name": "Head",
+      "parentId": "VfBsI6cI",
+      "style": {
+        "align-items": "center",
+        "border-bottom": "1px solid {color.line}",
+        "display": "flex",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
     "W7HUSah4": {
       "index": "a0",
       "name": "Skeleton",
@@ -23933,6 +25764,20 @@
         "flex-shrink": 0,
         "height": 44,
         "width": 44
+      },
+      "type": "frame"
+    },
+    "W8uY4YuN": {
+      "index": "a6",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "70%"
       },
       "type": "frame"
     },
@@ -24129,6 +25974,20 @@
       },
       "type": "text"
     },
+    "WPfvw9vL": {
+      "index": "a1",
+      "name": "Main",
+      "parentId": "u0pcPrB5",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "min-width": 0,
+        "overflow": "hidden"
+      },
+      "type": "frame"
+    },
     "WROYif6w": {
       "index": "aI",
       "name": "Bar",
@@ -24156,6 +26015,26 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "WTdZVuwe": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a2",
+      "name": "Edit",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "pencil"
+        }
+      },
+      "parentId": "lm86L2j4",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
     },
     "WUkdLSD2": {
       "content": "Too few runs to compare",
@@ -24236,6 +26115,21 @@
       },
       "type": "frame"
     },
+    "WZesWrvY": {
+      "content": "Updated 14:32",
+      "css": "transition: opacity 150ms ease-out;\n\n@starting-style {\n  opacity: 0;\n}",
+      "index": "a0",
+      "name": "As of",
+      "parentId": "6kcTa1bL",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "WbDqNxwV": {
       "content": "25 in queue",
       "index": "a1",
@@ -24249,6 +26143,40 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "WdJLWzWx": {
+      "index": "a9",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "86%"
+      },
+      "type": "frame"
+    },
+    "WkWyOH06": {
+      "componentId": "M4dbV8TV",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Button",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "upload"
+        }
+      },
+      "parentId": "lm86L2j4",
+      "props": {
+        "icon": true,
+        "label": "Upload pages",
+        "size": "sm",
+        "state": "default",
+        "variant": "primary"
+      },
+      "type": "instance"
     },
     "Wm5zJb3f": {
       "index": "a0",
@@ -24309,6 +26237,26 @@
       },
       "type": "text"
     },
+    "WrcMPqbw": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a2",
+      "name": "Edit",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "pencil"
+        }
+      },
+      "parentId": "XAPvzZus",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
+    },
     "WsO6vaZI": {
       "componentId": "M4dbV8TV",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -24348,6 +26296,24 @@
         "flex-shrink": 0,
         "gap": "{spacing.5}",
         "padding": "{spacing.8} {spacing.10} {spacing.6}"
+      },
+      "type": "frame"
+    },
+    "WuWVy9mp": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Filter",
+      "parentId": "VgFK50St",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
       },
       "type": "frame"
     },
@@ -24435,6 +26401,19 @@
       },
       "type": "instance"
     },
+    "X7f9q2og": {
+      "index": "a0",
+      "name": "Header",
+      "parentId": "iSxppMfL",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "flex-shrink": 0,
+        "gap": "{spacing.5}",
+        "padding": "{spacing.8} {spacing.10} {spacing.6}"
+      },
+      "type": "frame"
+    },
     "X9tbOf9s": {
       "index": "aP",
       "name": "Bar",
@@ -24445,6 +26424,17 @@
         "flex-direction": "column-reverse",
         "gap": "{spacing.0.5}",
         "height": "91.00%"
+      },
+      "type": "frame"
+    },
+    "XAPvzZus": {
+      "index": "a0",
+      "name": "Bar",
+      "parentId": "y4sXdb5P",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.4}"
       },
       "type": "frame"
     },
@@ -24501,23 +26491,6 @@
       },
       "type": "text"
     },
-    "XF6ArxJ4": {
-      "css": "transition:\n  opacity 200ms var(--ease-out),\n  display 200ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition-duration: 150ms;\n}",
-      "index": "a2",
-      "name": "Scrim",
-      "parentId": "s9rtnqrd",
-      "style": {
-        "align-items": "center",
-        "background": "{color.scrim}",
-        "box-sizing": "border-box",
-        "display": "flex",
-        "inset": 0,
-        "justify-content": "center",
-        "padding": "{spacing.0}",
-        "position": "absolute"
-      },
-      "type": "frame"
-    },
     "XIH4XuKH": {
       "content": "API",
       "index": "a0",
@@ -24542,6 +26515,17 @@
         "border-radius": "4px 4px 0 0",
         "flex": 26.63,
         "min-height": 2
+      },
+      "type": "frame"
+    },
+    "XJ8pzQq4": {
+      "index": "a0",
+      "name": "Progress",
+      "parentId": "D8rFa6O8",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.3}"
       },
       "type": "frame"
     },
@@ -24607,6 +26591,43 @@
       },
       "type": "text"
     },
+    "XRdkEJe9": {
+      "componentId": "bIsnn3o6",
+      "index": "a7",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "416",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "XS1gJYHI": {
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
       "index": "a2",
@@ -24636,7 +26657,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 6360,
+      "x": 10920,
       "y": 3380
     },
     "XUt1pSIJ": {
@@ -24699,6 +26720,23 @@
         "flex-direction": "column",
         "gap": "{spacing.1}",
         "min-width": 0
+      },
+      "type": "frame"
+    },
+    "XamvrJSm": {
+      "css": "transition:\n  opacity 200ms var(--ease-out),\n  display 200ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition-duration: 150ms;\n}",
+      "index": "z0",
+      "name": "Scrim",
+      "parentId": "m9tkU8Pa",
+      "style": {
+        "align-items": "center",
+        "background": "{color.scrim}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "inset": 0,
+        "justify-content": "center",
+        "padding": "{spacing.0}",
+        "position": "absolute"
       },
       "type": "frame"
     },
@@ -24878,6 +26916,19 @@
       },
       "type": "instance"
     },
+    "XrfbHrb5": {
+      "index": "a1",
+      "name": "Zoom",
+      "parentId": "onjMLfEK",
+      "style": {
+        "align-items": "center",
+        "border-top": "1px solid {color.line}",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "padding": "{spacing.3} {spacing.6}"
+      },
+      "type": "frame"
+    },
     "XtOJ4VO4": {
       "index": "aK",
       "name": "Footnote",
@@ -25007,6 +27058,23 @@
         "width": 36
       },
       "type": "frame"
+    },
+    "Y6ZWks9A": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a6",
+      "name": "Next",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-right"
+        }
+      },
+      "parentId": "bs6mHy0H",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
     },
     "Y6twPtA0": {
       "index": "a1",
@@ -25271,37 +27339,6 @@
       },
       "type": "frame"
     },
-    "YWEttk7Z": {
-      "componentId": "bIsnn3o6",
-      "index": "a5",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "414",
-        "m1": "1 h",
-        "metas": "1",
-        "primary": "Blank page",
-        "primaryStyle": "italic",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "state": "default",
-        "status": "done",
-        "tone": "ok",
-        "trailing": "more"
-      },
-      "style": {
-        "width": "100%"
-      },
-      "type": "instance"
-    },
     "YWWihSXk": {
       "componentId": "bIsnn3o6",
       "index": "a7",
@@ -25461,7 +27498,6 @@
         "third": "Both"
       },
       "style": {
-        "margin-left": "auto",
         "width": 240
       },
       "type": "instance"
@@ -26062,6 +28098,20 @@
       },
       "type": "instance"
     },
+    "ZFmSOj9a": {
+      "content": "25 in queue",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "rNqIqY2Q",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "ZKrOglMn": {
       "icon": "check",
       "index": "a0",
@@ -26076,6 +28126,39 @@
       },
       "type": "icon"
     },
+    "ZLefNamy": {
+      "componentId": "bIsnn3o6",
+      "index": "a4",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "5eqbQHwh",
+      "props": {
+        "lead": "413",
+        "m1": "1 h",
+        "metas": "1",
+        "primary": "Inkling cut off at 4,096 tokens; Claude fallback rate-limited (429)",
+        "primaryStyle": "danger",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "default",
+        "status": "failed",
+        "tag": "Claude",
+        "tone": "danger",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "ZQut2wZP": {
       "index": "a3",
       "name": "Bar",
@@ -26086,6 +28169,20 @@
         "flex-direction": "column-reverse",
         "gap": "{spacing.0.5}",
         "height": "64.00%"
+      },
+      "type": "frame"
+    },
+    "ZRU0MYb3": {
+      "index": "aB",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "89%"
       },
       "type": "frame"
     },
@@ -26158,19 +28255,6 @@
       },
       "type": "frame"
     },
-    "ZVtzQphM": {
-      "index": "a0",
-      "name": "Header",
-      "parentId": "MnLxwTGD",
-      "style": {
-        "display": "flex",
-        "flex-direction": "column",
-        "flex-shrink": 0,
-        "gap": "{spacing.5}",
-        "padding": "{spacing.8} {spacing.10} {spacing.6}"
-      },
-      "type": "frame"
-    },
     "ZYhMREaY": {
       "index": "a1",
       "name": "Legend",
@@ -26237,6 +28321,19 @@
         "width": 16
       },
       "type": "icon"
+    },
+    "ZgNXWH3Q": {
+      "index": "a2",
+      "name": "Segment · failed",
+      "parentId": "Jb6ZLfIw",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": 3,
+        "flex": 3,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
     },
     "ZgfOL1iM": {
       "content": "تفسير السعدي",
@@ -26305,6 +28402,18 @@
       },
       "type": "frame"
     },
+    "ZmiplN5U": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "PKhgaWxO",
+      "style": {
+        "background": "{color.danger}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "ZpqTCT5C": {
       "index": "a0",
       "name": "Checkbox",
@@ -26321,20 +28430,6 @@
         "width": 16
       },
       "type": "frame"
-    },
-    "ZqD1WJIX": {
-      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
-      "index": "a1",
-      "name": "Sub",
-      "parentId": "QIsBBfZb",
-      "style": {
-        "color": "{color.ink-2}",
-        "font-family": "{font.body}",
-        "font-size": 13,
-        "font-weight": 400,
-        "line-height": 1.45
-      },
-      "type": "text"
     },
     "Zr4T1zwY": {
       "index": "a5",
@@ -26423,21 +28518,6 @@
         "padding": "{spacing.0} {spacing.2} {spacing.0} {spacing.3}"
       },
       "type": "frame"
-    },
-    "ZvDqiibx": {
-      "componentId": "ZC9WELKS",
-      "index": "a4",
-      "name": "TableHeader",
-      "parentId": "P3mAl92p",
-      "props": {
-        "label": "",
-        "state": "default"
-      },
-      "style": {
-        "justify-content": "flex-end",
-        "width": 56
-      },
-      "type": "instance"
     },
     "Zwfn2jtA": {
       "content": "Blank page",
@@ -26755,6 +28835,20 @@
       },
       "type": "frame"
     },
+    "aIteMVIq": {
+      "componentId": "ZC9WELKS",
+      "index": "a2",
+      "name": "TableHeader",
+      "parentId": "W6Ydn3v1",
+      "props": {
+        "label": "Status",
+        "state": "default"
+      },
+      "style": {
+        "width": 200
+      },
+      "type": "instance"
+    },
     "aJ88xmT5": {
       "index": "a0",
       "name": "Header",
@@ -26884,6 +28978,21 @@
       },
       "type": "frame"
     },
+    "aSKs7npJ": {
+      "index": "a0",
+      "name": "Top Bar",
+      "parentId": "lDNiRVZd",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface}",
+        "border-bottom": "1px solid {color.line}",
+        "display": "flex",
+        "flex-shrink": 0,
+        "gap": "{spacing.4}",
+        "padding": "{spacing.4} {spacing.6}"
+      },
+      "type": "frame"
+    },
     "aVt9t3hz": {
       "content": "Activity",
       "index": "a0",
@@ -26962,6 +29071,20 @@
       },
       "type": "text"
     },
+    "aXx8aDoh": {
+      "index": "a0",
+      "name": "Header Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "center",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 9,
+        "opacity": 0.7,
+        "width": "30%"
+      },
+      "type": "frame"
+    },
     "aYk6INYr": {
       "index": "a0",
       "name": "Pages per day",
@@ -27037,6 +29160,22 @@
       },
       "type": "frame"
     },
+    "afyBnuFf": {
+      "componentId": "V7ihVuoQ",
+      "index": "a0",
+      "name": "Sidebar",
+      "parentId": "IimsBQti",
+      "props": {
+        "active": "library",
+        "connection": "online",
+        "failures": "5 failed",
+        "showFailures": true
+      },
+      "style": {
+        "height": "100%"
+      },
+      "type": "instance"
+    },
     "ahFBTlSX": {
       "index": "a1",
       "name": "Skeleton",
@@ -27106,7 +29245,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 3320,
+      "x": 6360,
       "y": 5500
     },
     "apXSeT9j": {
@@ -27154,6 +29293,19 @@
         "transform": "translateY(-50%)"
       },
       "type": "text"
+    },
+    "arBlw9y4": {
+      "index": "a0",
+      "name": "Segment · done",
+      "parentId": "Jb6ZLfIw",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": 3,
+        "flex": 1122,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
     },
     "ariSW7mT": {
       "index": "a0",
@@ -27380,24 +29532,6 @@
       },
       "type": "frame"
     },
-    "b7MLvQ7T": {
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a3",
-      "name": "Filter",
-      "parentId": "oF6WjGmY",
-      "style": {
-        "align-items": "center",
-        "background": "transparent",
-        "border": "1px solid {color.line}",
-        "border-radius": "{radius.full}",
-        "box-sizing": "border-box",
-        "display": "flex",
-        "gap": "{spacing.2}",
-        "height": 32,
-        "padding": "{spacing.0} {spacing.3}"
-      },
-      "type": "frame"
-    },
     "b7lGBjkH": {
       "componentId": "ZC9WELKS",
       "index": "a2",
@@ -27409,6 +29543,21 @@
       },
       "style": {
         "width": 200
+      },
+      "type": "instance"
+    },
+    "b8WnZxrd": {
+      "componentId": "ZC9WELKS",
+      "index": "a3",
+      "name": "TableHeader",
+      "parentId": "ewSrYDcI",
+      "props": {
+        "label": "Updated",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 90
       },
       "type": "instance"
     },
@@ -27501,6 +29650,23 @@
         "gap": "{spacing.2}",
         "min-width": 0,
         "padding": "{spacing.6}"
+      },
+      "type": "frame"
+    },
+    "bKl1uFr2": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a3",
+      "name": "Fell back",
+      "parentId": "aSKs7npJ",
+      "style": {
+        "align-items": "center",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.0.5}",
+        "height": 24,
+        "padding": "{spacing.0} {spacing.2} {spacing.0} {spacing.3}"
       },
       "type": "frame"
     },
@@ -27720,6 +29886,43 @@
       },
       "type": "frame"
     },
+    "bVXHMOvs": {
+      "componentId": "bIsnn3o6",
+      "index": "a7",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "416",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "bWCzTGFY": {
       "index": "a0",
       "name": "Header Line",
@@ -27826,6 +30029,35 @@
         "padding": "{spacing.4} {spacing.10}"
       },
       "type": "frame"
+    },
+    "beIm8Agi": {
+      "componentId": "ZC9WELKS",
+      "index": "a2V",
+      "name": "TableHeader",
+      "parentId": "ewSrYDcI",
+      "props": {
+        "label": "Cost",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 80
+      },
+      "type": "instance"
+    },
+    "bfYRj7DM": {
+      "content": "3 failed",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "PKhgaWxO",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "bfaMvGWe": {
       "componentId": "Fm1JH5xg",
@@ -28011,6 +30243,37 @@
       },
       "type": "frame"
     },
+    "bqV5FQ8y": {
+      "componentId": "bIsnn3o6",
+      "index": "a2",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "5eqbQHwh",
+      "props": {
+        "lead": "411",
+        "m1": "2 h",
+        "metas": "1",
+        "primary": "ويدخل في هذا التعريف النفاق الاعتقادي، والنفاق العملي، كالذي ذكر النبي صلى الله عليه وسلم في قوله…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "brg0910z": {
       "index": "a1",
       "name": "Table",
@@ -28019,6 +30282,21 @@
         "display": "flex",
         "flex-direction": "column",
         "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
+    "bs6mHy0H": {
+      "index": "a0",
+      "name": "Top Bar",
+      "parentId": "PF1mv9oY",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface}",
+        "border-bottom": "1px solid {color.line}",
+        "display": "flex",
+        "flex-shrink": 0,
+        "gap": "{spacing.4}",
+        "padding": "{spacing.4} {spacing.6}"
       },
       "type": "frame"
     },
@@ -28091,6 +30369,20 @@
         "letter-spacing": "-0.01em",
         "line-height": 1.2,
         "text-align": "center"
+      },
+      "type": "text"
+    },
+    "bzDsXcsh": {
+      "content": "All 1,150",
+      "index": "a0",
+      "name": "Label",
+      "parentId": "9emADiVH",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
       },
       "type": "text"
     },
@@ -28294,6 +30586,24 @@
       },
       "type": "frame"
     },
+    "cGJRmFYT": {
+      "componentId": "TVPQCjiM",
+      "css": "& > * {\n  transition: scale var(--dur-press) var(--ease-out);\n}\n\n& > *:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Segmented",
+      "parentId": "aSKs7npJ",
+      "props": {
+        "first": "Text",
+        "second": "Scan",
+        "segments": "three",
+        "selected": "third",
+        "third": "Both"
+      },
+      "style": {
+        "width": 240
+      },
+      "type": "instance"
+    },
     "cICPMnJ5": {
       "content": "Activity",
       "index": "a0",
@@ -28335,7 +30645,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 13960,
+      "x": 18520,
       "y": 3380
     },
     "cLFnSbBb": {
@@ -28415,6 +30725,37 @@
       },
       "type": "frame"
     },
+    "cQAYKg46": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Filter",
+      "parentId": "vUSQK66U",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
+    "cQYQ0DuF": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "fIRr73m1",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": "{radius.full}",
+        "flex-shrink": 0,
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "cS8vcqEp": {
       "index": "a0",
       "name": "Bar",
@@ -28423,6 +30764,19 @@
         "align-items": "center",
         "display": "flex",
         "gap": "{spacing.4}"
+      },
+      "type": "frame"
+    },
+    "cSJBIBXH": {
+      "index": "a1",
+      "name": "Zoom",
+      "parentId": "iSCnzxBL",
+      "style": {
+        "align-items": "center",
+        "border-top": "1px solid {color.line}",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "padding": "{spacing.3} {spacing.6}"
       },
       "type": "frame"
     },
@@ -28608,6 +30962,28 @@
       },
       "type": "text"
     },
+    "chP2kdat": {
+      "componentId": "M4dbV8TV",
+      "index": "a3V",
+      "name": "Re-run review",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "nIPwC8Kl",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "disabled",
+        "variant": "secondary"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
+    },
     "cjBh21iW": {
       "index": "a0",
       "name": "Segment",
@@ -28760,6 +31136,20 @@
       },
       "type": "text"
     },
+    "csCZ7sQX": {
+      "index": "aI",
+      "name": "Rule",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "height": 1,
+        "margin-top": "{spacing.2}",
+        "opacity": 0.5,
+        "width": "40%"
+      },
+      "type": "frame"
+    },
     "ct4uZA5g": {
       "index": "a5",
       "name": "Line",
@@ -28822,6 +31212,57 @@
       },
       "type": "text"
     },
+    "czVcRqyJ": {
+      "componentId": "bIsnn3o6",
+      "index": "a6",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "0vantP30",
+      "props": {
+        "lead": "415",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
+    "czosbcpo": {
+      "content": "1,122 done",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "gB13JbRN",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "d0rppgZH": {
       "content": "1155",
       "index": "a1",
@@ -28837,6 +31278,31 @@
         "width": 64
       },
       "type": "text"
+    },
+    "d3uhkO0f": {
+      "index": "a1",
+      "name": "Rule",
+      "parentId": "wh186dsl",
+      "style": {
+        "background": "{color.paper-ink}",
+        "height": 1,
+        "opacity": 0.5
+      },
+      "type": "frame"
+    },
+    "d4Fx5qLQ": {
+      "index": "aI",
+      "name": "Rule",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "height": 1,
+        "margin-top": "{spacing.2}",
+        "opacity": 0.5,
+        "width": "40%"
+      },
+      "type": "frame"
     },
     "d5tlkU75": {
       "index": "a1",
@@ -29005,6 +31471,20 @@
       },
       "type": "text"
     },
+    "dRET9H5Y": {
+      "index": "aD",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "94%"
+      },
+      "type": "frame"
+    },
     "dRP605Jm": {
       "content": "10 Nov",
       "index": "aF",
@@ -29053,6 +31533,20 @@
       },
       "type": "frame"
     },
+    "dXYGu8sb": {
+      "index": "aD",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "94%"
+      },
+      "type": "frame"
+    },
     "dbQ349pH": {
       "index": "a1",
       "name": "Controls",
@@ -29091,6 +31585,28 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "deGFehlQ": {
+      "componentId": "M4dbV8TV",
+      "index": "a3V",
+      "name": "Re-run review",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "bs6mHy0H",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "default",
+        "variant": "secondary"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
     },
     "deTQieZs": {
       "index": "a0",
@@ -29219,6 +31735,24 @@
       },
       "type": "text"
     },
+    "du3pVmjd": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Filter",
+      "parentId": "VgFK50St",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "dvUIye7F": {
       "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
       "index": "a1",
@@ -29264,18 +31798,6 @@
         "line-height": 1.45
       },
       "type": "text"
-    },
-    "dzHMAaIV": {
-      "index": "a2",
-      "name": "Actions",
-      "parentId": "vnujrk8B",
-      "style": {
-        "align-items": "center",
-        "display": "flex",
-        "gap": "{spacing.3}",
-        "margin-top": "{spacing.2}"
-      },
-      "type": "frame"
     },
     "e0XF6xxG": {
       "content": "عمدة الفقه",
@@ -29428,6 +31950,20 @@
       },
       "type": "text"
     },
+    "eBY0KsCK": {
+      "index": "a7",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "94%"
+      },
+      "type": "frame"
+    },
     "eDtYy037": {
       "index": "a1",
       "name": "Track",
@@ -29467,6 +32003,37 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "eFwXVUBU": {
+      "componentId": "N74jC8SJ",
+      "index": "a2",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "rotate-cw"
+        }
+      },
+      "parentId": "6wOl0Tzx",
+      "props": {
+        "label": "Re-run OCR",
+        "state": "default",
+        "tone": "default"
+      },
+      "type": "instance"
+    },
+    "eHjwUijD": {
+      "index": "aE",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "90%"
+      },
+      "type": "frame"
     },
     "eIPtaqgb": {
       "content": "تفسير السعدي",
@@ -29608,6 +32175,28 @@
       },
       "style": {
         "width": "100%"
+      },
+      "type": "instance"
+    },
+    "eWCNXssT": {
+      "componentId": "M4dbV8TV",
+      "index": "a2V",
+      "name": "Re-run review",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "T5oXy1NY",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "disabled",
+        "variant": "secondary"
+      },
+      "style": {
+        "margin-left": "auto"
       },
       "type": "instance"
     },
@@ -29827,6 +32416,18 @@
         "width": "100%"
       },
       "type": "instance"
+    },
+    "ewSrYDcI": {
+      "index": "a0",
+      "name": "Head",
+      "parentId": "0vantP30",
+      "style": {
+        "align-items": "center",
+        "border-bottom": "1px solid {color.line}",
+        "display": "flex",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
     },
     "exCh5L8k": {
       "index": "a0",
@@ -30130,6 +32731,17 @@
       },
       "type": "instance"
     },
+    "fFRlWIKq": {
+      "index": "a1",
+      "name": "Title",
+      "parentId": "aSKs7npJ",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
     "fFYhiZe4": {
       "index": "a2",
       "name": "Skeleton",
@@ -30188,6 +32800,28 @@
       },
       "type": "frame"
     },
+    "fIRr73m1": {
+      "css": "transition:\n  opacity var(--dur-pop) var(--ease-out),\n  scale var(--dur-pop) var(--ease-out),\n  display 160ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n}",
+      "index": "z0",
+      "name": "Notice",
+      "parentId": "IUBS6yzi",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "bottom": 32,
+        "box-shadow": "{shadow.md}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "left": "50%",
+        "padding": "{spacing.2} {spacing.4}",
+        "position": "absolute",
+        "translate": "-50% 0"
+      },
+      "type": "frame"
+    },
     "fJfxOi1p": {
       "index": "a0",
       "name": "Bar",
@@ -30213,7 +32847,6 @@
         "third": "Both"
       },
       "style": {
-        "margin-left": "auto",
         "width": 240
       },
       "type": "instance"
@@ -30352,16 +32985,17 @@
       },
       "type": "frame"
     },
-    "fXdyc5VC": {
-      "index": "a2",
-      "name": "Segment · failed",
-      "parentId": "2gCj6vkC",
+    "fYBsKtIc": {
+      "index": "aA",
+      "name": "Line",
+      "parentId": "houOjytW",
       "style": {
-        "background": "{color.danger}",
-        "border-radius": 3,
-        "flex": 3,
-        "height": 10,
-        "min-width": 6
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "93%"
       },
       "type": "frame"
     },
@@ -30557,6 +33191,25 @@
       },
       "type": "frame"
     },
+    "fouWJwBC": {
+      "componentId": "N74jC8SJ",
+      "index": "a2V",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "6wOl0Tzx",
+      "props": {
+        "hasHint": true,
+        "hint": "Hand-edited pages can't be reviewed",
+        "label": "Re-run review",
+        "state": "disabled",
+        "tone": "default"
+      },
+      "type": "instance"
+    },
     "fpOroqG4": {
       "index": "a3",
       "name": "File",
@@ -30687,6 +33340,20 @@
       },
       "type": "instance"
     },
+    "fxK6fAqy": {
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
+      "index": "a1",
+      "name": "Sub",
+      "parentId": "J6cHTt3v",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "fzepro58": {
       "index": "a0",
       "name": "Hole",
@@ -30815,6 +33482,24 @@
         "flex-direction": "column-reverse",
         "gap": "{spacing.0.5}",
         "height": "34.00%"
+      },
+      "type": "frame"
+    },
+    "gB13JbRN": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a1",
+      "name": "Filter",
+      "parentId": "ISJFHcI7",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
       },
       "type": "frame"
     },
@@ -30966,6 +33651,23 @@
         "flex-shrink": 0,
         "height": 16,
         "width": 240
+      },
+      "type": "frame"
+    },
+    "gMNSWtlh": {
+      "index": "a1",
+      "name": "Pages",
+      "parentId": "D8rFa6O8",
+      "style": {
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "padding": "{spacing.1} {spacing.2}",
+        "position": "relative"
       },
       "type": "frame"
     },
@@ -31742,6 +34444,23 @@
       },
       "type": "frame"
     },
+    "hLSbarIq": {
+      "content": "فصل في معنى الهداية",
+      "index": "a2",
+      "name": "Heading",
+      "parentId": "slaM4Iym",
+      "style": {
+        "color": "{color.accent}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 24,
+        "font-weight": 700,
+        "line-height": 1.5,
+        "text-align": "center",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
     "hM9iH5ad": {
       "index": "a0",
       "name": "Heading",
@@ -31751,6 +34470,22 @@
         "flex-direction": "column",
         "gap": "{spacing.1}",
         "min-width": 0
+      },
+      "type": "frame"
+    },
+    "hOe8h5y3": {
+      "index": "a1",
+      "name": "Content",
+      "parentId": "zNQGoi5Q",
+      "style": {
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.5}",
+        "min-height": 0,
+        "overflow": "hidden",
+        "padding": "{spacing.0} {spacing.10} {spacing.10}"
       },
       "type": "frame"
     },
@@ -31824,6 +34559,23 @@
         "gap": "{spacing.4}",
         "padding": "{spacing.6}",
         "width": 420
+      },
+      "type": "frame"
+    },
+    "hV0dxASh": {
+      "index": "a1",
+      "name": "Pages",
+      "parentId": "p1Xdeuda",
+      "style": {
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "padding": "{spacing.1} {spacing.2}",
+        "position": "relative"
       },
       "type": "frame"
     },
@@ -32056,6 +34808,25 @@
         "white-space": "nowrap"
       },
       "type": "text"
+    },
+    "houOjytW": {
+      "index": "a0",
+      "name": "Page",
+      "parentId": "KOysRMxa",
+      "style": {
+        "aspect-ratio": "0.68",
+        "background": "{color.paper}",
+        "border-radius": 4,
+        "box-shadow": "{shadow.md}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.4}",
+        "height": "100%",
+        "padding": "{spacing.10} {spacing.10}",
+        "width": "auto"
+      },
+      "type": "frame"
     },
     "hpRC6p5M": {
       "componentId": "KcdxBl18",
@@ -32303,6 +35074,45 @@
       },
       "type": "instance"
     },
+    "iE63xmGP": {
+      "componentId": "bIsnn3o6",
+      "index": "a4",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "413",
+        "m1": "$0.0042",
+        "m2": "1 h",
+        "metas": "2",
+        "primary": "Inkling cut off at 4,096 tokens; Claude fallback rate-limited (429)",
+        "primaryStyle": "danger",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "default",
+        "status": "failed",
+        "tag": "Claude",
+        "tone": "danger",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "iF4KX26r": {
       "componentId": "m6GU5N7j",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -32384,6 +35194,22 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "iI0qmwzB": {
+      "componentId": "V7ihVuoQ",
+      "index": "a0",
+      "name": "Sidebar",
+      "parentId": "u0pcPrB5",
+      "props": {
+        "active": "library",
+        "connection": "online",
+        "failures": "5 failed",
+        "showFailures": true
+      },
+      "style": {
+        "height": "100%"
+      },
+      "type": "instance"
     },
     "iIYjCxk0": {
       "componentId": "eIJYzftw",
@@ -32573,6 +35399,21 @@
       },
       "type": "instance"
     },
+    "iSCnzxBL": {
+      "css": "transition:\n  flex-grow 240ms var(--ease-in-out),\n  opacity 240ms var(--ease-in-out);",
+      "index": "a1",
+      "name": "Scan Pane",
+      "parentId": "D87wBCY7",
+      "style": {
+        "background": "{color.surface-2}",
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "overflow": "hidden"
+      },
+      "type": "frame"
+    },
     "iShxgEht": {
       "index": "a1",
       "name": "Table",
@@ -32581,6 +35422,20 @@
         "display": "flex",
         "flex-direction": "column",
         "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
+    "iSxppMfL": {
+      "index": "a1",
+      "name": "Main",
+      "parentId": "IUBS6yzi",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "min-width": 0,
+        "overflow": "hidden"
       },
       "type": "frame"
     },
@@ -32679,6 +35534,20 @@
       },
       "type": "frame"
     },
+    "ik9sUtoy": {
+      "content": "1,122 done",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "cQAYKg46",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "ikvABc0A": {
       "index": "a5",
       "name": "Line",
@@ -32722,6 +35591,21 @@
         "min-height": 2
       },
       "type": "frame"
+    },
+    "imNCCjKl": {
+      "content": "Re-run the review of page 412?",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "j3aAJcpD",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.display}",
+        "font-size": 24,
+        "font-weight": 600,
+        "letter-spacing": "-0.01em",
+        "line-height": 1.2
+      },
+      "type": "text"
     },
     "ioDa3GNe": {
       "index": "a1",
@@ -32875,6 +35759,24 @@
       },
       "type": "text"
     },
+    "iuLmqXOD": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a3",
+      "name": "Filter",
+      "parentId": "ISJFHcI7",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "iuRLDaVF": {
       "index": "a0",
       "name": "Segment",
@@ -32961,6 +35863,24 @@
         "display": "flex",
         "gap": "{spacing.3}",
         "margin-left": "auto"
+      },
+      "type": "frame"
+    },
+    "j3aAJcpD": {
+      "css": "transition:\n  opacity var(--dur-modal) var(--ease-out),\n  scale var(--dur-modal) var(--ease-out),\n  display 220ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n[data-state=\"closed\"] & {\n  display: none;\n  opacity: 0;\n  scale: 0.96;\n  transition-duration: 150ms;\n}",
+      "index": "a0",
+      "name": "Dialog",
+      "parentId": "8cJvjfsI",
+      "style": {
+        "background": "{color.surface}",
+        "border-radius": "{radius.lg}",
+        "box-shadow": "{shadow.lg}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.4}",
+        "padding": "{spacing.6}",
+        "width": 420
       },
       "type": "frame"
     },
@@ -33165,22 +36085,6 @@
       },
       "type": "text"
     },
-    "jGopQd5E": {
-      "componentId": "M4dbV8TV",
-      "index": "a3",
-      "name": "Review all pages",
-      "parentId": "EgQzjsUB",
-      "props": {
-        "icon": false,
-        "label": "Review all pages…",
-        "size": "sm",
-        "variant": "secondary"
-      },
-      "style": {
-        "align-self": "flex-start"
-      },
-      "type": "instance"
-    },
     "jIkbNlrN": {
       "content": "94%",
       "index": "a0",
@@ -33321,8 +36225,22 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 7880,
+      "x": 10920,
       "y": 5500
+    },
+    "jPN2ZoHD": {
+      "icon": "chevron-right",
+      "index": "a1",
+      "name": "Icon",
+      "parentId": "VnkSi2Qd",
+      "set": "lucide",
+      "style": {
+        "color": "{color.ink-3}",
+        "flex-shrink": 0,
+        "height": 14,
+        "width": 14
+      },
+      "type": "icon"
     },
     "jPOJdMzv": {
       "index": "aF",
@@ -33513,6 +36431,28 @@
       },
       "type": "frame"
     },
+    "jdSObCov": {
+      "componentId": "M4dbV8TV",
+      "index": "a2V",
+      "name": "Re-run review",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "HfjzuxXJ",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "disabled",
+        "variant": "secondary"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
+    },
     "jdh4Mhom": {
       "content": "Page 413 failed",
       "index": "a1",
@@ -33633,6 +36573,19 @@
       },
       "type": "frame"
     },
+    "joBv5bMe": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "qnpDrgJA",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": "{radius.full}",
+        "flex-shrink": 0,
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "jr58FYDp": {
       "content": "عمدة الفقه",
       "index": "a0",
@@ -33739,17 +36692,27 @@
       },
       "type": "frame"
     },
-    "k5Dj1zHL": {
-      "index": "a5",
-      "name": "Go to page",
-      "parentId": "oF6WjGmY",
+    "k328Fihw": {
+      "componentId": "M4dbV8TV",
+      "index": "a3V",
+      "name": "Re-run review",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "VgLnfrYZ",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "default",
+        "variant": "secondary"
+      },
       "style": {
-        "align-items": "center",
-        "display": "flex",
-        "gap": "{spacing.2}",
         "margin-left": "auto"
       },
-      "type": "frame"
+      "type": "instance"
     },
     "k5NuRrXn": {
       "content": "Delete page 413?",
@@ -33886,6 +36849,20 @@
         "width": 64
       },
       "type": "text"
+    },
+    "kLB5Sy11": {
+      "index": "aK",
+      "name": "Footnote",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 3,
+        "height": 5,
+        "opacity": 0.45,
+        "width": "64%"
+      },
+      "type": "frame"
     },
     "kMC5OBFI": {
       "icon": "chevron-down",
@@ -34092,17 +37069,6 @@
       },
       "type": "frame"
     },
-    "kWAAS9tm": {
-      "index": "a0",
-      "name": "Table",
-      "parentId": "9GEPQB8t",
-      "style": {
-        "display": "flex",
-        "flex-direction": "column",
-        "gap": "{spacing.0}"
-      },
-      "type": "frame"
-    },
     "kYO09wMy": {
       "content": "Go to page",
       "index": "a1",
@@ -34129,20 +37095,6 @@
         "padding": "{spacing.8} {spacing.10} {spacing.6}"
       },
       "type": "frame"
-    },
-    "kZ9Q4idL": {
-      "content": "About $33.66 (estimate). Hand-edited pages are skipped.",
-      "index": "a1",
-      "name": "Body",
-      "parentId": "vnujrk8B",
-      "style": {
-        "color": "{color.ink-2}",
-        "font-family": "{font.body}",
-        "font-size": 15,
-        "font-weight": 400,
-        "line-height": 1.5
-      },
-      "type": "text"
     },
     "kaA8jDWD": {
       "index": "a2",
@@ -34208,6 +37160,18 @@
         "text-align": "center"
       },
       "type": "text"
+    },
+    "kh9wo7ty": {
+      "index": "a5",
+      "name": "Go to page",
+      "parentId": "ISJFHcI7",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "margin-left": "auto"
+      },
+      "type": "frame"
     },
     "khD0eg7w": {
       "componentId": "ZC9WELKS",
@@ -34314,6 +37278,20 @@
         "width": "100%"
       },
       "type": "instance"
+    },
+    "kogKrefd": {
+      "index": "a5",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "90%"
+      },
+      "type": "frame"
     },
     "koyMXO18": {
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -34444,6 +37422,17 @@
       },
       "type": "instance"
     },
+    "l0uZxbpO": {
+      "index": "a0",
+      "name": "Progress",
+      "parentId": "hOe8h5y3",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.3}"
+      },
+      "type": "frame"
+    },
     "l4HGqV6p": {
       "index": "a0",
       "name": "Bar",
@@ -34514,6 +37503,20 @@
       "index": "a1",
       "name": "Main",
       "parentId": "RCWM2m6Q",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "min-width": 0,
+        "overflow": "hidden"
+      },
+      "type": "frame"
+    },
+    "lDNiRVZd": {
+      "index": "a1",
+      "name": "Main",
+      "parentId": "m9tkU8Pa",
       "style": {
         "display": "flex",
         "flex": 1,
@@ -34685,6 +37688,37 @@
       },
       "type": "instance"
     },
+    "lLnm5E9d": {
+      "componentId": "bIsnn3o6",
+      "index": "a5",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "5eqbQHwh",
+      "props": {
+        "lead": "414",
+        "m1": "1 h",
+        "metas": "1",
+        "primary": "Blank page",
+        "primaryStyle": "italic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "lMSIZ5xK": {
       "index": "a0",
       "name": "Header",
@@ -34722,6 +37756,20 @@
         "line-height": 1.45
       },
       "type": "text"
+    },
+    "lONOima0": {
+      "index": "aJ",
+      "name": "Footnote",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 3,
+        "height": 5,
+        "opacity": 0.45,
+        "width": "80%"
+      },
+      "type": "frame"
     },
     "lOuAfK1S": {
       "content": "Page 412 of 1,150",
@@ -35062,6 +38110,17 @@
       },
       "type": "instance"
     },
+    "lm86L2j4": {
+      "index": "a0",
+      "name": "Bar",
+      "parentId": "X7f9q2og",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.4}"
+      },
+      "type": "frame"
+    },
     "lmYC5WJO": {
       "content": "وينقص بضدهما",
       "index": "a2",
@@ -35226,6 +38285,50 @@
       },
       "type": "text"
     },
+    "luLHMfYA": {
+      "componentId": "bIsnn3o6",
+      "index": "a7",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "5eqbQHwh",
+      "props": {
+        "lead": "416",
+        "m1": "now",
+        "metas": "1",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
+    "luWx8aoy": {
+      "index": "a1",
+      "name": "Panes",
+      "parentId": "PF1mv9oY",
+      "style": {
+        "align-items": "stretch",
+        "display": "flex",
+        "flex": 1,
+        "gap": "{spacing.0}",
+        "min-height": 0
+      },
+      "type": "frame"
+    },
     "lw0BB4yV": {
       "index": "a4",
       "name": "Skeleton · 4",
@@ -35242,39 +38345,6 @@
         "width": 270
       },
       "type": "frame"
-    },
-    "lw3Ah1Nr": {
-      "componentId": "bIsnn3o6",
-      "index": "a3",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "412",
-        "m1": "2 h",
-        "metas": "1",
-        "primary": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة…",
-        "primaryStyle": "arabic",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "showTag": true,
-        "state": "default",
-        "status": "done",
-        "tag": "Claude",
-        "tone": "ok",
-        "trailing": "more"
-      },
-      "style": {
-        "width": "100%"
-      },
-      "type": "instance"
     },
     "lw4zI5z5": {
       "content": "Share of runs handed to Claude",
@@ -35361,6 +38431,20 @@
       },
       "type": "frame"
     },
+    "m9tkU8Pa": {
+      "name": "Reader · Re-run review",
+      "style": {
+        "background": "{color.bg}",
+        "display": "flex",
+        "height": 900,
+        "overflow": "hidden",
+        "position": "relative",
+        "width": 1440
+      },
+      "type": "frame",
+      "x": 3320,
+      "y": 5500
+    },
     "mA4tDkTc": {
       "index": "a1",
       "name": "Main",
@@ -35374,6 +38458,20 @@
         "overflow": "hidden"
       },
       "type": "frame"
+    },
+    "mD6ZBu3Y": {
+      "content": "All 1,150",
+      "index": "a0",
+      "name": "Label",
+      "parentId": "1BRe6Qji",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "mDXlWvnl": {
       "index": "a0",
@@ -35474,6 +38572,43 @@
         "gap": "{spacing.4}"
       },
       "type": "frame"
+    },
+    "mIAg5I1Q": {
+      "componentId": "bIsnn3o6",
+      "index": "a6",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "415",
+        "m1": "—",
+        "m2": "now",
+        "metas": "2",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "mIgW0t2b": {
       "index": "a1",
@@ -35820,6 +38955,20 @@
       },
       "type": "text"
     },
+    "mdIeg0Uo": {
+      "index": "aC",
+      "name": "Line",
+      "parentId": "houOjytW",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "60%"
+      },
+      "type": "frame"
+    },
     "meMT1bEf": {
       "content": "124 pages",
       "index": "a0",
@@ -36102,6 +39251,21 @@
         "variant": "primary"
       },
       "type": "instance"
+    },
+    "mt6ix5i0": {
+      "content": "100%",
+      "index": "a0",
+      "name": "Level",
+      "parentId": "cSJBIBXH",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45,
+        "margin-left": "auto"
+      },
+      "type": "text"
     },
     "muLnib93": {
       "componentId": "bIsnn3o6",
@@ -36480,26 +39644,6 @@
       },
       "type": "frame"
     },
-    "nTgReTqp": {
-      "componentId": "M4dbV8TV",
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a1",
-      "name": "Button",
-      "overrides": {
-        "fJ5yYkAU": {
-          "icon": "trash-2"
-        }
-      },
-      "parentId": "dzHMAaIV",
-      "props": {
-        "icon": false,
-        "label": "Review",
-        "size": "sm",
-        "state": "default",
-        "variant": "primary"
-      },
-      "type": "instance"
-    },
     "nTuKAYxB": {
       "index": "a3",
       "name": "Work · نور الإيضاح",
@@ -36760,6 +39904,20 @@
       },
       "type": "frame"
     },
+    "npqt4tf3": {
+      "content": "1,150 pages · $3.34 OCR · $1.86 review · Abd al-Rahman al-Sa'di",
+      "index": "a1",
+      "name": "Sub",
+      "parentId": "AJOD7yrC",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "nrp74aDG": {
       "componentId": "ZC9WELKS",
       "index": "a4",
@@ -36975,6 +40133,21 @@
         "width": "100%"
       },
       "type": "instance"
+    },
+    "nvXTDjZt": {
+      "content": "Updated 14:32",
+      "css": "transition: opacity 150ms ease-out;\n\n@starting-style {\n  opacity: 0;\n}",
+      "index": "a0",
+      "name": "As of",
+      "parentId": "L9FjKcEf",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "nwRpvNzD": {
       "index": "a0",
@@ -37238,17 +40411,6 @@
       },
       "type": "frame"
     },
-    "oF6WjGmY": {
-      "index": "a1",
-      "name": "Legend · Filters",
-      "parentId": "LP2vAoKh",
-      "style": {
-        "align-items": "center",
-        "display": "flex",
-        "gap": "{spacing.2}"
-      },
-      "type": "frame"
-    },
     "oJGdnUKD": {
       "index": "a1",
       "name": "Refresh",
@@ -37507,6 +40669,19 @@
       },
       "type": "frame"
     },
+    "od4UPU5q": {
+      "index": "a0",
+      "name": "Segment · done",
+      "parentId": "EP6I5Dcz",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": 3,
+        "flex": 1122,
+        "height": 10,
+        "min-width": 6
+      },
+      "type": "frame"
+    },
     "odGPApCN": {
       "componentId": "ZC9WELKS",
       "index": "a0",
@@ -37593,6 +40768,21 @@
       },
       "type": "frame"
     },
+    "onjMLfEK": {
+      "css": "transition:\n  flex-grow 240ms var(--ease-in-out),\n  opacity 240ms var(--ease-in-out);",
+      "index": "a1",
+      "name": "Scan Pane",
+      "parentId": "luWx8aoy",
+      "style": {
+        "background": "{color.surface-2}",
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "overflow": "hidden"
+      },
+      "type": "frame"
+    },
     "oohC3CCB": {
       "index": "a0",
       "name": "Stage",
@@ -37640,6 +40830,21 @@
       "x": 0,
       "y": 11480
     },
+    "oq6N0kkp": {
+      "componentId": "ZC9WELKS",
+      "index": "a3",
+      "name": "TableHeader",
+      "parentId": "W6Ydn3v1",
+      "props": {
+        "label": "Updated",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 90
+      },
+      "type": "instance"
+    },
     "os6gpd6D": {
       "componentId": "ZC9WELKS",
       "index": "a6",
@@ -37669,6 +40874,18 @@
         "width": 110
       },
       "type": "instance"
+    },
+    "ovbRrwkV": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "gB13JbRN",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
     },
     "oy0R7SGg": {
       "componentId": "m6GU5N7j",
@@ -37713,6 +40930,22 @@
       },
       "type": "frame"
     },
+    "p1Xdeuda": {
+      "index": "a1",
+      "name": "Content",
+      "parentId": "WPfvw9vL",
+      "style": {
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.5}",
+        "min-height": 0,
+        "overflow": "hidden",
+        "padding": "{spacing.0} {spacing.10} {spacing.10}"
+      },
+      "type": "frame"
+    },
     "p2RhylXt": {
       "index": "aP",
       "name": "Bar",
@@ -37752,6 +40985,18 @@
         "unicode-bidi": "isolate"
       },
       "type": "text"
+    },
+    "p5uBlSbM": {
+      "index": "a5",
+      "name": "Go to page",
+      "parentId": "vUSQK66U",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "margin-left": "auto"
+      },
+      "type": "frame"
     },
     "pAWZKZm5": {
       "index": "a0",
@@ -37812,23 +41057,46 @@
       },
       "type": "frame"
     },
-    "pGHHlaku": {
-      "componentId": "M4dbV8TV",
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a4",
-      "name": "Button",
+    "pDdl3i91": {
+      "index": "a5",
+      "name": "Footnote Rule",
+      "parentId": "Rv8doTsv",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.line}",
+        "height": 1,
+        "width": 160
+      },
+      "type": "frame"
+    },
+    "pEgQPRdY": {
+      "componentId": "bIsnn3o6",
+      "index": "a6",
+      "name": "TableRow",
       "overrides": {
-        "fJ5yYkAU": {
-          "icon": "upload"
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
         }
       },
-      "parentId": "LCZypbby",
+      "parentId": "5eqbQHwh",
       "props": {
-        "icon": true,
-        "label": "Upload pages",
-        "size": "sm",
+        "lead": "415",
+        "m1": "now",
+        "metas": "1",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
         "state": "default",
-        "variant": "primary"
+        "status": "queued",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
       },
       "type": "instance"
     },
@@ -38091,6 +41359,20 @@
         "width": "94%"
       },
       "type": "frame"
+    },
+    "pXz7XQdZ": {
+      "content": "Page 412 of 1,150",
+      "index": "a1",
+      "name": "Page",
+      "parentId": "yy6QwT5d",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "pY4L5eAE": {
       "index": "a1",
@@ -38500,6 +41782,23 @@
       },
       "type": "frame"
     },
+    "pwbV19an": {
+      "componentId": "N74jC8SJ",
+      "index": "a3",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "chart-column"
+        }
+      },
+      "parentId": "6wOl0Tzx",
+      "props": {
+        "label": "View run in Models",
+        "state": "default",
+        "tone": "default"
+      },
+      "type": "instance"
+    },
     "pwmyoRrf": {
       "componentId": "bIsnn3o6",
       "index": "a7",
@@ -38609,6 +41908,42 @@
         "padding": "{spacing.3} {spacing.4}"
       },
       "type": "frame"
+    },
+    "q3Ivw2m0": {
+      "index": "a4",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "95%"
+      },
+      "type": "frame"
+    },
+    "q4MRrIPX": {
+      "componentId": "M4dbV8TV",
+      "index": "a3V",
+      "name": "Re-run review",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "z36Q9m4n",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "default",
+        "variant": "secondary"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
     },
     "q4Q03yaU": {
       "content": "تفسير السعدي",
@@ -38816,6 +42151,20 @@
       },
       "type": "text"
     },
+    "qTnYxKTB": {
+      "content": "fell back",
+      "index": "a0",
+      "name": "Label",
+      "parentId": "VnkSi2Qd",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "qWK7YlkD": {
       "content": "3,140 · 2,206",
       "index": "a0",
@@ -38951,6 +42300,59 @@
         "flex-direction": "column-reverse",
         "gap": "{spacing.0.5}",
         "height": "67.00%"
+      },
+      "type": "frame"
+    },
+    "qlTjRjyx": {
+      "componentId": "ZC9WELKS",
+      "index": "a1",
+      "name": "TableHeader",
+      "parentId": "W6Ydn3v1",
+      "props": {
+        "label": "Text",
+        "state": "default"
+      },
+      "style": {
+        "flex": 1
+      },
+      "type": "instance"
+    },
+    "qnP0w47a": {
+      "content": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة، المشتمل على ما لم تشتمل عليه كتب المتقدمين والمتأخرين من العلم العظيم، والحق المبين. فـ﴿لَا رَيْبَ فِيهِ﴾ ولا شك بوجه من الوجوه، ونفي الريب عنه يستلزم ضده، إذ ضد الريب والشك اليقين، فهذا الكتاب مشتمل على علم اليقين المزيل للشك والريب⁽¹⁾.",
+      "index": "a3",
+      "name": "Matn 1",
+      "parentId": "slaM4Iym",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 20,
+        "font-weight": 400,
+        "line-height": 1.9,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
+    "qnpDrgJA": {
+      "css": "transition:\n  opacity var(--dur-pop) var(--ease-out),\n  scale var(--dur-pop) var(--ease-out),\n  display 160ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n}",
+      "index": "z0",
+      "name": "Notice",
+      "parentId": "LgEWsu2j",
+      "style": {
+        "align-items": "center",
+        "background": "{color.surface}",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "bottom": 32,
+        "box-shadow": "{shadow.md}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "left": "50%",
+        "padding": "{spacing.2} {spacing.4}",
+        "position": "absolute",
+        "translate": "-50% 0"
       },
       "type": "frame"
     },
@@ -39559,6 +42961,24 @@
       },
       "type": "frame"
     },
+    "rNqIqY2Q": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a4",
+      "name": "Filter",
+      "parentId": "vUSQK66U",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
     "rQNGKt6h": {
       "index": "a9",
       "name": "Bar",
@@ -39673,6 +43093,20 @@
       },
       "type": "text"
     },
+    "rbo5X73P": {
+      "componentId": "ZC9WELKS",
+      "index": "a1",
+      "name": "TableHeader",
+      "parentId": "tFuWJH5L",
+      "props": {
+        "label": "Text",
+        "state": "default"
+      },
+      "style": {
+        "flex": 1
+      },
+      "type": "instance"
+    },
     "rdxLSTgC": {
       "content": "Search",
       "index": "a0",
@@ -39687,6 +43121,18 @@
         "line-height": 1.2
       },
       "type": "text"
+    },
+    "rdxctAWc": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "du3pVmjd",
+      "style": {
+        "background": "{color.accent}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
     },
     "rfAS598z": {
       "content": "Connect to your API",
@@ -39844,6 +43290,18 @@
       },
       "type": "icon"
     },
+    "ryFM7mLe": {
+      "index": "a0",
+      "name": "Dot",
+      "parentId": "cQAYKg46",
+      "style": {
+        "background": "{color.ok}",
+        "border-radius": "{radius.full}",
+        "height": 8,
+        "width": 8
+      },
+      "type": "frame"
+    },
     "s2CLTzic": {
       "content": "1,122 done",
       "index": "a1",
@@ -39979,20 +43437,6 @@
         "padding": "{spacing.0} {spacing.3}"
       },
       "type": "frame"
-    },
-    "s9rtnqrd": {
-      "name": "Book · Review all pages",
-      "style": {
-        "background": "{color.bg}",
-        "display": "flex",
-        "height": 900,
-        "overflow": "hidden",
-        "position": "relative",
-        "width": 1440
-      },
-      "type": "frame",
-      "x": 12520,
-      "y": 12480
     },
     "sAfXbRoR": {
       "componentId": "Fm1JH5xg",
@@ -40562,6 +44006,33 @@
       },
       "type": "text"
     },
+    "sjOt4qLF": {
+      "content": "Go to page",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "p5uBlSbM",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
+    "slaM4Iym": {
+      "index": "a0",
+      "name": "Column",
+      "parentId": "Sdq41ec7",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.4}",
+        "padding": "{spacing.8} {spacing.0}",
+        "width": 560
+      },
+      "type": "frame"
+    },
     "smPXYfIW": {
       "index": "a2",
       "name": "Row",
@@ -40587,6 +44058,23 @@
         "overflow": "hidden"
       },
       "type": "frame"
+    },
+    "snzbtt9R": {
+      "content": "تفسير السعدي",
+      "index": "a0",
+      "name": "Title",
+      "parentId": "J6cHTt3v",
+      "style": {
+        "color": "{color.ink}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 24,
+        "font-weight": 700,
+        "line-height": 1.5,
+        "text-align": "left",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
     },
     "soRgJt5e": {
       "index": "a1",
@@ -40753,6 +44241,17 @@
       },
       "type": "text"
     },
+    "tAoO1EAr": {
+      "index": "a3",
+      "name": "Refresh",
+      "parentId": "2NMGyWP6",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.3}"
+      },
+      "type": "frame"
+    },
     "tBN2TPhB": {
       "componentId": "m6GU5N7j",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -40786,6 +44285,18 @@
       "index": "a0",
       "name": "Head",
       "parentId": "pJ2L05mB",
+      "style": {
+        "align-items": "center",
+        "border-bottom": "1px solid {color.line}",
+        "display": "flex",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
+    "tFuWJH5L": {
+      "index": "a0",
+      "name": "Head",
+      "parentId": "5eqbQHwh",
       "style": {
         "align-items": "center",
         "border-bottom": "1px solid {color.line}",
@@ -40932,7 +44443,7 @@
         "width": 1440
       },
       "type": "frame",
-      "x": 6360,
+      "x": 9400,
       "y": 5500
     },
     "tJH1wFXA": {
@@ -41344,6 +44855,20 @@
       },
       "type": "frame"
     },
+    "u0pcPrB5": {
+      "name": "Book · Re-run review",
+      "style": {
+        "background": "{color.bg}",
+        "display": "flex",
+        "height": 900,
+        "overflow": "hidden",
+        "position": "relative",
+        "width": 1440
+      },
+      "type": "frame",
+      "x": 7880,
+      "y": 3380
+    },
     "u176aFAz": {
       "content": "Configure the API in Settings to see activity.",
       "index": "a2",
@@ -41464,6 +44989,28 @@
       },
       "type": "frame"
     },
+    "uBPinzTq": {
+      "componentId": "M4dbV8TV",
+      "index": "a3V",
+      "name": "Re-run review",
+      "overrides": {
+        "fJ5yYkAU": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "aSKs7npJ",
+      "props": {
+        "icon": true,
+        "label": "Re-run review",
+        "size": "sm",
+        "state": "default",
+        "variant": "secondary"
+      },
+      "style": {
+        "margin-left": "auto"
+      },
+      "type": "instance"
+    },
     "uChkCmTr": {
       "index": "a0",
       "name": "File",
@@ -41547,6 +45094,21 @@
         "overflow": "hidden"
       },
       "type": "frame"
+    },
+    "uKR17jKC": {
+      "content": "Queued; starts with the next run",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "qnpDrgJA",
+      "style": {
+        "color": "{color.ink}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.5,
+        "white-space": "nowrap"
+      },
+      "type": "text"
     },
     "uLKwCPX5": {
       "index": "a3",
@@ -41727,6 +45289,20 @@
       },
       "type": "frame"
     },
+    "uX8Jh1tb": {
+      "componentId": "ZC9WELKS",
+      "index": "a0",
+      "name": "TableHeader",
+      "parentId": "tFuWJH5L",
+      "props": {
+        "label": "Page",
+        "state": "default"
+      },
+      "style": {
+        "width": 80
+      },
+      "type": "instance"
+    },
     "uXuk8BTx": {
       "content": "",
       "index": "aL",
@@ -41812,6 +45388,20 @@
         "min-height": 2
       },
       "type": "frame"
+    },
+    "ubuOwimX": {
+      "content": "All 1,150",
+      "index": "a0",
+      "name": "Label",
+      "parentId": "FCQ3PqC2",
+      "style": {
+        "color": "{color.accent}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 600,
+        "line-height": 1.45
+      },
+      "type": "text"
     },
     "udtK9VGQ": {
       "index": "a1",
@@ -42245,19 +45835,6 @@
       },
       "type": "icon"
     },
-    "vJOIoADl": {
-      "index": "a0",
-      "name": "Segment · done",
-      "parentId": "2gCj6vkC",
-      "style": {
-        "background": "{color.ok}",
-        "border-radius": 3,
-        "flex": 1122,
-        "height": 10,
-        "min-width": 6
-      },
-      "type": "frame"
-    },
     "vL3AjKfr": {
       "icon": "chevron-down",
       "index": "a1",
@@ -42392,6 +45969,17 @@
       },
       "type": "instance"
     },
+    "vUSQK66U": {
+      "index": "a1",
+      "name": "Legend · Filters",
+      "parentId": "l0uZxbpO",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.2}"
+      },
+      "type": "frame"
+    },
     "vWOmv9A2": {
       "index": "a0",
       "name": "Header",
@@ -42521,6 +46109,18 @@
       },
       "type": "frame"
     },
+    "vlL7bnZD": {
+      "componentId": "eIJYzftw",
+      "index": "a2",
+      "name": "Badge",
+      "parentId": "aSKs7npJ",
+      "props": {
+        "dot": true,
+        "label": "done",
+        "tone": "ok"
+      },
+      "type": "instance"
+    },
     "vlyKF6i2": {
       "index": "a1",
       "name": "Main",
@@ -42574,24 +46174,6 @@
         "gap": "{spacing.2}",
         "height": 36,
         "padding": "{spacing.0} {spacing.3}"
-      },
-      "type": "frame"
-    },
-    "vnujrk8B": {
-      "css": "transition:\n  opacity var(--dur-modal) var(--ease-out),\n  scale var(--dur-modal) var(--ease-out),\n  display 220ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n[data-state=\"closed\"] & {\n  display: none;\n  opacity: 0;\n  scale: 0.96;\n  transition-duration: 150ms;\n}",
-      "index": "a0",
-      "name": "Dialog",
-      "parentId": "XF6ArxJ4",
-      "style": {
-        "background": "{color.surface}",
-        "border-radius": "{radius.lg}",
-        "box-shadow": "{shadow.lg}",
-        "box-sizing": "border-box",
-        "display": "flex",
-        "flex-direction": "column",
-        "gap": "{spacing.4}",
-        "padding": "{spacing.6}",
-        "width": 420
       },
       "type": "frame"
     },
@@ -42660,6 +46242,20 @@
         "display": "flex",
         "flex-direction": "column",
         "gap": "{spacing.0.5}"
+      },
+      "type": "frame"
+    },
+    "vvl256Gn": {
+      "index": "aA",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "93%"
       },
       "type": "frame"
     },
@@ -42985,24 +46581,6 @@
       },
       "type": "text"
     },
-    "wPC3QEHP": {
-      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
-      "index": "a4",
-      "name": "Filter",
-      "parentId": "oF6WjGmY",
-      "style": {
-        "align-items": "center",
-        "background": "transparent",
-        "border": "1px solid {color.line}",
-        "border-radius": "{radius.full}",
-        "box-sizing": "border-box",
-        "display": "flex",
-        "gap": "{spacing.2}",
-        "height": 32,
-        "padding": "{spacing.0} {spacing.3}"
-      },
-      "type": "frame"
-    },
     "wPp8yyqJ": {
       "index": "a0",
       "name": "Segment",
@@ -43139,6 +46717,39 @@
       },
       "type": "frame"
     },
+    "wWYAYzzL": {
+      "componentId": "bIsnn3o6",
+      "index": "a3",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "5eqbQHwh",
+      "props": {
+        "lead": "412",
+        "m1": "2 h",
+        "metas": "1",
+        "primary": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "selected",
+        "status": "done",
+        "tag": "Claude",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "wX7EbasW": {
       "content": "v1",
       "index": "a1",
@@ -43177,6 +46788,20 @@
       },
       "type": "frame"
     },
+    "wYcbnNwU": {
+      "index": "aC",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "60%"
+      },
+      "type": "frame"
+    },
     "wYjk6oHb": {
       "index": "a1",
       "name": "Skeleton",
@@ -43189,6 +46814,20 @@
         "width": 160
       },
       "type": "frame"
+    },
+    "wZCc9R9P": {
+      "content": "Opus proofreads the page against its scan again. About $0.03 (estimate). Hand-edited pages can't be reviewed.",
+      "index": "a1",
+      "name": "Body",
+      "parentId": "BTBcOWdP",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.5
+      },
+      "type": "text"
     },
     "waUR0nTt": {
       "content": "",
@@ -43246,6 +46885,25 @@
         "overflow": "hidden",
         "padding": "{spacing.0} {spacing.3}",
         "width": 150
+      },
+      "type": "frame"
+    },
+    "wh186dsl": {
+      "index": "a0",
+      "name": "Page",
+      "parentId": "QIsZoW7P",
+      "style": {
+        "aspect-ratio": "0.68",
+        "background": "{color.paper}",
+        "border-radius": 4,
+        "box-shadow": "{shadow.md}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.4}",
+        "height": "100%",
+        "padding": "{spacing.10} {spacing.10}",
+        "width": "auto"
       },
       "type": "frame"
     },
@@ -43547,6 +47205,23 @@
       },
       "type": "text"
     },
+    "wyOgw1fl": {
+      "content": "⁽²⁾ سقطت من الأصل، وأثبتناها من المطبوع.",
+      "index": "a7",
+      "name": "Footnote",
+      "parentId": "Rv8doTsv",
+      "style": {
+        "color": "{color.ink-2}",
+        "direction": "rtl",
+        "font-family": "{font.ar}",
+        "font-size": 15,
+        "font-weight": 400,
+        "line-height": 1.6,
+        "text-align": "right",
+        "unicode-bidi": "isolate"
+      },
+      "type": "text"
+    },
     "wyl7Lbeh": {
       "componentId": "bIsnn3o6",
       "index": "a6",
@@ -43620,6 +47295,20 @@
       },
       "type": "text"
     },
+    "x1QiLoBc": {
+      "index": "a9",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "86%"
+      },
+      "type": "frame"
+    },
     "x27pvyaf": {
       "content": "Pages are numbered from here in the order shown. Drag to reorder.",
       "index": "a1",
@@ -43663,6 +47352,17 @@
         "width": 100
       },
       "type": "instance"
+    },
+    "x4OkJOHU": {
+      "index": "a4",
+      "name": "Divider",
+      "parentId": "6wOl0Tzx",
+      "style": {
+        "background": "{color.line}",
+        "height": 1,
+        "margin": "{spacing.1} {spacing.0}"
+      },
+      "type": "frame"
     },
     "x50qh30Y": {
       "name": "Library · Not connected",
@@ -43919,6 +47619,43 @@
         "height": "55.65%"
       },
       "type": "frame"
+    },
+    "xJedn6FQ": {
+      "componentId": "bIsnn3o6",
+      "index": "a2",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "411",
+        "m1": "$0.0177",
+        "m2": "2 h",
+        "metas": "2",
+        "primary": "ويدخل في هذا التعريف النفاق الاعتقادي، والنفاق العملي، كالذي ذكر النبي صلى الله عليه وسلم في قوله…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "done",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "xPoVG6Oa": {
       "index": "a6",
@@ -44274,6 +48011,23 @@
       },
       "type": "frame"
     },
+    "xvB5TLRb": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Back",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "2NMGyWP6",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
+    },
     "xwQhDS6w": {
       "componentId": "m6GU5N7j",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -44444,6 +48198,31 @@
       },
       "type": "text"
     },
+    "y4sXdb5P": {
+      "index": "a0",
+      "name": "Header",
+      "parentId": "WPfvw9vL",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "flex-shrink": 0,
+        "gap": "{spacing.5}",
+        "padding": "{spacing.8} {spacing.10} {spacing.6}"
+      },
+      "type": "frame"
+    },
+    "y5EaNImp": {
+      "index": "a5",
+      "name": "Footnote Rule",
+      "parentId": "slaM4Iym",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.line}",
+        "height": 1,
+        "width": 160
+      },
+      "type": "frame"
+    },
     "y6Kskb1f": {
       "componentId": "m6GU5N7j",
       "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
@@ -44492,20 +48271,6 @@
       },
       "type": "instance"
     },
-    "yBNuaATN": {
-      "content": "25 in queue",
-      "index": "a1",
-      "name": "Label",
-      "parentId": "wPC3QEHP",
-      "style": {
-        "color": "{color.ink-2}",
-        "font-family": "{font.body}",
-        "font-size": 13,
-        "font-weight": 400,
-        "line-height": 1.45
-      },
-      "type": "text"
-    },
     "yDChM7Xh": {
       "index": "a1",
       "name": "Main",
@@ -44546,6 +48311,37 @@
       },
       "type": "instance"
     },
+    "yHK45A1J": {
+      "componentId": "bIsnn3o6",
+      "index": "a8",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "5eqbQHwh",
+      "props": {
+        "lead": "417",
+        "m1": "now",
+        "metas": "1",
+        "primary": "Not transcribed yet",
+        "primaryStyle": "muted",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "state": "default",
+        "status": "processing",
+        "tone": "accent",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
+    },
     "yIH7W5tp": {
       "index": "a1",
       "name": "Result",
@@ -44572,6 +48368,21 @@
         "font-weight": 400,
         "line-height": 1.45,
         "padding-bottom": "{spacing.4}"
+      },
+      "type": "text"
+    },
+    "yL0UJAaV": {
+      "content": "100%",
+      "index": "a0",
+      "name": "Level",
+      "parentId": "XrfbHrb5",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45,
+        "margin-left": "auto"
       },
       "type": "text"
     },
@@ -44704,6 +48515,23 @@
       },
       "type": "frame"
     },
+    "yTeKCWMb": {
+      "componentId": "N74jC8SJ",
+      "index": "a2V",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "IUM4S61V",
+      "props": {
+        "label": "Re-run review",
+        "state": "default",
+        "tone": "default"
+      },
+      "type": "instance"
+    },
     "yVi9T6LF": {
       "index": "a1",
       "name": "Heading",
@@ -44715,6 +48543,20 @@
         "min-width": 0
       },
       "type": "frame"
+    },
+    "yXAuM2bt": {
+      "icon": "chevron-right",
+      "index": "a1",
+      "name": "Icon",
+      "parentId": "bKl1uFr2",
+      "set": "lucide",
+      "style": {
+        "color": "{color.ink-3}",
+        "flex-shrink": 0,
+        "height": 14,
+        "width": 14
+      },
+      "type": "icon"
     },
     "yXlNKZf0": {
       "index": "a0",
@@ -44730,6 +48572,63 @@
         "padding": "{spacing.10}"
       },
       "type": "frame"
+    },
+    "yXy6w3py": {
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a3",
+      "name": "Filter",
+      "parentId": "vUSQK66U",
+      "style": {
+        "align-items": "center",
+        "background": "transparent",
+        "border": "1px solid {color.line}",
+        "border-radius": "{radius.full}",
+        "box-sizing": "border-box",
+        "display": "flex",
+        "gap": "{spacing.2}",
+        "height": 32,
+        "padding": "{spacing.0} {spacing.3}"
+      },
+      "type": "frame"
+    },
+    "yY3TAS6s": {
+      "componentId": "bIsnn3o6",
+      "index": "a3",
+      "name": "TableRow",
+      "overrides": {
+        "D3IFLKR9": {
+          "style": {
+            "width": 80
+          }
+        },
+        "DUmnLVh7": {
+          "style": {
+            "width": 90
+          }
+        }
+      },
+      "parentId": "VfBsI6cI",
+      "props": {
+        "lead": "412",
+        "m1": "$0.0031",
+        "m2": "2 h",
+        "metas": "2",
+        "primary": "﴿ذَلِكَ الْكِتَابُ لَا رَيْبَ فِيهِ هُدًى لِلْمُتَّقِينَ﴾ أي: هذا الكتاب العظيم الذي هو الكتاب على الحقيقة…",
+        "primaryStyle": "arabic",
+        "showLead": true,
+        "showPre": false,
+        "showStatus": true,
+        "showTag": true,
+        "state": "default",
+        "status": "done",
+        "tag": "Claude",
+        "tone": "ok",
+        "trailing": "more"
+      },
+      "style": {
+        "width": "100%"
+      },
+      "type": "instance"
     },
     "yYoTetdF": {
       "css": "transform-origin: top left;\ntransition:\n  opacity var(--dur-pop) var(--ease-out),\n  scale var(--dur-pop) var(--ease-out),\n  display 160ms allow-discrete;\n\n@starting-style {\n  opacity: 0;\n  scale: 0.96;\n}\n\n&[data-state=\"closed\"] {\n  display: none;\n  opacity: 0;\n  transition:\n    opacity 120ms ease-out,\n    display 120ms allow-discrete;\n}",
@@ -44779,6 +48678,20 @@
         "width": 64
       },
       "type": "text"
+    },
+    "yaypAiq8": {
+      "index": "aH",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "50%"
+      },
+      "type": "frame"
     },
     "yc9G3OLK": {
       "index": "a4",
@@ -44841,6 +48754,21 @@
       },
       "type": "text"
     },
+    "yg34kHO5": {
+      "componentId": "ZC9WELKS",
+      "index": "a2V",
+      "name": "TableHeader",
+      "parentId": "W6Ydn3v1",
+      "props": {
+        "label": "Cost",
+        "state": "default"
+      },
+      "style": {
+        "justify-content": "flex-end",
+        "width": 80
+      },
+      "type": "instance"
+    },
     "yiRBb6Dd": {
       "index": "a1",
       "name": "Table",
@@ -44876,6 +48804,20 @@
         "display": "flex",
         "gap": "{spacing.3}",
         "margin-left": "auto"
+      },
+      "type": "frame"
+    },
+    "ymbkkI7N": {
+      "index": "a8",
+      "name": "Line",
+      "parentId": "wh186dsl",
+      "style": {
+        "align-self": "flex-end",
+        "background": "{color.paper-ink}",
+        "border-radius": 4,
+        "height": 7,
+        "opacity": 0.55,
+        "width": "91%"
       },
       "type": "frame"
     },
@@ -44916,6 +48858,17 @@
       },
       "type": "frame"
     },
+    "yy6QwT5d": {
+      "index": "a1",
+      "name": "Title",
+      "parentId": "bs6mHy0H",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "{spacing.0}"
+      },
+      "type": "frame"
+    },
     "yyBhY1pz": {
       "index": "aN",
       "name": "Bar",
@@ -44928,22 +48881,6 @@
         "height": "69.00%"
       },
       "type": "frame"
-    },
-    "z16N1pxV": {
-      "componentId": "V7ihVuoQ",
-      "index": "a0",
-      "name": "Sidebar",
-      "parentId": "s9rtnqrd",
-      "props": {
-        "active": "library",
-        "connection": "online",
-        "failures": "5 failed",
-        "showFailures": true
-      },
-      "style": {
-        "height": "100%"
-      },
-      "type": "instance"
     },
     "z30EXHvZ": {
       "index": "a2",
@@ -44971,7 +48908,6 @@
         "third": "Both"
       },
       "style": {
-        "margin-left": "auto",
         "width": 240
       },
       "type": "instance"
@@ -45230,6 +49166,20 @@
       },
       "type": "text"
     },
+    "zNQGoi5Q": {
+      "index": "a1",
+      "name": "Main",
+      "parentId": "IimsBQti",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "gap": "{spacing.0}",
+        "min-width": 0,
+        "overflow": "hidden"
+      },
+      "type": "frame"
+    },
     "zPBtvwdX": {
       "index": "a3",
       "name": "Grid",
@@ -45464,6 +49414,20 @@
       },
       "type": "frame"
     },
+    "zgcHuCcR": {
+      "content": "25 in queue",
+      "index": "a1",
+      "name": "Label",
+      "parentId": "6fCh70Ri",
+      "style": {
+        "color": "{color.ink-2}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "zgkuoG2s": {
       "index": "aB",
       "name": "Line",
@@ -45477,6 +49441,23 @@
         "width": "89%"
       },
       "type": "frame"
+    },
+    "ziQSEl7v": {
+      "componentId": "m6GU5N7j",
+      "css": "transition: scale var(--dur-press) var(--ease-out);\n\n&:active {\n  scale: 0.97;\n}",
+      "index": "a0",
+      "name": "Back",
+      "overrides": {
+        "7FTSPNV7": {
+          "icon": "chevron-left"
+        }
+      },
+      "parentId": "lm86L2j4",
+      "props": {
+        "state": "default",
+        "variant": "tonal"
+      },
+      "type": "instance"
     },
     "ziY2RIcY": {
       "index": "a3",
@@ -45713,37 +49694,6 @@
       },
       "type": "frame"
     },
-    "zvr0uF0B": {
-      "componentId": "bIsnn3o6",
-      "index": "a8",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "417",
-        "m1": "now",
-        "metas": "1",
-        "primary": "Not transcribed yet",
-        "primaryStyle": "muted",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "state": "default",
-        "status": "processing",
-        "tone": "accent",
-        "trailing": "more"
-      },
-      "style": {
-        "width": "100%"
-      },
-      "type": "instance"
-    },
     "zw1M46ma": {
       "content": "All 1,150",
       "index": "a0",
@@ -45757,39 +49707,6 @@
         "line-height": 1.45
       },
       "type": "text"
-    },
-    "zywEgl2R": {
-      "componentId": "bIsnn3o6",
-      "index": "a4",
-      "name": "TableRow",
-      "overrides": {
-        "D3IFLKR9": {
-          "style": {
-            "width": 90
-          }
-        }
-      },
-      "parentId": "kWAAS9tm",
-      "props": {
-        "lead": "413",
-        "m1": "1 h",
-        "metas": "1",
-        "primary": "Inkling cut off at 4,096 tokens; Claude fallback rate-limited (429)",
-        "primaryStyle": "danger",
-        "showLead": true,
-        "showPre": false,
-        "showStatus": true,
-        "showTag": true,
-        "state": "default",
-        "status": "failed",
-        "tag": "Claude",
-        "tone": "danger",
-        "trailing": "more"
-      },
-      "style": {
-        "width": "100%"
-      },
-      "type": "instance"
     }
   },
   "version": 1

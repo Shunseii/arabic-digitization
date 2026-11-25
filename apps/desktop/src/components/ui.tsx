@@ -642,6 +642,18 @@ export const Popover = ({
   </>
 );
 
+/** A short notice at the bottom of the window (see useNotice). */
+export const Notice = ({ text }: { text: string | null }) => (
+  <div
+    role="status"
+    data-state={text ? "open" : "closed"}
+    className="popover fixed bottom-8 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-small font-medium text-ink shadow-md"
+  >
+    <span className="size-2 rounded-full bg-ok" />
+    {text}
+  </div>
+);
+
 /** A checkbox row in a filter popover, with a trailing count. */
 export const CheckOption = ({
   checked,
@@ -692,24 +704,38 @@ export const MenuItem = ({
   tone = "default",
   onClick,
   disabled,
+  hint,
   children,
 }: {
   icon: LucideIcon;
   tone?: "default" | "danger";
   onClick: () => void;
   disabled?: boolean;
+  /** A second line, e.g. why the item is disabled. */
+  hint?: string | null;
   children: ReactNode;
 }) => (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
+    title={hint ?? undefined}
     className={cx(
-      "flex h-10 w-full items-center gap-3 rounded-sm px-3 text-left text-body hover:bg-surface-2 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent",
+      "group flex min-h-10 w-full items-center gap-3 rounded-sm px-3 text-left text-body hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent",
+      hint && "py-2",
       tone === "danger" ? "text-danger" : "text-ink",
     )}
   >
-    <Icon size={18} className={tone === "danger" ? "" : "text-ink-2"} />
-    {children}
+    <Icon
+      size={18}
+      className={cx(
+        "shrink-0 group-disabled:opacity-40",
+        tone === "danger" ? "" : "text-ink-2",
+      )}
+    />
+    <span className="flex flex-col">
+      <span className="group-disabled:opacity-40">{children}</span>
+      {hint && <span className="text-small text-ink-3">{hint}</span>}
+    </span>
   </button>
 );
