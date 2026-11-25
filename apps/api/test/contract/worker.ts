@@ -17,8 +17,7 @@ export interface Operation {
     | "r2.head"
     | "kv.get"
     | "kv.put"
-    | "queue.send"
-    | "workflow.event";
+    | "queue.send";
   detail?: string;
   // D1 statements run (a batch runs several in one round trip).
   statements?: number;
@@ -165,25 +164,6 @@ function countingQueue(queue: Queue): Queue {
   } as unknown as Queue;
 }
 
-// Stands in for the review Workflow binding (no Workflow runs here): records
-// each event sent to an instance. An instance id starting with "gone" behaves
-// like one that no longer exists.
-const fakeReviewWorkflow = {
-  get: async (id: string) => {
-    if (id.startsWith("gone")) throw new Error(`instance ${id} not found`);
-    return {
-      id,
-      status: async () => ({ status: "waiting" }),
-      sendEvent: async (event: { type: string }) => {
-        operations.push({
-          kind: "workflow.event",
-          detail: `${id} ${event.type}`,
-        });
-      },
-    };
-  },
-} as unknown as Workflow;
-
 async function handleTestRoute({
   request,
   env,
@@ -271,7 +251,6 @@ export default {
       BUCKET: countingBucket(env.BUCKET),
       HIGHLIGHT_CACHE: countingKv(env.HIGHLIGHT_CACHE),
       OCR_Q: countingQueue(env.OCR_Q),
-      REVIEW_WORKFLOW: fakeReviewWorkflow,
     };
     return worker.fetch(request, counted, ctx);
   },

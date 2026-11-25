@@ -10,6 +10,7 @@ import { Effect } from "effect";
 import type { StorageError } from "../effect/errors";
 import {
   AnthropicBatches,
+  type BatchCounts,
   Bucket,
   Database,
   ReviewQueue,
@@ -26,7 +27,6 @@ import {
   type ReviewApplyMessage,
   type ReviewEffort,
 } from "./message";
-import { MIN_CHECK_GAP_MS, nextWaitMs } from "./poll";
 import { reviewRequestParams } from "./prompt";
 
 // Pages per batch. Keeps a batch's results (a few KB per page) small enough
@@ -262,22 +262,21 @@ export function submitBatch({
   });
 }
 
-// Puts the batch id on the instance's row (stage 'processing') and returns
-// the submission time, which the poll loop's 26-hour deadline counts from.
 export function recordBatch({
   batchId,
   instanceId,
   pages,
+  nextCheckInMs,
 }: {
   batchId: string;
   instanceId: string;
   pages: number;
-}): Effect.Effect<number, StorageError, Database | WallClock> {
+  nextCheckInMs: number | null;
+}): Effect.Effect<void, StorageError, Database | WallClock> {
   return Effect.gen(function* () {
     const db = yield* Database;
     const clock = yield* WallClock;
     const now = clock.now();
-    const firstWait = nextWaitMs({ submittedAt: now, lastCheckAt: now });
     yield* db.run(
       statement(
         `UPDATE review_batches
@@ -287,12 +286,11 @@ export function recordBatch({
           batchId,
           pages,
           now,
-          firstWait === null ? null : now + firstWait,
+          nextCheckInMs === null ? null : now + nextCheckInMs,
           instanceId,
         ],
       ),
     );
-    return now;
   });
 }
 
@@ -300,29 +298,20 @@ export function recordBatch({
 
 export interface BatchCheck {
   ended: boolean;
-  checkedAt: number;
-  // A nudged check that came too soon after the last one: no Anthropic call.
-  skipped: boolean;
+  counts: BatchCounts;
 }
 
 // Read the batch status and keep it on the instance's row (GET /api/jobs
 // shows it without calling Anthropic). An ended batch moves to 'ingesting'.
-// A check woken by a check-now event less than MIN_CHECK_GAP_MS after the
-// last one (an event buffered while that check ran) does nothing.
+// `nextCheckInMs` is when the Workflow will look again (null: it won't).
 export function checkBatch({
   instanceId,
   batchId,
-  submittedAt,
-  nudged,
-  nudgedSoFar,
+  nextCheckInMs,
 }: {
   instanceId: string;
   batchId: string;
-  submittedAt: number;
-  nudged: boolean;
-  // Nudged wakes so far, kept on the row so the check endpoint can refuse
-  // nudges once the Workflow stops listening for them.
-  nudgedSoFar: number;
+  nextCheckInMs: number | null;
 }): Effect.Effect<
   BatchCheck,
   StorageError | TransportError,
@@ -332,49 +321,31 @@ export function checkBatch({
     const batches = yield* AnthropicBatches;
     const db = yield* Database;
     const clock = yield* WallClock;
-    if (nudged) {
-      const row = yield* db.first<{ last_checked_at: number | null }>(
-        statement(
-          "SELECT last_checked_at FROM review_batches WHERE instance_id = ?",
-          [instanceId],
-        ),
-      );
-      const now = clock.now();
-      const last = row?.last_checked_at ?? null;
-      if (last !== null && now - last < MIN_CHECK_GAP_MS) {
-        return { ended: false, checkedAt: now, skipped: true };
-      }
-    }
     const status = yield* batches.retrieve(batchId);
     const ended = status.processingStatus === "ended";
     const now = clock.now();
-    const nextWait = ended
-      ? null
-      : nextWaitMs({ submittedAt, lastCheckAt: now });
     const { counts } = status;
     yield* db.run(
       statement(
         `UPDATE review_batches
             SET stage = ?, processing_status = ?, last_checked_at = ?, next_check_at = ?,
-                processing = ?, succeeded = ?, errored = ?, expired = ?, canceled = ?,
-                nudged_checks = ?
+                processing = ?, succeeded = ?, errored = ?, expired = ?, canceled = ?
           WHERE instance_id = ?`,
         [
           ended ? "ingesting" : "processing",
           status.processingStatus,
           now,
-          nextWait === null ? null : now + nextWait,
+          ended || nextCheckInMs === null ? null : now + nextCheckInMs,
           counts.processing,
           counts.succeeded,
           counts.errored,
           counts.expired,
           counts.canceled,
-          nudgedSoFar,
           instanceId,
         ],
       ),
     );
-    return { ended, checkedAt: now, skipped: false };
+    return { ended, counts };
   });
 }
 
