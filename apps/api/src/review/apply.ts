@@ -8,6 +8,7 @@
 // and nor is a page whose text changed after it was sent for review.
 
 import { Effect, Option, Schema } from "effect";
+import { resolveFailure } from "../dlq";
 import type { StorageError } from "../effect/errors";
 import {
   Bucket,
@@ -335,9 +336,23 @@ export function applyReview(
     );
     if (seen) return "duplicate" as const;
 
+    // A review that got through resolves an earlier dead apply of this page
+    // (a no-op unless such a row exists).
     const finish = (record: ReviewRecord, extra: Statement[] = []) =>
       db
-        .batch([...extra, insertPageReview({ msg, at: clock.now(), record })])
+        .batch([
+          ...extra,
+          insertPageReview({ msg, at: clock.now(), record }),
+          ...(record.status === "applied" || record.status === "no_changes"
+            ? [
+                resolveFailure({
+                  kind: "review_apply",
+                  fileId: msg.fileId,
+                  at: clock.now(),
+                }),
+              ]
+            : []),
+        ])
         .pipe(Effect.as(record.status));
     const requeue = (attempts = 0) =>
       enqueueReview({

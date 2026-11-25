@@ -59,6 +59,14 @@
         // lands here instead of being dropped, so it can be inspected and
         // replayed. Create it before deploying: wrangler queues create arabic-ocr-dlq
         "dead_letter_queue": "arabic-ocr-dlq"
+      },
+      // Records dead messages in D1 (src/dlq.ts) for GET /api/jobs. No
+      // dead-letter queue of its own: after these retries a message is dropped.
+      {
+        "queue": "arabic-ocr-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30,
+        "max_retries": 3
       }
     ]
   },

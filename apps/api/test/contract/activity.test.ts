@@ -100,6 +100,17 @@ beforeAll(async () => {
             INSERT INTO text_revisions (file_id, book_id, change, model, note, prev_key, created_at)
             SELECT 'f' || i, 'b1', 'edit', NULL, NULL, 'k', ${NOW} FROM n`,
     },
+    // 30 dead messages; the first 10 were resolved later.
+    {
+      sql: `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 29)
+            INSERT INTO failed_messages (kind, file_id, book_id, ref, last_error, attempts,
+                                         first_failed_at, last_failed_at, resolved_at)
+            SELECT CASE WHEN i % 2 = 0 THEN 'ocr' ELSE 'review_apply' END, 'f' || i, 'b1',
+                   CASE WHEN i % 2 = 1 THEN 'msgbatch_' || i END, 'boom ' || i, 11,
+                   ${NOW} - (30 - i) * 60000, ${NOW} - (30 - i) * 60000,
+                   CASE WHEN i < 10 THEN ${NOW} END
+              FROM n`,
+    },
     {
       sql: `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 29)
             INSERT INTO review_queue (file_id, book_id, queued_at, attempts)
@@ -146,6 +157,10 @@ describe("GET /api/jobs", () => {
           retried: number;
         }[];
         problem_pages: unknown[];
+      };
+      failed: {
+        count: number;
+        recent: Record<string, unknown>[];
       };
       review: {
         in_flight: {
@@ -202,6 +217,20 @@ describe("GET /api/jobs", () => {
     expect(body.review.waiting).toEqual([
       { book_id: "b2", title: "Book 2", pages: 30, retrying: 3 },
     ]);
+    expect(body.failed.count).toBe(20);
+    expect(body.failed.recent).toHaveLength(10);
+    expect(body.failed.recent[0]).toEqual({
+      id: "review_apply:f29",
+      kind: "review_apply",
+      file_id: "f29",
+      book_id: "b1",
+      book_title: "Book 1",
+      ref: "msgbatch_29",
+      error: "boom 29",
+      attempts: 11,
+      first_failed_at: NOW - 60000,
+      last_failed_at: NOW - 60000,
+    });
     // Far below the 6,000 files and 6,000 runs in the tables.
     expect(counts.d1RowsRead).toBeLessThan(3000);
   });

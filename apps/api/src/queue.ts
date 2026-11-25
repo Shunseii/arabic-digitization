@@ -1,10 +1,16 @@
-import { Cause, Effect } from "effect";
+import { Cause, Effect, Exit, type Layer } from "effect";
 import type { AuditableLogger } from "evlog";
 import { useLogger, withLogger } from "evlog/effect";
+import {
+  OCR_QUEUE_MAX_RETRIES,
+  recordDeadMessages,
+  reviewFailureNoteKey,
+} from "./dlq";
 import { isTransient, retryAfterSeconds, StorageError } from "./effect/errors";
 import {
   type AppServices,
   Database,
+  FailureNotes,
   liveLayer,
   statement,
 } from "./effect/services";
@@ -272,6 +278,20 @@ export function processReviewMessage(
               ? error
               : String(error),
         );
+        // About to run out of retries: leave the error for the dead-letter
+        // consumer (src/dlq.ts). Best-effort; a failed note isn't retried.
+        if (msg.attempts >= OCR_QUEUE_MAX_RETRIES) {
+          const notes = yield* FailureNotes;
+          yield* notes
+            .put({
+              key: reviewFailureNoteKey({
+                fileId: body.fileId,
+                batchId: body.batchId,
+              }),
+              text: error instanceof Error ? error.message : String(error),
+            })
+            .pipe(Effect.catch(() => Effect.void));
+        }
         msg.retry({ delaySeconds: backoffSeconds(msg.attempts, null) });
       }),
     ),
@@ -287,6 +307,36 @@ export function processReviewMessage(
   );
 }
 
+export const DEAD_LETTER_QUEUE = "arabic-ocr-dlq";
+
+// The dead-letter queue: record every message in one D1 batch, then ack them
+// all. If D1 fails the batch is retried (max_retries in wrangler.jsonc); this
+// queue has no dead-letter queue of its own, so it can't loop.
+async function handleDeadLetters({
+  batch,
+  services,
+}: {
+  batch: MessageBatch<QueueMessage>;
+  services: Layer.Layer<AppServices>;
+}): Promise<void> {
+  const exit = await Effect.runPromiseExit(
+    recordDeadMessages(
+      batch.messages.map((msg) => ({ body: msg.body, attempts: msg.attempts })),
+    ).pipe(Effect.provide(services)),
+  );
+  if (Exit.isSuccess(exit)) {
+    batch.ackAll();
+    return;
+  }
+  console.error(
+    JSON.stringify({
+      kind: "dead_letters",
+      error: String(Cause.squash(exit.cause)),
+    }),
+  );
+  batch.retryAll({ delaySeconds: 60 });
+}
+
 // Queue consumer. Each message is its own unit of work with its own wide
 // event (evlog/effect withLogger): the queue gives no Request to hang a
 // logger on, so withLogger creates the event, provides it to the Effect
@@ -296,6 +346,10 @@ export async function handleOcrQueue(
   env: Env,
 ): Promise<void> {
   const services = liveLayer(env);
+  if (batch.queue === DEAD_LETTER_QUEUE) {
+    await handleDeadLetters({ batch, services });
+    return;
+  }
   for (const msg of batch.messages) {
     // Full-rebuild steps and review applies share this queue; dispatch them
     // separately.

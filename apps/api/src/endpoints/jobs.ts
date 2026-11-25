@@ -100,6 +100,26 @@ const ReviewBatch = Schema.Struct({
   error: Schema.NullOr(Schema.String),
 });
 
+// A queue message that ran out of retries and hasn't been resolved by a
+// later success (failed_messages, migration 0013).
+const FailedMessage = Schema.Struct({
+  id: Schema.String.annotate({ description: "<kind>:<file_id>" }),
+  kind: Schema.Literals(["ocr", "review_apply", "reindex"]),
+  file_id: Schema.String.annotate({ description: "Empty for reindex" }),
+  book_id: Schema.NullOr(Schema.String),
+  book_title: Schema.NullOr(Schema.String),
+  ref: Schema.NullOr(Schema.String).annotate({
+    description: "The review batch id (review_apply) or book id (reindex)",
+  }),
+  error: Schema.NullOr(Schema.String),
+  attempts: Schema.Int,
+  first_failed_at: Schema.Int,
+  last_failed_at: Schema.Int,
+});
+
+// Newest unresolved failed messages listed.
+const FAILED_SHOWN = 10;
+
 const WaitingBook = Schema.Struct({
   book_id: Schema.String,
   title: Schema.String,
@@ -122,6 +142,12 @@ export const Jobs = HttpApiEndpoint.get("jobs", "/api/jobs", {
           "Start of the window behind recent_runs / fell_back / retried / done_last_hour",
       }),
       problem_pages: Schema.Array(ProblemPage),
+    }),
+    failed: Schema.Struct({
+      count: Schema.Int.annotate({
+        description: "Unresolved queue messages that ran out of retries",
+      }),
+      recent: Schema.Array(FailedMessage),
     }),
     review: Schema.Struct({
       in_flight: Schema.Array(ReviewBatch),
@@ -212,12 +238,19 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
     const now = Date.now();
     const recentSince = now - RECENT_WINDOW_MS;
 
-    const [stateRows, runRows, problemRows, batchRows, waitingRows] =
-      yield* Effect.promise(() =>
-        env.DB.batch([
-          // Per-book counters kept by triggers (migration 0005): no files scan.
-          env.DB.prepare(
-            `SELECT c.book_id, b.title, b.paused,
+    const [
+      stateRows,
+      runRows,
+      problemRows,
+      batchRows,
+      waitingRows,
+      failedCountRows,
+      failedRows,
+    ] = yield* Effect.promise(() =>
+      env.DB.batch([
+        // Per-book counters kept by triggers (migration 0005): no files scan.
+        env.DB.prepare(
+          `SELECT c.book_id, b.title, b.paused,
                     SUM(CASE WHEN c.state = 'queued' THEN c.n ELSE 0 END) AS queued,
                     SUM(CASE WHEN c.state = 'processing' THEN c.n ELSE 0 END) AS processing,
                     SUM(CASE WHEN c.state = 'rate_limited' THEN c.n ELSE 0 END) AS rate_limited,
@@ -225,10 +258,10 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
                FROM book_state_counts c JOIN books b ON b.id = c.book_id
               WHERE c.state IN ('queued', 'processing', 'rate_limited', 'failed') AND c.n > 0
               GROUP BY c.book_id`,
-          ),
-          // Aggregated first, so books are joined once per book, not per run.
-          env.DB.prepare(
-            `SELECT r.*, b.title, b.paused
+        ),
+        // Aggregated first, so books are joined once per book, not per run.
+        env.DB.prepare(
+          `SELECT r.*, b.title, b.paused
                FROM (SELECT book_id, COUNT(*) AS recent_runs,
                             SUM(status = 'done' AND created_at > ?) AS done_last_hour,
                             SUM(fell_back) AS fell_back,
@@ -238,29 +271,41 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
                       WHERE created_at > ?
                       GROUP BY book_id) r
                JOIN books b ON b.id = r.book_id`,
-          ).bind(now - HOUR_MS, RECENT_RUNS, recentSince),
-          env.DB.prepare(
-            `SELECT file_id, book_id, created_at, status, final_model, fell_back,
+        ).bind(now - HOUR_MS, RECENT_RUNS, recentSince),
+        env.DB.prepare(
+          `SELECT file_id, book_id, created_at, status, final_model, fell_back,
                     fallback_reason, delivery_attempt, error_type
                FROM (SELECT * FROM ocr_runs ORDER BY id DESC LIMIT ?)
               WHERE created_at > ?
                 AND (fell_back = 1 OR delivery_attempt > 2 OR status = 'failed')
               LIMIT ?`,
-          ).bind(RECENT_RUNS, recentSince, PROBLEM_PAGES),
-          env.DB.prepare(
-            `SELECT instance_id, batch_id, stage, pages, created_at, submitted_at,
+        ).bind(RECENT_RUNS, recentSince, PROBLEM_PAGES),
+        env.DB.prepare(
+          `SELECT instance_id, batch_id, stage, pages, created_at, submitted_at,
                     ended_at, anthropic_ended_at, checks, steps, processing, succeeded,
                     errored, expired, canceled, error
                FROM review_batches ORDER BY created_at DESC LIMIT ?`,
-          ).bind(RECENT_BATCHES),
-          env.DB.prepare(
-            `SELECT q.book_id, b.title, COUNT(*) AS pages, SUM(q.attempts > 0) AS retrying
+        ).bind(RECENT_BATCHES),
+        env.DB.prepare(
+          `SELECT q.book_id, b.title, COUNT(*) AS pages, SUM(q.attempts > 0) AS retrying
                FROM review_queue q JOIN books b ON b.id = q.book_id
               WHERE q.instance_id IS NULL
               GROUP BY q.book_id`,
-          ),
-        ]),
-      );
+        ),
+        // Both through the partial index on unresolved rows.
+        env.DB.prepare(
+          "SELECT COUNT(*) AS n FROM failed_messages WHERE resolved_at IS NULL",
+        ),
+        env.DB.prepare(
+          `SELECT f.kind || ':' || f.file_id AS id, f.kind, f.file_id, f.book_id,
+                    b.title AS book_title, f.ref, f.last_error AS error, f.attempts,
+                    f.first_failed_at, f.last_failed_at
+               FROM failed_messages f LEFT JOIN books b ON b.id = f.book_id
+              WHERE f.resolved_at IS NULL
+              ORDER BY f.first_failed_at DESC LIMIT ?`,
+        ).bind(FAILED_SHOWN),
+      ]),
+    );
     const states = (stateRows?.results ?? []) as StateCountRow[];
     const runs = (runRows?.results ?? []) as RecentRunRow[];
     const problems = (problemRows?.results ?? []) as ProblemRow[];
@@ -417,6 +462,11 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
             ...row,
             fell_back: row.fell_back === 1,
           })),
+        },
+        failed: {
+          count:
+            (failedCountRows?.results[0] as { n: number } | undefined)?.n ?? 0,
+          recent: (failedRows?.results ?? []) as (typeof FailedMessage.Type)[],
         },
         review: { in_flight: inFlight, waiting, recent },
       },

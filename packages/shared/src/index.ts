@@ -243,6 +243,24 @@ export interface OcrProblemPage {
   error_type: string | null;
 }
 
+/** A queue message that ran out of retries, not yet resolved by a later success. */
+export interface FailedMessage {
+  /** "<kind>:<file_id>". */
+  id: string;
+  kind: "ocr" | "review_apply" | "reindex";
+  /** Empty for reindex. */
+  file_id: string;
+  book_id: string | null;
+  book_title: string | null;
+  /** The review batch id (review_apply) or the book id (reindex). */
+  ref: string | null;
+  /** The last error seen; null if it wasn't kept. */
+  error: string | null;
+  attempts: number;
+  first_failed_at: number;
+  last_failed_at: number;
+}
+
 /** GET /api/jobs: running work. Refresh on demand; don't poll. */
 export interface JobsResponse {
   success: true;
@@ -251,6 +269,12 @@ export interface JobsResponse {
     books: OcrBookJob[];
     recent_since: number;
     problem_pages: OcrProblemPage[];
+  };
+  failed: {
+    /** Unresolved failed messages. */
+    count: number;
+    /** The 10 newest, by first_failed_at. */
+    recent: FailedMessage[];
   };
   review: {
     in_flight: ReviewBatchJob[];

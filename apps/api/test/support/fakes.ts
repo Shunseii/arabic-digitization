@@ -19,6 +19,7 @@ import {
   type BucketShape,
   Database,
   type DatabaseShape,
+  FailureNotes,
   Ollama,
   PageIndexer,
   type ProviderRequest,
@@ -283,6 +284,7 @@ export interface TestWorld {
   batches: FakeBatches;
   // Workflow instance statuses by id; a missing id reads as gone (null).
   instanceStatuses: Map<string, string>;
+  notes: Map<string, string>;
   sent: ReviewApplyMessage[];
   scanLinkTtls: number[];
   faults: DatabaseFaults;
@@ -306,6 +308,7 @@ export function makeWorld({
   const batches = new FakeBatches(clock);
   const sent: ReviewApplyMessage[] = [];
   const instanceStatuses = new Map<string, string>();
+  const notes = new Map<string, string>();
   const scanLinkTtls: number[] = [];
   const layer = Layer.mergeAll(
     Layer.succeed(Database, sqliteDatabase(sqlite, faults)),
@@ -313,6 +316,13 @@ export function makeWorld({
     Layer.succeed(Ollama, { chat: inklingProvider.call }),
     Layer.succeed(AnthropicGateway, { messages: claudeProvider.call }),
     Layer.succeed(AnthropicBatches, batches.service),
+    Layer.succeed(FailureNotes, {
+      put: ({ key, text }: { key: string; text: string }) =>
+        Effect.sync(() => {
+          notes.set(key, text);
+        }),
+      get: (key: string) => Effect.sync(() => notes.get(key) ?? null),
+    }),
     Layer.succeed(ReviewInstances, {
       status: (instanceId: string) =>
         Effect.sync(() => instanceStatuses.get(instanceId) ?? null),
@@ -352,6 +362,7 @@ export function makeWorld({
     indexed,
     batches,
     instanceStatuses,
+    notes,
     sent,
     scanLinkTtls,
     faults,

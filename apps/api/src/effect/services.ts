@@ -620,6 +620,40 @@ export function makeReviewInstances(workflow: Workflow): ReviewInstancesShape {
   };
 }
 
+// Short notes kept for a few days in KV (the HIGHLIGHT_CACHE namespace,
+// under a "dlq-error:" prefix): the last error of a queue message about to
+// run out of retries, for the dead-letter consumer, since Queues doesn't pass
+// the error on. Written only on a message's last tries, so the KV write quota
+// isn't spent on the normal path.
+export interface FailureNotesShape {
+  readonly put: (note: {
+    key: string;
+    text: string;
+  }) => Effect.Effect<void, StorageError>;
+  readonly get: (key: string) => Effect.Effect<string | null>;
+}
+
+export class FailureNotes extends Context.Service<
+  FailureNotes,
+  FailureNotesShape
+>()("app/FailureNotes") {}
+
+const FAILURE_NOTE_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+export function makeFailureNotes(kv: KVNamespace): FailureNotesShape {
+  return {
+    put: ({ key, text }) =>
+      storage("KV put", () =>
+        kv.put(key, text, { expirationTtl: FAILURE_NOTE_TTL_SECONDS }),
+      ),
+    // A note that can't be read is no worse than none.
+    get: (key) =>
+      Effect.tryPromise(() => kv.get(key)).pipe(
+        Effect.catch(() => Effect.succeed(null)),
+      ),
+  };
+}
+
 // Hands each reviewed page to the OCR queue's consumer, which applies it.
 export interface ReviewQueueShape {
   readonly send: (
@@ -724,6 +758,7 @@ export type AppServices =
   | AnthropicBatches
   | ReviewQueue
   | ReviewInstances
+  | FailureNotes
   | WallClock
   | PageIndexer
   | ScanLinks;
@@ -737,6 +772,7 @@ export function liveLayer(env: Env): Layer.Layer<AppServices> {
     Layer.succeed(AnthropicBatches, makeAnthropicBatches(env)),
     Layer.succeed(ReviewQueue, makeReviewQueue(env.OCR_Q)),
     Layer.succeed(ReviewInstances, makeReviewInstances(env.REVIEW_WORKFLOW)),
+    Layer.succeed(FailureNotes, makeFailureNotes(env.HIGHLIGHT_CACHE)),
     Layer.succeed(WallClock, systemClock),
     Layer.succeed(PageIndexer, makePageIndexer(env)),
     Layer.succeed(ScanLinks, makeScanLinks(env)),

@@ -16,6 +16,7 @@
 
 import { Buffer } from "node:buffer";
 import { Effect } from "effect";
+import { resolveFailure } from "./dlq";
 import {
   BadResponse,
   FileNotFound,
@@ -590,6 +591,9 @@ function storeTranscription({
         ],
       ),
       ...promptInserts,
+      // A page whose OCR message had died is resolved by this success
+      // (a no-op unless such a row exists).
+      resolveFailure({ kind: "ocr", fileId: row.file_id, at: clock.now() }),
       // A page with text, in an opted-in book, waits for the Opus review.
       ...(text
         ? [

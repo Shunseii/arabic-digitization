@@ -261,6 +261,11 @@ GET /api/jobs
       recent_since,
       problem_pages: [ { file_id, book_id, created_at, status, final_model, fell_back,
                          fallback_reason, delivery_attempt, error_type } ] },
+    failed: {
+      count,
+      recent: [ { id, kind: "ocr"|"review_apply"|"reindex", file_id, book_id,
+                  book_title, ref, error, attempts, first_failed_at,
+                  last_failed_at } ] },
     review: {
       in_flight: [ Batch ], waiting: [ { book_id, title, pages, retrying } ],
       recent: [ Batch ] } }
@@ -268,6 +273,14 @@ GET /api/jobs
             created_at, submitted_at, ended_at, anthropic_ended_at, checks, steps,
             request_counts: { processing, succeeded, errored, expired, canceled },
             edits_applied, edits_failed, errors, cost_usd, error }
+  // failed: queue messages that ran out of retries (OCR of a page, applying
+  // a page's review, a search rebuild step) and haven't been resolved by a
+  // later success of the same page and kind: count, and the 10 newest by
+  // first_failed_at. id is "<kind>:<file_id>"; ref is the review batch id
+  // (review_apply) or the book id (reindex); error is the last error seen, or
+  // null if it wasn't kept. An OCR failure resolves when the page is next
+  // transcribed (POST .../ocr); a review_apply one when a later review of the
+  // page is recorded.
   // books: those with pages not done, or OCR runs in the recent window
   // (recent_since: the last 300 runs within 24 hours). oldest_queued_at is
   // null for paused books. fell_back = runs finished by the fallback engine;
