@@ -224,9 +224,13 @@ export const EmptyState = ({
   </div>
 );
 
-export const Skeleton = ({ className }: { className?: string }) => (
-  <div className={cx("shrink-0 bg-surface-2", className)} />
-);
+export const Skeleton = ({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) => <div className={cx("shrink-0 bg-surface-2", className)} style={style} />;
 
 // --- Inputs ----------------------------------------------------------------
 
@@ -436,6 +440,25 @@ export const StatusPill = ({
   <span
     className={cx(
       "inline-flex items-center gap-2 whitespace-nowrap rounded-full px-2 py-1 text-small font-medium",
+      pillTones[tone],
+    )}
+  >
+    <span className="size-1.5 rounded-full bg-current" />
+    {children}
+  </span>
+);
+
+/** Compact status (the mobile Badge): 12px, used in dense headers. */
+export const Badge = ({
+  tone,
+  children,
+}: {
+  tone: Tone;
+  children: ReactNode;
+}) => (
+  <span
+    className={cx(
+      "inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-xs font-medium",
       pillTones[tone],
     )}
   >

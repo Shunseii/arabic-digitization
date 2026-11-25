@@ -1,111 +1,229 @@
-import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { FileState } from "@qiraa/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  CloudOff,
+  File,
+  Hourglass,
+  RefreshCw,
+  RotateCw,
+} from "lucide-react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Centered, Loading } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  IconButton,
+  Segmented,
+  Skeleton,
+} from "@/components/ui";
 import { ZoomableImage } from "@/components/zoomable-image";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/errors";
+import { count } from "@/lib/format";
 import { Markdown } from "@/lib/markdown";
-import { loadStatus, statusKey } from "@/lib/status";
-import { colors } from "@/theme";
+import { loadStatus, recentKey, statusKey } from "@/lib/status";
+import { statusLabel, statusTone } from "@/theme";
+
+const READABLE: FileState[] = ["done", "approved", "needs_review"];
+
+type View = "text" | "scan" | "both";
+
+const TextSkeleton = () => (
+  <div className="flex flex-col gap-4">
+    <Skeleton className="h-4 w-24 self-center rounded-sm" />
+    <Skeleton className="h-px w-full" />
+    <Skeleton className="h-6 w-56 self-center rounded-sm" />
+    {[100, 94, 97, 90, 60, 98, 92, 75].map((w, i) => (
+      <Skeleton
+        // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+        key={i}
+        className="h-4 self-end rounded-sm"
+        // Ragged line ends, like a real paragraph.
+        style={{ width: `${w}%` }}
+      />
+    ))}
+  </div>
+);
 
 export const ReaderScreen = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { bookId = "", fileId = "" } = useParams<{
     bookId: string;
     fileId: string;
   }>();
+  const [view, setView] = useState<View>("both");
 
-  const textQuery = useQuery({
-    queryKey: ["text", bookId, fileId],
-    queryFn: () => api.fileText({ bookId, fileId }),
+  const bookQuery = useQuery({
+    queryKey: ["book", bookId],
+    queryFn: () => api.getBook(bookId),
   });
-
   const statusQuery = useQuery({
     queryKey: statusKey(bookId),
     queryFn: () => loadStatus(bookId),
   });
 
-  const files = (statusQuery.data ?? [])
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.page_number ?? Number.MAX_SAFE_INTEGER) -
-        (b.page_number ?? Number.MAX_SAFE_INTEGER),
+  const files = statusQuery.data ?? [];
+  const index = files.findIndex((f) => f.file_id === fileId);
+  const file = index >= 0 ? files[index] : undefined;
+  const readable = file ? READABLE.includes(file.state) : false;
+  const prev = index > 0 ? files[index - 1] : undefined;
+  const next = index >= 0 ? files[index + 1] : undefined;
+
+  const textQuery = useQuery({
+    queryKey: ["text", bookId, fileId],
+    queryFn: () => api.fileText({ bookId, fileId }),
+    enabled: readable,
+  });
+
+  const rerun = useMutation({
+    mutationFn: () => api.rerunOcr({ bookId, fileId }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: statusKey(bookId) });
+      queryClient.invalidateQueries({ queryKey: ["text", bookId, fileId] });
+      queryClient.invalidateQueries({ queryKey: recentKey });
+    },
+  });
+
+  const goTo = (target: string) => navigate(`/reader/${bookId}/${target}`);
+  const pageNumber =
+    file?.page_number != null ? count(file.page_number) : count(index + 1);
+
+  let text: React.ReactNode;
+  if (statusQuery.isLoading || (readable && textQuery.isLoading)) {
+    text = <TextSkeleton />;
+  } else if (file && file.state === "failed") {
+    text = (
+      <EmptyState
+        icon={CircleAlert}
+        tone="danger"
+        title="Transcription failed"
+        body={file.error ?? "OCR gave up on this page."}
+      >
+        <Button
+          icon={RotateCw}
+          onClick={() => rerun.mutate()}
+          loading={rerun.isPending}
+        >
+          Re-run OCR
+        </Button>
+      </EmptyState>
     );
-  const currentIndex = files.findIndex((f) => f.file_id === fileId);
-  const prevFile = currentIndex > 0 ? files[currentIndex - 1] : null;
-  const nextFile =
-    currentIndex >= 0 && currentIndex < files.length - 1
-      ? files[currentIndex + 1]
-      : null;
-  const goToFile = (target: string) => navigate(`/reader/${bookId}/${target}`);
+  } else if (file && !readable) {
+    text = (
+      <EmptyState
+        icon={Hourglass}
+        title="Not transcribed yet"
+        body="This page is waiting in the queue. Refresh the book to check on it."
+      />
+    );
+  } else if (textQuery.isError) {
+    text = (
+      <EmptyState
+        icon={CloudOff}
+        tone="danger"
+        title="Couldn't load the text"
+        body={errorMessage(textQuery.error)}
+      >
+        <Button icon={RefreshCw} onClick={() => textQuery.refetch()}>
+          Try again
+        </Button>
+      </EmptyState>
+    );
+  } else if (!textQuery.data?.trim()) {
+    text = (
+      <EmptyState
+        icon={File}
+        title="Blank page"
+        body="The model found no text on this page. If that's wrong, re-run OCR."
+      >
+        <Button
+          variant="secondary"
+          icon={RotateCw}
+          onClick={() => rerun.mutate()}
+          loading={rerun.isPending}
+        >
+          Re-run OCR
+        </Button>
+      </EmptyState>
+    );
+  } else {
+    text = <Markdown source={textQuery.data} />;
+  }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-row items-center gap-3 border-b border-hairline px-6 py-3">
-        <button
-          type="button"
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 items-center gap-4 border-b border-line bg-surface px-6 py-4">
+        <IconButton
+          icon={ChevronLeft}
+          label="Back to book"
+          variant="tonal"
           onClick={() => navigate(`/book/${bookId}`)}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-        >
-          <ChevronLeft size={18} color={colors.textSecondary} />
-        </button>
-        <span className="text-sm font-semibold text-text-secondary">
-          Transcription · Scan
-        </span>
-        <div className="ml-auto flex flex-row items-center gap-3">
-          {currentIndex >= 0 && (
-            <span className="text-xs text-text-muted">
-              Page {currentIndex + 1} of {files.length}
+        />
+        <div className="flex flex-col">
+          <span
+            dir="rtl"
+            className="font-ar text-body font-bold leading-[1.6] text-ink"
+          >
+            {bookQuery.data?.title ?? "…"}
+          </span>
+          {file && (
+            <span className="text-small font-medium text-ink-3">
+              Page {pageNumber} of {count(files.length)}
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => prevFile && goToFile(prevFile.file_id)}
-            disabled={!prevFile}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface disabled:opacity-40"
-          >
-            <ChevronLeft size={18} color={colors.textSecondary} />
-          </button>
-          <button
-            type="button"
-            onClick={() => nextFile && goToFile(nextFile.file_id)}
-            disabled={!nextFile}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface disabled:opacity-40"
-          >
-            <ChevronRight size={18} color={colors.textSecondary} />
-          </button>
         </div>
-      </div>
+        {file && (
+          <Badge tone={statusTone[file.state]}>{statusLabel[file.state]}</Badge>
+        )}
+        <Segmented
+          className="ml-auto w-60"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "text", label: "Text" },
+            { value: "scan", label: "Scan" },
+            { value: "both", label: "Both" },
+          ]}
+        />
+        <IconButton
+          icon={ChevronLeft}
+          label="Previous page"
+          variant="tonal"
+          disabled={!prev}
+          onClick={() => prev && goTo(prev.file_id)}
+        />
+        <IconButton
+          icon={ChevronRight}
+          label="Next page"
+          variant="tonal"
+          disabled={!next}
+          onClick={() => next && goTo(next.file_id)}
+        />
+      </header>
 
-      <div className="flex flex-1 flex-row overflow-hidden">
-        {/* Pane 1: transcription */}
-        <div className="flex-1 overflow-y-auto border-r border-hairline">
-          {textQuery.isLoading ? (
-            <Loading />
-          ) : textQuery.isError ? (
-            <Centered>
-              <p className="text-sm text-text-secondary">
-                No transcription yet for this page.
-              </p>
-            </Centered>
-          ) : (
-            <div className="mx-auto max-w-2xl px-10 py-6">
-              <Markdown source={textQuery.data ?? ""} />
-            </div>
-          )}
-        </div>
-
-        {/* Pane 2: original scan */}
-        <div className="flex flex-1 items-center justify-center bg-bg p-4">
+      <div className="flex min-h-0 flex-1">
+        <section
+          className="split-pane flex min-w-0 basis-0 justify-center overflow-y-auto border-r border-line"
+          style={{ flexGrow: view === "scan" ? 0 : 1 }}
+        >
+          <div className="flex min-h-full w-[560px] shrink-0 flex-col py-8">
+            {text}
+          </div>
+        </section>
+        <section
+          className="split-pane flex min-w-0 basis-0 flex-col overflow-hidden bg-surface-2"
+          style={{
+            flexGrow: view === "text" ? 0 : 1,
+            opacity: view === "text" ? 0 : 1,
+          }}
+        >
           <ZoomableImage bookId={bookId} fileId={fileId} />
-        </div>
-      </div>
-
-      <div className="border-t border-hairline px-6 py-2 text-center">
-        <span className="text-xs text-text-muted">
-          Scroll to zoom the scan · drag to pan · double-click to reset
-        </span>
+        </section>
       </div>
     </div>
   );

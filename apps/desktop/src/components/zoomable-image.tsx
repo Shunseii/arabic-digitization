@@ -1,6 +1,7 @@
+import { ImageOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Centered, Loading } from "./ui";
+import { Skeleton } from "./ui";
 
 interface Transform {
   scale: number;
@@ -14,8 +15,8 @@ const MAX_SCALE = 5;
 
 /**
  * The original scan with scroll-wheel zoom, click-drag pan, and double-click
- * reset — the desktop analogue of the mobile reader's pinch-to-zoom pane.
- * Fetches the image through the authed API and wraps it in a blob URL.
+ * reset, plus the zoom level underneath. Fetches the image through the authed
+ * API and wraps it in a blob URL.
  */
 export const ZoomableImage = ({
   bookId,
@@ -53,7 +54,6 @@ export const ZoomableImage = ({
   }, [bookId, fileId]);
 
   const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
     setT((prev) => {
       const next = Math.min(
         MAX_SCALE,
@@ -80,38 +80,53 @@ export const ZoomableImage = ({
     dragging.current = null;
   };
 
+  let stage: React.ReactNode;
   if (failed)
-    return (
-      <Centered>
-        <p className="text-sm text-text-secondary">
+    stage = (
+      <div className="flex flex-col items-center gap-3 text-center">
+        <ImageOff size={24} className="text-ink-3" />
+        <p className="text-small text-ink-2">
           Couldn't load the scanned image.
         </p>
-      </Centered>
+      </div>
     );
-  if (!url) return <Loading />;
+  else if (!url)
+    stage = <Skeleton className="aspect-[0.68] h-full rounded bg-line/40" />;
+  else
+    stage = (
+      <button
+        type="button"
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={endDrag}
+        onMouseLeave={endDrag}
+        onDoubleClick={() => setT(IDENTITY)}
+        className="flex h-full w-full items-center justify-center overflow-hidden bg-transparent p-0"
+        style={{ cursor: t.scale > 1 ? "grab" : "zoom-in" }}
+      >
+        <img
+          src={url}
+          alt="Scanned page"
+          draggable={false}
+          className="max-h-full max-w-full select-none rounded object-contain shadow-md"
+          style={{
+            transform: `translate(${t.x}px, ${t.y}px) scale(${t.scale})`,
+          }}
+        />
+      </button>
+    );
 
   return (
-    <button
-      type="button"
-      onWheel={onWheel}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={endDrag}
-      onMouseLeave={endDrag}
-      onDoubleClick={() => setT(IDENTITY)}
-      className="flex h-full w-full items-center justify-center overflow-hidden bg-transparent p-0"
-      style={{ cursor: t.scale > 1 ? "grab" : "zoom-in" }}
-    >
-      <img
-        src={url}
-        alt="Scanned page"
-        draggable={false}
-        className="max-h-full max-w-full select-none object-contain"
-        style={{
-          transform: `translate(${t.x}px, ${t.y}px) scale(${t.scale})`,
-          transition: dragging.current ? "none" : "transform 120ms ease-out",
-        }}
-      />
-    </button>
+    <>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        {stage}
+      </div>
+      <div className="flex shrink-0 items-center gap-2 border-t border-line px-6 py-3">
+        <span className="ml-auto text-small font-medium tabular-nums text-ink-2">
+          {Math.round(t.scale * 100)}%
+        </span>
+      </div>
+    </>
   );
 };
