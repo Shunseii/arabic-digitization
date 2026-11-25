@@ -20,8 +20,10 @@ import type {
   ListBooksResponse,
   ListTagsResponse,
   ListWorksResponse,
+  QueueReviewResponse,
   RecentFile,
   RecentFilesResponse,
+  ReviewSummaryResponse,
   SpendResponse,
   UpdateBookResponse,
   UpdateWorkResponse,
@@ -311,6 +313,40 @@ export const api = {
   jobs: async (): Promise<JobsResponse> =>
     asJson<JobsResponse>(
       await fetch(`${base()}/api/jobs`, { headers: authHeaders() }),
+    ),
+
+  /**
+   * Queue the book's done pages for the Opus review. Without `all`, the pages
+   * done before review was switched on; with it, every done page (a one-off,
+   * even with review off). Hand-edited pages are always left out.
+   */
+  queueReview: async ({
+    bookId,
+    all = false,
+  }: {
+    bookId: string;
+    all?: boolean;
+  }): Promise<QueueReviewResponse> =>
+    asJson<QueueReviewResponse>(
+      await fetch(`${base()}/api/books/${bookId}/review`, {
+        method: "POST",
+        headers: all
+          ? { ...authHeaders(), "Content-Type": "application/json" }
+          : authHeaders(),
+        body: all ? JSON.stringify({ all: true }) : undefined,
+      }),
+    ),
+
+  /** Opus review totals over the last `days` (for review cost estimates). */
+  reviewSummary: async ({
+    days,
+  }: {
+    days: number;
+  }): Promise<ReviewSummaryResponse> =>
+    asJson<ReviewSummaryResponse>(
+      await fetch(`${base()}/api/reviews/summary?days=${days}`, {
+        headers: authHeaders(),
+      }),
     ),
 
   /** What OCR and the Opus review cost over the last `days` (Usage). */

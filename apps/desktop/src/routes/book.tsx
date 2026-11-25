@@ -1,4 +1,10 @@
-import type { FileState, FileStatus, WorkWithCounts } from "@qiraa/shared";
+import {
+  type BookWithStatus,
+  DEFAULT_REVIEW_COST_PER_PAGE_USD,
+  type FileState,
+  type FileStatus,
+  type WorkWithCounts,
+} from "@qiraa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -25,9 +31,11 @@ import {
   MenuItem,
   Popover,
   RefreshControl,
+  Segmented,
   Skeleton,
   StatusPill,
   TextField,
+  Tooltip,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
@@ -60,6 +68,7 @@ const pageLabel = (f: FileStatus) =>
 const COL = {
   page: "w-20",
   status: "w-[200px]",
+  cost: "w-20",
   updated: "w-[90px]",
   trailing: "w-14",
 };
@@ -90,6 +99,50 @@ const RowText = ({ file }: { file: FileStatus }) => {
     </span>
   );
 };
+
+const pageCost = (f: FileStatus) => {
+  const ocr = f.ocr_cost_usd ?? f.cost_usd;
+  const review = f.review_cost_usd ?? null;
+  if (ocr == null && review == null) return null;
+  return {
+    ocr: ocr ?? 0,
+    review: review ?? 0,
+    total: (ocr ?? 0) + (review ?? 0),
+  };
+};
+
+// The page's spend, with the OCR / review split on hover. The tooltip mounts
+// only while hovered, so a 1,000-page table doesn't carry 1,000 of them.
+const CostCell = ({ file }: { file: FileStatus }) => {
+  const cost = pageCost(file);
+  const [hovered, setHovered] = useState(false);
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover only reveals a split of the total the cell already shows
+    <span
+      data-cost
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={cx(
+        COL.cost,
+        "relative shrink-0 px-3 text-right text-small tabular-nums text-ink",
+      )}
+    >
+      {cost ? usd4(cost.total) : "—"}
+      {cost && hovered && (
+        <Tooltip
+          className="absolute right-0 top-full mt-2"
+          title={`Page ${pageLabel(file)} · ${usd4(cost.total)}`}
+          lines={[
+            { swatch: "bg-accent", text: `OCR · ${usd4(cost.ocr)}` },
+            { swatch: "bg-mark", text: `Review · ${usd4(cost.review)}` },
+          ]}
+        />
+      )}
+    </span>
+  );
+};
+
+const usd4 = (n: number) => `$${n.toFixed(4)}`;
 
 const PageRow = ({
   file,
@@ -132,6 +185,7 @@ const PageRow = ({
           {statusLabel[file.state]}
         </StatusPill>
       </span>
+      <CostCell file={file} />
       <span
         className={cx(
           COL.updated,
@@ -167,6 +221,10 @@ export const BookScreen = () => {
   const [bookTitle, setBookTitle] = useState("");
   const [bookInstructions, setBookInstructions] = useState("");
   const [goTo, setGoTo] = useState<string | null>(null);
+  const [confirmReview, setConfirmReview] = useState<"existing" | "all" | null>(
+    null,
+  );
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const rowEls = useRef(new Map<string, HTMLDivElement>());
 
@@ -235,6 +293,61 @@ export const BookScreen = () => {
     },
   });
 
+  // Review on/off applies immediately (not on Save): optimistic, rolled back
+  // if the API refuses.
+  const setReview = useMutation({
+    mutationFn: (on: boolean) =>
+      api.updateBook({ id, body: { review_enabled: on } }),
+    onMutate: (on) => {
+      const previous = queryClient.getQueryData<BookWithStatus>(["book", id]);
+      if (previous)
+        queryClient.setQueryData(["book", id], {
+          ...previous,
+          review_enabled: on,
+        });
+      setReviewNotice(null);
+      return { previous };
+    },
+    onError: (_err, _on, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(["book", id], ctx.previous);
+    },
+    onSuccess: (_book, on) => {
+      if (
+        on &&
+        (queryClient.getQueryData<BookWithStatus>(["book", id])?.counts.done ??
+          0) > 0
+      )
+        setConfirmReview("existing");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["book", id] }),
+  });
+  const queueReview = useMutation({
+    mutationFn: (all: boolean) => api.queueReview({ bookId: id, all }),
+    onSuccess: (res) => {
+      setConfirmReview(null);
+      setReviewNotice(
+        [
+          `Queued ${plural({ n: res.queued, one: "page", many: "pages" })} for review`,
+          res.skipped_hand_edited
+            ? `${count(res.skipped_hand_edited)} hand-edited skipped`
+            : null,
+          res.already_queued
+            ? `${count(res.already_queued)} already queued`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      );
+    },
+  });
+  // Only fetched once a confirm needs an estimate.
+  const reviewSummary = useQuery({
+    queryKey: ["review-summary", 90],
+    queryFn: () => api.reviewSummary({ days: 90 }),
+    enabled: confirmReview !== null,
+    staleTime: 5 * 60_000,
+  });
+
   const files = statusQuery.data ?? [];
   const counts = useMemo(() => {
     const c = { done: 0, failed: 0, queue: 0 };
@@ -254,13 +367,25 @@ export const BookScreen = () => {
         .getQueryData<WorkWithCounts[]>(["works"])
         ?.find((w) => w.id === book.work_id)?.author
     : null;
+  const ocrCost = book?.usage
+    ? (book.usage.ocr?.cost_usd ?? book.usage.cost_usd)
+    : null;
+  const reviewCost = book?.usage?.review?.cost_usd ?? 0;
+  const donePages = book?.counts.done ?? 0;
+  const reviewEstimate = (pages: number) =>
+    usd(
+      pages *
+        (reviewSummary.data?.cost_per_page_usd ??
+          DEFAULT_REVIEW_COST_PER_PAGE_USD),
+    );
   const sub = [
     plural({
       n: book?.files_total ?? files.length,
       one: "page",
       many: "pages",
     }),
-    book?.usage?.cost_usd != null ? `${usd(book.usage.cost_usd)} OCR` : null,
+    ocrCost != null ? `${usd(ocrCost)} OCR` : null,
+    reviewCost ? `${usd(reviewCost)} review` : null,
     author,
   ]
     .filter(Boolean)
@@ -276,6 +401,9 @@ export const BookScreen = () => {
     setBookTitle(book?.title ?? "");
     setBookInstructions(book?.ocr_instructions ?? "");
     saveBook.reset();
+    setReview.reset();
+    queueReview.reset();
+    setReviewNotice(null);
     setEditBook(true);
   };
   const openNumbering = (f: FileStatus) => {
@@ -461,6 +589,9 @@ export const BookScreen = () => {
             <HeaderCell className={COL.page}>Page</HeaderCell>
             <HeaderCell className="flex-1">Text</HeaderCell>
             <HeaderCell className={COL.status}>Status</HeaderCell>
+            <HeaderCell className={cx(COL.cost, "justify-end")}>
+              Cost
+            </HeaderCell>
             <HeaderCell className={cx(COL.updated, "justify-end")}>
               Updated
             </HeaderCell>
@@ -609,7 +740,8 @@ export const BookScreen = () => {
 
       <Dialog
         open={editBook}
-        onClose={() => setEditBook(false)}
+        // A review confirm sits on top; Escape and the backdrop close it first.
+        onClose={() => confirmReview === null && setEditBook(false)}
         title="Edit book"
         width="w-[520px]"
       >
@@ -653,6 +785,103 @@ export const BookScreen = () => {
             loading={saveBook.isPending}
           >
             Save
+          </Button>
+        </div>
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          <FieldLabel>Opus review · applies now</FieldLabel>
+          <Segmented
+            className="w-[200px]"
+            value={book?.review_enabled ? "on" : "off"}
+            onChange={(v) => setReview.mutate(v === "on")}
+            options={[
+              { value: "off", label: "Off" },
+              { value: "on", label: "On" },
+            ]}
+          />
+          <span className="text-small text-ink-3">
+            Pages that finish OCR are proofread against the scan; costs money.
+            When off, pages already sent for review still finish.
+          </span>
+          {setReview.isError && (
+            <span className="text-small text-danger">
+              Couldn't switch the review. {errorMessage(setReview.error)}
+            </span>
+          )}
+          {queueReview.isError && (
+            <span className="text-small text-danger">
+              Couldn't queue the review. {errorMessage(queueReview.error)}
+            </span>
+          )}
+          {reviewNotice && (
+            <span className="text-small text-ok">{reviewNotice}</span>
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            className="self-start"
+            disabled={donePages === 0}
+            onClick={() => setConfirmReview("all")}
+          >
+            Review all pages…
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={confirmReview === "existing"}
+        onClose={() => setConfirmReview(null)}
+        title="Review the pages already done?"
+        width="w-[420px]"
+      >
+        <p className="text-body text-ink-2">
+          {plural({ n: donePages, one: "page", many: "pages" })}, about{" "}
+          {reviewEstimate(donePages)} (estimate). Pages that finish OCR from now
+          on are reviewed either way. Hand-edited pages are skipped.
+        </p>
+        <div className="mt-2 flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setConfirmReview(null)}
+          >
+            Only new pages
+          </Button>
+          <Button
+            size="sm"
+            loading={queueReview.isPending}
+            onClick={() => queueReview.mutate(false)}
+          >
+            Review {plural({ n: donePages, one: "page", many: "pages" })}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={confirmReview === "all"}
+        onClose={() => setConfirmReview(null)}
+        title={`Review ${plural({ n: donePages, one: "page", many: "pages" })} again?`}
+        width="w-[420px]"
+      >
+        <p className="text-body text-ink-2">
+          About {reviewEstimate(donePages)} (estimate). Hand-edited pages are
+          skipped.
+        </p>
+        <div className="mt-2 flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setConfirmReview(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            loading={queueReview.isPending}
+            onClick={() => queueReview.mutate(true)}
+          >
+            Review
           </Button>
         </div>
       </Dialog>

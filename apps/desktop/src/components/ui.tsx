@@ -447,6 +447,37 @@ export const Chip = ({
   return <span className={className}>{children}</span>;
 };
 
+/**
+ * Hover readout (designs: Tooltip): a title and one line per series, each
+ * with its swatch. Positioned by the caller; shown without motion.
+ */
+export const Tooltip = ({
+  title,
+  lines,
+  className,
+}: {
+  title: ReactNode;
+  lines: { swatch: string; text: ReactNode }[];
+  className?: string;
+}) => (
+  <div
+    role="tooltip"
+    className={cx(
+      "pointer-events-none z-10 flex w-56 flex-col gap-2 rounded-sm border border-line bg-surface p-3 text-left shadow-md",
+      className,
+    )}
+  >
+    <span className="text-small font-medium text-ink">{title}</span>
+    {lines.map((l, i) => (
+      // biome-ignore lint/suspicious/noArrayIndexKey: fixed series order
+      <span key={i} className="flex items-center gap-2 text-small text-ink-2">
+        <span className={cx("size-2 shrink-0 rounded-[2px]", l.swatch)} />
+        {l.text}
+      </span>
+    ))}
+  </div>
+);
+
 /** An inline error: what failed and what to do about it. */
 export const ErrorBanner = ({
   title,
