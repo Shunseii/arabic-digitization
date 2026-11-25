@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { HeaderCell, LeadCell } from "@/components/table";
 import {
   Button,
   cx,
@@ -62,23 +63,6 @@ const COL = {
   updated: "w-[90px]",
   trailing: "w-14",
 };
-
-const HeaderCell = ({
-  className,
-  children,
-}: {
-  className?: string;
-  children?: ReactNode;
-}) => (
-  <div
-    className={cx(
-      "flex h-9 shrink-0 items-center px-3 text-label font-semibold uppercase tracking-[0.08em] text-ink-3",
-      className,
-    )}
-  >
-    {children}
-  </div>
-);
 
 const RowText = ({ file }: { file: FileStatus }) => {
   if (file.state === "failed")
@@ -139,14 +123,7 @@ const PageRow = ({
       onClick={() => onOpen?.()}
       className="flex min-w-0 flex-1 items-center text-left disabled:cursor-default"
     >
-      <span
-        className={cx(
-          COL.page,
-          "shrink-0 px-3 font-display text-section font-semibold leading-[1.2] tabular-nums tracking-[-0.01em] text-ink",
-        )}
-      >
-        {pageLabel(file)}
-      </span>
+      <LeadCell className={COL.page}>{pageLabel(file)}</LeadCell>
       <span className="flex min-w-0 flex-1 px-3">
         <RowText file={file} />
       </span>
