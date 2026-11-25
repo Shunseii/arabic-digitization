@@ -269,7 +269,11 @@ async function reviewThroughDispatch({
   const instanceId = "review-1";
   const claimed = await run(world, claimPages(instanceId));
   await run(world, preparePart({ instanceId, index: 0, fileIds: claimed }));
-  const batchId = await run(world, submitBatch({ instanceId, parts: 1 }));
+  const pages = claimed.length;
+  const { batchId } = await run(
+    world,
+    submitBatch({ instanceId, parts: 1, pages }),
+  );
   world.batches.results = new TextEncoder().encode(
     resultLines(claimed).join("\n"),
   );
@@ -305,7 +309,10 @@ describe("review batch", () => {
     ]);
     expect(world.scanLinkTtls).toEqual([REVIEW_SCAN_LINK_TTL_SECONDS]);
 
-    await run(world, submitBatch({ instanceId: "review-1", parts: 1 }));
+    await run(
+      world,
+      submitBatch({ instanceId: "review-1", parts: 1, pages: 1 }),
+    );
     const body = JSON.parse(world.batches.created[0] ?? "") as {
       requests: {
         custom_id: string;
@@ -541,9 +548,15 @@ describe("review_batches stages", () => {
     await run(world, claimPages("review-1"));
     expect(row()).toMatchObject({ stage: "preparing", pages: 1 });
 
-    const submittedAt = await run(
+    const submittedAt = 1_700_000_000_000;
+    await run(
       world,
-      recordBatch({ instanceId: "review-1", batchId: "msgbatch_x", pages: 1 }),
+      recordBatch({
+        instanceId: "review-1",
+        batchId: "msgbatch_x",
+        pages: 1,
+        submittedAt,
+      }),
     );
     expect(row()).toMatchObject({
       stage: "processing",
@@ -625,7 +638,7 @@ describe("review_batches stages", () => {
       ended_at: ended.checkedAt,
       anthropic_ended_at: ANTHROPIC_ENDED_AT,
       checks: 4,
-      steps: 16,
+      steps: 15,
     });
   });
 
@@ -639,7 +652,12 @@ describe("review_batches stages", () => {
     await run(world, claimPages("review-1"));
     await run(
       world,
-      recordBatch({ instanceId: "review-1", batchId: "msgbatch_x", pages: 1 }),
+      recordBatch({
+        instanceId: "review-1",
+        batchId: "msgbatch_x",
+        pages: 1,
+        submittedAt: 1,
+      }),
     );
     await run(
       world,
@@ -660,7 +678,7 @@ describe("review_batches stages", () => {
     ).toEqual({
       stage: "timed_out",
       checks: 95,
-      steps: 198,
+      steps: 197,
       anthropic_ended_at: null,
       ended: 1,
     });

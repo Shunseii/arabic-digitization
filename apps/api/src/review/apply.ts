@@ -23,7 +23,7 @@ import {
 import { applyEdits } from "../endpoints/fileTextEdit";
 import { REVIEW_MODEL, type ReviewUsage, reviewCostUsd } from "../lib/cost";
 import { sha256Hex } from "../lib/ocrRuns";
-import { historyKey } from "../lib/pageText";
+import { reviewHistoryKey } from "../lib/pageText";
 import { REVIEW_MAX_ATTEMPTS, type ReviewApplyMessage } from "./message";
 import { enqueueReview } from "./pending";
 import {
@@ -385,30 +385,71 @@ export function applyReview(
     const textKey = page.text_key;
     const current = yield* bucket.getVersionedText(textKey);
     if (!current) return yield* finish({ status: "page_gone", ...unapplied });
-    if (
-      (yield* Effect.promise(() => sha256Hex(current.text))) !== msg.textSha
-    ) {
-      return yield* finish({ status: "stale", ...unapplied }, [requeue()]);
+    const sha = (text: string) => Effect.promise(() => sha256Hex(text));
+    const prevKey = reviewHistoryKey({
+      bookId: msg.bookId,
+      fileId: msg.fileId,
+      batchId: msg.batchId,
+    });
+
+    // The text the review was made from: the page's current text, or, when
+    // an earlier delivery already wrote the reviewed text and then failed
+    // before D1, the copy it saved first. The edits are deterministic, so
+    // that copy re-derives exactly what was written.
+    let original = current.text;
+    let alreadyWritten = false;
+    if ((yield* sha(current.text)) !== msg.textSha) {
+      const saved = yield* bucket.getText(prevKey);
+      const savedIsOriginal =
+        saved !== null && (yield* sha(saved)) === msg.textSha;
+      if (
+        !saved ||
+        !savedIsOriginal ||
+        applyReviewEdits({ text: saved, edits }).text !== current.text
+      ) {
+        return yield* finish({ status: "stale", ...unapplied }, [requeue()]);
+      }
+      original = saved;
+      alreadyWritten = true;
     }
 
-    const outcome = applyReviewEdits({ text: current.text, edits });
+    const outcome = applyReviewEdits({ text: original, edits });
     const reviewed = {
       ...unapplied,
       outcome,
-      charsTotal: current.text.length,
+      charsTotal: original.length,
     };
-    if (outcome.text === current.text) {
+    if (outcome.text === original) {
       return yield* finish({ status: "no_changes", ...reviewed });
     }
 
-    // The same order as an OCR re-run: the copy of the old text and its
-    // revision row are written first, and the page's text is replaced only
-    // after they commit, so a change never lands without its history.
+    // R2 first, then D1. The old text is saved under a key fixed by the
+    // batch, then the page is replaced only if it still has the text that
+    // was read (etag), so a hand edit or re-OCR in between wins. A failure
+    // before D1 is redelivered and lands in the alreadyWritten path above.
+    if (!alreadyWritten) {
+      yield* bucket.putText({ key: prevKey, text: original });
+      const written = yield* bucket.putTextIfMatch({
+        key: textKey,
+        text: outcome.text,
+        etag: current.etag,
+      });
+      if (!written) {
+        // A twin delivery may have written the same text first; anything
+        // else means a hand edit or re-OCR won the race.
+        const now = yield* bucket.getText(textKey);
+        if (now !== outcome.text) {
+          return yield* finish({ status: "conflict", ...unapplied }, [
+            requeue(),
+          ]);
+        }
+      }
+    }
+
+    // One transaction. The revision is inserted only if this page's review
+    // isn't recorded yet, so a twin delivery can't add a second one, and
+    // insertPageReview (OR IGNORE) reads its id with last_insert_rowid().
     const at = clock.now();
-    const prevKey = historyKey({ bookId: msg.bookId, fileId: msg.fileId, at });
-    yield* bucket.putText({ key: prevKey, text: current.text });
-    // insertPageReview reads last_insert_rowid(), so it directly follows the
-    // revision insert.
     yield* finish(
       { status: "applied", ...reviewed, revisionFromLastInsert: true },
       [
@@ -418,7 +459,8 @@ export function applyReview(
         ),
         statement(
           `INSERT INTO text_revisions (file_id, book_id, change, model, note, prev_key, created_at)
-         VALUES (?, ?, 'review', ?, ?, ?, ?)`,
+           SELECT ?, ?, 'review', ?, ?, ?, ?
+            WHERE NOT EXISTS (SELECT 1 FROM page_reviews WHERE file_id = ? AND batch_id = ?)`,
           [
             msg.fileId,
             msg.bookId,
@@ -426,36 +468,11 @@ export function applyReview(
             `Opus review (${msg.batchId}): ${outcome.applied} applied, ${outcome.failed} failed to apply`,
             prevKey,
             at,
+            ...key,
           ],
         ),
       ],
     );
-    const written = yield* bucket.putTextIfMatch({
-      key: textKey,
-      text: outcome.text,
-      etag: current.etag,
-    });
-    if (!written) {
-      // A hand edit or re-OCR won the race: undo the record, keep their text.
-      yield* db.batch([
-        statement(
-          `DELETE FROM text_revisions WHERE id =
-             (SELECT revision_id FROM page_reviews WHERE file_id = ? AND batch_id = ?)`,
-          key,
-        ),
-        statement(
-          `UPDATE page_reviews SET status = 'conflict', edits_applied = 0, chars_changed = 0, revision_id = NULL
-            WHERE file_id = ? AND batch_id = ?`,
-          key,
-        ),
-        statement(
-          "UPDATE files SET preview = ?, updated_at = ? WHERE file_id = ?",
-          [current.text.slice(0, 120), clock.now(), msg.fileId],
-        ),
-        requeue(),
-      ]);
-      return "conflict" as const;
-    }
     yield* indexer.index({ fileId: msg.fileId, text: outcome.text });
     return "applied" as const;
   });

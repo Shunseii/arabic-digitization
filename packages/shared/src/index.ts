@@ -170,6 +170,7 @@ export interface ReviewSummaryResponse {
 
 export type ReviewBatchStage =
   | "preparing"
+  | "submitting"
   | "processing"
   | "ingesting"
   | "applying"

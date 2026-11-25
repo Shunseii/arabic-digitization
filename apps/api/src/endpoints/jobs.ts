@@ -15,7 +15,12 @@ const PROBLEM_PAGES = 10;
 const RECENT_BATCHES = 15;
 const FINISHED_BATCHES = 10;
 
-const ACTIVE_STAGES = new Set(["preparing", "processing", "ingesting"]);
+const ACTIVE_STAGES = new Set([
+  "preparing",
+  "submitting",
+  "processing",
+  "ingesting",
+]);
 // Instance states that mean the Workflow stopped without writing its stage.
 const DEAD_INSTANCE = new Set(["errored", "terminated"]);
 
@@ -59,7 +64,7 @@ const ReviewBatch = Schema.Struct({
   batch_id: Schema.NullOr(Schema.String),
   stage: Schema.String.annotate({
     description:
-      "preparing | processing | ingesting | applying | done | empty | timed_out | failed",
+      "preparing | submitting | processing | ingesting | applying | done | empty | timed_out | failed",
   }),
   instance_status: Schema.NullOr(Schema.String).annotate({
     description:

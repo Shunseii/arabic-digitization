@@ -3,8 +3,9 @@
 //
 //   select       claim up to 100 waiting pages, open the review_batches row
 //   prepare-N    build their requests into R2, 25 pages per step
-//   submit       create the batch (returns only its id)
-//   record       batch id on the row, stage 'processing'
+//   submit       create the batch and put its id on the row (stage
+//                'processing'); a retry adopts a batch an earlier attempt
+//                created instead of creating another
 //   wait-N/check-N  sleep, then read the batch status (review/poll.ts: every
 //                minute for the first hour, every 10 minutes to 3 hours, then
 //                hourly), until the batch has ended (stage 'ingesting') or 26
@@ -36,16 +37,15 @@ import {
   finalizeBatch,
   PREPARE_CHUNK_PAGES,
   preparePart,
-  recordBatch,
   releaseClaims,
   storeResults,
   submitBatch,
 } from "./steps";
 
-// Creating a batch spends money, so a failed create is retried only a little:
-// a create that succeeded but whose step failed afterwards would be repeated.
+// A retried submit first looks for the batch an earlier attempt may have
+// created (steps.ts submitBatch), so retries don't submit the pages twice.
 const SUBMIT_RETRIES = {
-  retries: { limit: 2, delay: "1 minute", backoff: "exponential" },
+  retries: { limit: 4, delay: "1 minute", backoff: "exponential" },
 } as const;
 
 export interface ReviewParams {
@@ -112,11 +112,10 @@ export class ReviewWorkflow extends WorkflowEntrypoint<Env, ReviewParams> {
         return { pages: 0, batchId: null, ended: false, dispatched: 0 };
       }
 
-      const batchId = await step.do("submit", SUBMIT_RETRIES, () =>
-        run(submitBatch({ instanceId, parts })),
-      );
-      const submittedAt = await step.do("record", () =>
-        run(recordBatch({ batchId, instanceId, pages })),
+      const { batchId, submittedAt } = await step.do(
+        "submit",
+        SUBMIT_RETRIES,
+        () => run(submitBatch({ instanceId, parts, pages })),
       );
 
       const { last: check, checks } = await pollUntilEnded<BatchCheck>({

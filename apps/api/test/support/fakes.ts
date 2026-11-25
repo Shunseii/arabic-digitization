@@ -14,6 +14,7 @@ import {
   AnthropicGateway,
   type AppServices,
   type BatchStatus,
+  type BatchSummary,
   Bucket,
   type BucketShape,
   Database,
@@ -21,6 +22,7 @@ import {
   Ollama,
   PageIndexer,
   type ProviderRequest,
+  ReviewInstances,
   ReviewQueue,
   ScanLinks,
   type SqlValue,
@@ -93,6 +95,9 @@ export function sqliteDatabase(
 
 export class FakeBucket {
   readonly objects = new Map<string, StoredBytes>();
+  // Runs right after a versioned read, to change the object between a read
+  // and a conditional write.
+  afterVersionedRead: ((key: string) => void) | null = null;
   // Bumped on every write; an object's etag is its version.
   private readonly versions = new Map<string, number>();
   private version = 0;
@@ -138,7 +143,9 @@ export class FakeBucket {
     getVersionedText: (key) =>
       Effect.sync(() => {
         const text = this.text(key);
-        return text === undefined ? null : { text, etag: this.etag(key) };
+        const read = text === undefined ? null : { text, etag: this.etag(key) };
+        this.afterVersionedRead?.(key);
+        return read;
       }),
     putTextIfMatch: ({ key, text, etag }) =>
       Effect.sync(() => {
@@ -155,15 +162,34 @@ export class FakeBucket {
 export class FakeBatches {
   readonly created: string[] = [];
   readonly retrieved: string[] = [];
+  // Batches the list call returns besides the ones created here (another
+  // workspace user's, for instance).
+  readonly others: BatchSummary[] = [];
+  private readonly listed: BatchSummary[] = [];
   statuses: BatchStatus[] = [];
   results: Uint8Array = new Uint8Array();
+
+  constructor(private readonly clock: { now: () => number }) {}
 
   readonly service: AnthropicBatchesShape = {
     create: (body) =>
       Effect.sync(() => {
         this.created.push(body);
-        return `msgbatch_${this.created.length}`;
+        const id = `msgbatch_${this.created.length}`;
+        const { requests } = JSON.parse(body) as { requests: unknown[] };
+        this.listed.push({
+          id,
+          createdAt: this.clock.now(),
+          requests: requests.length,
+        });
+        return id;
       }),
+    list: () =>
+      Effect.sync(() =>
+        [...this.listed, ...this.others].sort(
+          (a, b) => b.createdAt - a.createdAt,
+        ),
+      ),
     retrieve: (batchId) =>
       Effect.suspend(() => {
         this.retrieved.push(batchId);
@@ -255,6 +281,8 @@ export interface TestWorld {
   claude: ScriptedProvider;
   indexed: { fileId: string; text: string }[];
   batches: FakeBatches;
+  // Workflow instance statuses by id; a missing id reads as gone (null).
+  instanceStatuses: Map<string, string>;
   sent: ReviewApplyMessage[];
   scanLinkTtls: number[];
   faults: DatabaseFaults;
@@ -274,8 +302,10 @@ export function makeWorld({
   const claudeProvider = new ScriptedProvider(claude);
   const indexed: { fileId: string; text: string }[] = [];
   const faults: DatabaseFaults = { batch: false, run: () => false };
-  const batches = new FakeBatches();
+  const clock = steppingClock();
+  const batches = new FakeBatches(clock);
   const sent: ReviewApplyMessage[] = [];
+  const instanceStatuses = new Map<string, string>();
   const scanLinkTtls: number[] = [];
   const layer = Layer.mergeAll(
     Layer.succeed(Database, sqliteDatabase(sqlite, faults)),
@@ -283,13 +313,17 @@ export function makeWorld({
     Layer.succeed(Ollama, { chat: inklingProvider.call }),
     Layer.succeed(AnthropicGateway, { messages: claudeProvider.call }),
     Layer.succeed(AnthropicBatches, batches.service),
+    Layer.succeed(ReviewInstances, {
+      status: (instanceId: string) =>
+        Effect.sync(() => instanceStatuses.get(instanceId) ?? null),
+    }),
     Layer.succeed(ReviewQueue, {
       send: (messages: readonly ReviewApplyMessage[]) =>
         Effect.sync(() => {
           sent.push(...messages);
         }),
     }),
-    Layer.succeed(WallClock, steppingClock()),
+    Layer.succeed(WallClock, clock),
     Layer.succeed(PageIndexer, {
       index: (page: { fileId: string; text: string }) =>
         Effect.sync(() => {
@@ -317,6 +351,7 @@ export function makeWorld({
     claude: claudeProvider,
     indexed,
     batches,
+    instanceStatuses,
     sent,
     scanLinkTtls,
     faults,

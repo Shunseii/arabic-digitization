@@ -93,7 +93,7 @@ describe("review batch polling", () => {
       checks,
       ended: true,
     });
-    expect(worstCaseSteps).toBe(201);
+    expect(worstCaseSteps).toBe(200);
     expect(worstCaseSteps).toBeLessThan(300);
   });
 

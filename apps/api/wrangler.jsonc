@@ -54,7 +54,11 @@
         "max_batch_size": 3,
         "max_batch_timeout": 30,
         "max_concurrency": 2,
-        "max_retries": 10
+        "max_retries": 10,
+        // A message that runs out of retries (an OCR page or a review apply)
+        // lands here instead of being dropped, so it can be inspected and
+        // replayed. Create it before deploying: wrangler queues create arabic-ocr-dlq
+        "dead_letter_queue": "arabic-ocr-dlq"
       }
     ]
   },

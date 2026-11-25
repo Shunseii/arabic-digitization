@@ -18,6 +18,18 @@ export const historyKey = ({
 }) =>
   `books/${bookId}/text-history/${fileId}/${at}-${crypto.randomUUID().slice(0, 8)}.md`;
 
+// The text an Opus review replaced, under a key fixed by the batch, so a
+// redelivered apply finds the copy an earlier attempt saved.
+export const reviewHistoryKey = ({
+  bookId,
+  fileId,
+  batchId,
+}: {
+  bookId: string;
+  fileId: string;
+  batchId: string;
+}) => `books/${bookId}/text-history/${fileId}/review-${batchId}.md`;
+
 export const historyPrefix = ({
   bookId,
   fileId,

@@ -236,57 +236,154 @@ export function preparePart({
 
 // ---- submit ----------------------------------------------------------------------
 
-// Join the stored request fragments into one body and create the batch. The
-// fragments are concatenated as text, never parsed.
+// Clock skew allowed between our submit_attempted_at and Anthropic's
+// created_at when matching a batch that a failed attempt may have created.
+const ADOPT_SKEW_MS = 5 * 60 * 1000;
+
+export interface Submitted {
+  batchId: string;
+  submittedAt: number;
+}
+
+interface SubmitRow {
+  stage: string;
+  batch_id: string | null;
+  submitted_at: number | null;
+  submit_attempted_at: number | null;
+}
+
+// The batch a failed submit attempt created, if one can be found: created
+// since that attempt (with skew), holding exactly `pages` requests, and not
+// already another instance's batch. Creating a batch has no idempotency key,
+// so this match is the guard against submitting the same pages twice.
+function findOwnBatch({
+  attemptedAt,
+  pages,
+}: {
+  attemptedAt: number;
+  pages: number;
+}): Effect.Effect<
+  { id: string; createdAt: number } | null,
+  StorageError | TransportError,
+  AnthropicBatches | Database
+> {
+  return Effect.gen(function* () {
+    const batches = yield* AnthropicBatches;
+    const db = yield* Database;
+    const candidates = (yield* batches.list()).filter(
+      (batch) =>
+        batch.createdAt >= attemptedAt - ADOPT_SKEW_MS &&
+        batch.requests === pages,
+    );
+    if (candidates.length === 0) return null;
+    const taken = new Set(
+      (yield* db.all<{ batch_id: string }>(
+        statement(
+          `SELECT batch_id FROM review_batches WHERE batch_id IN (${candidates.map(() => "?").join(", ")})`,
+          candidates.map((batch) => batch.id),
+        ),
+      )).map((row) => row.batch_id),
+    );
+    const own = candidates
+      .filter((batch) => !taken.has(batch.id))
+      .sort((a, b) => a.createdAt - b.createdAt)[0];
+    return own ?? null;
+  });
+}
+
+// Create the batch from the stored request fragments (joined as text, never
+// parsed) and put its id on the instance's row (stage 'processing'). Safe to
+// retry: the row is marked 'submitting' before the create, so a retry knows
+// an earlier attempt may have created a batch and adopts it instead of
+// creating a second one.
 export function submitBatch({
   instanceId,
   parts,
+  pages,
 }: {
   instanceId: string;
   parts: number;
+  pages: number;
 }): Effect.Effect<
-  string,
+  Submitted,
   StorageError | TransportError,
-  Bucket | AnthropicBatches
+  Bucket | AnthropicBatches | Database | WallClock
 > {
   return Effect.gen(function* () {
     const bucket = yield* Bucket;
     const batches = yield* AnthropicBatches;
+    const db = yield* Database;
+    const clock = yield* WallClock;
+
+    const row = yield* db.first<SubmitRow>(
+      statement(
+        "SELECT stage, batch_id, submitted_at, submit_attempted_at FROM review_batches WHERE instance_id = ?",
+        [instanceId],
+      ),
+    );
+    if (row?.batch_id && row.submitted_at !== null) {
+      return { batchId: row.batch_id, submittedAt: row.submitted_at };
+    }
+    if (row?.stage === "submitting" && row.submit_attempted_at !== null) {
+      const own = yield* findOwnBatch({
+        attemptedAt: row.submit_attempted_at,
+        pages,
+      });
+      if (own) {
+        yield* recordBatch({
+          instanceId,
+          batchId: own.id,
+          pages,
+          submittedAt: own.createdAt,
+        });
+        return { batchId: own.id, submittedAt: own.createdAt };
+      }
+    }
+
+    yield* db.run(
+      statement(
+        "UPDATE review_batches SET stage = 'submitting', submit_attempted_at = ? WHERE instance_id = ?",
+        [clock.now(), instanceId],
+      ),
+    );
     const keys = reviewKeys(instanceId);
     const fragments: string[] = [];
     for (let index = 0; index < parts; index++) {
       const fragment = yield* bucket.getText(keys.part(index));
       if (fragment) fragments.push(fragment);
     }
-    return yield* batches.create(`{"requests":[${fragments.join(",")}]}`);
+    const batchId = yield* batches.create(
+      `{"requests":[${fragments.join(",")}]}`,
+    );
+    const submittedAt = clock.now();
+    yield* recordBatch({ instanceId, batchId, pages, submittedAt });
+    return { batchId, submittedAt };
   });
 }
 
-// Puts the batch id on the instance's row (stage 'processing') and returns
-// the submission time, which the poll loop's schedule and 26-hour cap count
-// from.
+// Puts the batch id on the instance's row (stage 'processing'). The
+// submission time is what the poll loop's schedule and 26-hour cap count from.
 export function recordBatch({
   batchId,
   instanceId,
   pages,
+  submittedAt,
 }: {
   batchId: string;
   instanceId: string;
   pages: number;
-}): Effect.Effect<number, StorageError, Database | WallClock> {
+  submittedAt: number;
+}): Effect.Effect<void, StorageError, Database> {
   return Effect.gen(function* () {
     const db = yield* Database;
-    const clock = yield* WallClock;
-    const now = clock.now();
     yield* db.run(
       statement(
         `UPDATE review_batches
             SET batch_id = ?, pages = ?, stage = 'processing', submitted_at = ?
           WHERE instance_id = ?`,
-        [batchId, pages, now, instanceId],
+        [batchId, pages, submittedAt, instanceId],
       ),
     );
-    return now;
   });
 }
 

@@ -36,7 +36,7 @@ export function nextWaitMs({
 }
 
 // Steps a review Workflow instance uses, counting sleeps: select, one
-// prepare per chunk, submit and record; a sleep and a check per poll; then
+// prepare per chunk, submit; a sleep and a check per poll; then
 // results, release, dispatch and finalize, or one release step on timeout.
 export function workflowSteps({
   parts,
@@ -47,7 +47,7 @@ export function workflowSteps({
   checks: number;
   ended: boolean;
 }): number {
-  return 1 + parts + 2 + 2 * checks + (ended ? 4 : 1);
+  return 1 + parts + 1 + 2 * checks + (ended ? 4 : 1);
 }
 
 // The part of WorkflowStep the loop uses.

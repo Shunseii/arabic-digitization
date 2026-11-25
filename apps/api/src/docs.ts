@@ -85,6 +85,9 @@ Batches API (half price, results within 24 hours), not inline:
   expires or is canceled is not billed; the page is queued again, up to 3
   tries in a row, then its review is marked failed with the last reason. An
   invalid_request_error is never retried.
+- If a batch's Workflow instance dies (errored or terminated), the cron marks
+  the batch failed once it is 28 hours old and puts its pages back in the
+  queue (each counting a try).
 - Each review is recorded in D1 (table page_reviews): status, each edit with
   its category and whether it applied, tokens and cost, model, batch id. Read
   them with GET .../files/:fileId/reviews, GET /api/reviews/summary and
@@ -270,7 +273,7 @@ GET /api/jobs
   // null for paused books. fell_back = runs finished by the fallback engine;
   // retried = runs on a redelivery. problem_pages: the latest runs that fell
   // back, failed, or ran on a third delivery or later.
-  // stage: preparing | processing (waiting on Anthropic; request_counts as
+  // stage: preparing | submitting | processing (waiting on Anthropic; request_counts as
   // of the last check that saw them change: checks run every minute for the
   // first hour, every 10 minutes to 3 hours, then hourly) | ingesting (ended_at:
   // when the batch ended, so ended_at - submitted_at is its duration) | applying

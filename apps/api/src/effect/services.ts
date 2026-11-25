@@ -387,6 +387,13 @@ export interface BatchCounts {
   expired: number;
 }
 
+export interface BatchSummary {
+  id: string;
+  createdAt: number;
+  // Requests in the batch, in any state.
+  requests: number;
+}
+
 export interface BatchStatus {
   processingStatus: string;
   counts: BatchCounts;
@@ -401,6 +408,8 @@ export interface AnthropicBatchesShape {
   readonly retrieve: (
     batchId: string,
   ) => Effect.Effect<BatchStatus, TransportError>;
+  // The workspace's most recent batches (one page, newest first).
+  readonly list: () => Effect.Effect<BatchSummary[], TransportError>;
   // The raw results JSONL, unparsed.
   readonly results: (
     batchId: string,
@@ -491,6 +500,26 @@ export function readBatchStatus(raw: unknown): BatchStatus {
   };
 }
 
+const BATCH_LIST_LIMIT = 20;
+
+export function readBatchList(raw: unknown): BatchSummary[] {
+  const data = isRecord(raw) && Array.isArray(raw.data) ? raw.data : [];
+  return data.flatMap((item) => {
+    if (!isRecord(item) || typeof item.id !== "string") return [];
+    const createdAt =
+      typeof item.created_at === "string" ? Date.parse(item.created_at) : NaN;
+    if (Number.isNaN(createdAt)) return [];
+    const { counts } = readBatchStatus(item);
+    const requests =
+      counts.processing +
+      counts.succeeded +
+      counts.errored +
+      counts.canceled +
+      counts.expired;
+    return [{ id: item.id, createdAt, requests }];
+  });
+}
+
 export function makeAnthropicBatches(env: Env): AnthropicBatchesShape {
   const { base, headers } = batchEndpoint(env);
   const batchUrl = (batchId: string) =>
@@ -518,6 +547,11 @@ export function makeAnthropicBatches(env: Env): AnthropicBatchesShape {
         Effect.flatMap(readJson),
         Effect.map(readBatchStatus),
       ),
+    list: () =>
+      exchange({
+        url: `${base}?limit=${BATCH_LIST_LIMIT}`,
+        init: { headers },
+      }).pipe(Effect.flatMap(readJson), Effect.map(readBatchList)),
     results: (batchId) =>
       exchange({ url: `${batchUrl(batchId)}/results`, init: { headers } }).pipe(
         Effect.flatMap((res) =>
@@ -528,6 +562,32 @@ export function makeAnthropicBatches(env: Env): AnthropicBatchesShape {
           }),
         ),
       ),
+  };
+}
+
+// The review Workflow's instances (env.REVIEW_WORKFLOW): their coarse status,
+// or null when the instance can't be found (gone past retention, or never
+// created).
+export interface ReviewInstancesShape {
+  readonly status: (instanceId: string) => Effect.Effect<string | null>;
+}
+
+export class ReviewInstances extends Context.Service<
+  ReviewInstances,
+  ReviewInstancesShape
+>()("app/ReviewInstances") {}
+
+export function makeReviewInstances(workflow: Workflow): ReviewInstancesShape {
+  return {
+    status: (instanceId) =>
+      Effect.promise(async () => {
+        try {
+          const instance = await workflow.get(instanceId);
+          return (await instance.status()).status;
+        } catch {
+          return null;
+        }
+      }),
   };
 }
 
@@ -634,6 +694,7 @@ export type AppServices =
   | AnthropicGateway
   | AnthropicBatches
   | ReviewQueue
+  | ReviewInstances
   | WallClock
   | PageIndexer
   | ScanLinks;
@@ -646,6 +707,7 @@ export function liveLayer(env: Env): Layer.Layer<AppServices> {
     Layer.succeed(AnthropicGateway, makeAnthropicGateway(env)),
     Layer.succeed(AnthropicBatches, makeAnthropicBatches(env)),
     Layer.succeed(ReviewQueue, makeReviewQueue(env.OCR_Q)),
+    Layer.succeed(ReviewInstances, makeReviewInstances(env.REVIEW_WORKFLOW)),
     Layer.succeed(WallClock, systemClock),
     Layer.succeed(PageIndexer, makePageIndexer(env)),
     Layer.succeed(ScanLinks, makeScanLinks(env)),
