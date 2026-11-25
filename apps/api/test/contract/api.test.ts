@@ -221,6 +221,7 @@ describe("public routes", () => {
         "POST /api/books/{bookId}/files/{fileId}/highlight",
         "POST /api/search/reindex",
         "GET /api/jobs",
+        "GET /api/reviews",
         "GET /api/reviews/summary",
         "GET /api/spend",
         "POST /api/admin/ocr-runs/recompute-metrics",
@@ -2703,7 +2704,7 @@ describe("every API operation", () => {
         path: path.replace(/\{[^}]+\}/g, "x"),
       })),
     );
-    expect(operations.length).toBe(34);
+    expect(operations.length).toBe(35);
     for (const { method, path } of operations) {
       for (const headers of [{}, { Authorization: "Bearer wrong" }] as Record<
         string,

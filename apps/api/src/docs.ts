@@ -92,7 +92,7 @@ Batches API (half price, results within 24 hours), not inline:
   queue (each counting a try).
 - Each review is recorded in D1 (table page_reviews): status, each edit with
   its category and whether it applied, tokens and cost, model, batch id. Read
-  them with GET .../files/:fileId/reviews, GET /api/reviews/summary and
+  them with GET .../files/:fileId/reviews, GET /api/reviews, GET /api/reviews/summary and
   GET /api/jobs.
 
 ## Endpoints
@@ -359,6 +359,19 @@ GET /api/reviews/summary[?days=<1-90, default 30>][&book=<bookId>]
   // submission to Anthropic's ended_at; polling_lag_ms is Anthropic's ended_at
   // to the check that saw it; checks/steps are the status checks and Workflow
   // steps a batch used. Percentiles are nearest-rank; null with no data.
+
+GET /api/reviews[?days=<1-90, default 30>][&limit=<1-100, default 50>][&book=<bookId>]
+  The newest page reviews (every status), newest first, for a list of reviewed
+  pages. The edits of one are on GET .../files/:fileId/reviews (match batch_id).
+  200 -> { success, since, book_id, reviews: [ { file_id, batch_id, book_id,
+           book_title, page_number, created_at, model, effort, status,
+           edits_proposed, edits_applied, edits_failed, chars_changed, cost_usd,
+           revision_id } ] }
+  // revision_id is the review's "review" history entry (null unless applied):
+  // GET .../text?rev=<revision_id> is the text just before the review; the text
+  // it produced is the next newer revision's ?rev= text, or the current text
+  // if nothing changed the page since. page_number is null for an unnumbered
+  // or deleted page.
 
 ## OCR run history (admin)
 Every OCR run of a page (primary engine plus any fallback) is recorded in D1

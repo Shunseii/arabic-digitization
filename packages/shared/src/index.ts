@@ -178,6 +178,35 @@ export interface PageReviewsResponse {
   reviews: PageReview[];
 }
 
+/** One row of GET /api/reviews: a page review, without its edits. */
+export interface RecentPageReview {
+  file_id: string;
+  batch_id: string;
+  book_id: string;
+  book_title: string | null;
+  /** Null if the page is unnumbered or was deleted since. */
+  page_number: number | null;
+  created_at: number;
+  model: string;
+  effort: string;
+  status: PageReviewStatus;
+  edits_proposed: number;
+  edits_applied: number;
+  edits_failed: number;
+  chars_changed: number;
+  cost_usd: number;
+  /** The "review" history entry; GET .../text?rev=<id> is the text before it. */
+  revision_id: number | null;
+}
+
+/** GET /api/reviews (newest first). */
+export interface RecentReviewsResponse {
+  success: true;
+  since: number;
+  book_id: string | null;
+  reviews: RecentPageReview[];
+}
+
 export interface EditCounts {
   proposed: number;
   applied: number;
