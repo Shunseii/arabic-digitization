@@ -27,10 +27,7 @@ import {
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
 import { errorMessage } from "@/lib/errors";
-
-const count = (n: number) => n.toLocaleString("en-US");
-const plural = (n: number, one: string, many: string) =>
-  `${count(n)} ${n === 1 ? one : many}`;
+import { count, plural } from "@/lib/format";
 
 const doneShare = (b: BookWithStatus): number => {
   const done = (b.counts.done ?? 0) + (b.counts.approved ?? 0);
@@ -96,7 +93,7 @@ const BookCard = ({ book }: { book: BookWithStatus }) => {
       </span>
       <span className="flex items-center gap-2 text-small">
         <span className="text-ink-2">
-          {plural(book.files_total, "page", "pages")}
+          {plural({ n: book.files_total, one: "page", many: "pages" })}
         </span>
         {status && (
           <>
@@ -146,7 +143,7 @@ const WorkGroup = ({
         <span className="text-small text-ink-2">{work.author}</span>
       )}
       <span className="text-small font-medium text-ink-3">
-        {plural(books.length, "copy", "copies")}
+        {plural({ n: books.length, one: "copy", many: "copies" })}
       </span>
       {work && (
         <Link
@@ -393,7 +390,7 @@ export const LibraryScreen = () => {
         sub={
           loading
             ? "Loading books…"
-            : `${plural(filtered.length, "book", "books")} · ${plural(totalPages, "page", "pages")}`
+            : `${plural({ n: filtered.length, one: "book", many: "books" })} · ${plural({ n: totalPages, one: "page", many: "pages" })}`
         }
         actions={
           <>

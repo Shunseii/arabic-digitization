@@ -63,7 +63,10 @@ const pageLabel = (f: FailedMessage): string =>
 // body). Show a short plain message; the raw text stays in the hover title.
 const KNOWN_ERRORS: { test: RegExp; message: string }[] = [
   { test: /overloaded_error|Claude 529/i, message: "Claude overloaded (529)" },
-  { test: /^Claude 429|rate_limit_error/i, message: "Claude rate limited (429)" },
+  {
+    test: /^Claude 429|rate_limit_error/i,
+    message: "Claude rate limited (429)",
+  },
   { test: /^Inkling 503/i, message: "Inkling unavailable (503)" },
   { test: /^Inkling 429/i, message: "Inkling rate limited (429)" },
   {

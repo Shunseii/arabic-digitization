@@ -5,6 +5,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   useEffect,
+  useRef,
 } from "react";
 
 const cx = (...parts: (string | false | null | undefined)[]) =>
@@ -140,7 +141,7 @@ export const RefreshControl = ({
       ? `${failed ? "Last updated" : "Updated"} ${clock(updatedAt)}`
       : null;
   return (
-    <div className="ml-auto flex items-center gap-3">
+    <div className="flex items-center gap-3">
       {asOf && (
         <span key={asOf} className="fade-in text-small text-ink-3">
           {asOf}
@@ -186,7 +187,9 @@ export const PageHeader = ({
         </h1>
         {sub != null && <p className="text-small text-ink-2">{sub}</p>}
       </div>
-      {actions}
+      {actions && (
+        <div className="ml-auto flex items-center gap-4">{actions}</div>
+      )}
     </div>
     {children}
   </header>
@@ -466,8 +469,11 @@ export const Dialog = ({
   children: ReactNode;
   width?: string;
 }) => {
+  const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    // Children stay mounted between openings, so autoFocus can't do this.
+    panel.current?.querySelector<HTMLElement>("input, textarea")?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -485,6 +491,7 @@ export const Dialog = ({
         className="absolute inset-0 cursor-default"
       />
       <div
+        ref={panel}
         role="dialog"
         aria-modal="true"
         className={cx(
