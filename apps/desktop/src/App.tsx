@@ -14,9 +14,9 @@ import { UploadScreen } from "@/routes/upload";
 import { WorkScreen } from "@/routes/work";
 
 const AppLayout = () => (
-  <div className="flex h-screen w-screen overflow-hidden bg-bg text-ink">
+  <div className="flex h-screen w-screen overflow-hidden bg-bg font-body text-ink">
     <Sidebar />
-    <main className="flex flex-1 flex-col overflow-hidden">
+    <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <Outlet />
     </main>
   </div>
