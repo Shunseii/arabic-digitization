@@ -295,11 +295,15 @@ describe("GET /api/spend", () => {
       label: "GET /api/spend?days=90",
       path: "/api/spend?days=90",
     });
-    const one = await readMeasured<{ total_cost_usd: number }>({
+    const one = await readMeasured<{
+      total_cost_usd: number;
+      top_books: unknown[];
+    }>({
       label: "GET /api/spend?days=90&book=b1",
       path: "/api/spend?days=90&book=b1",
     });
     expect(one.body.total_cost_usd).toBeCloseTo(90 * 1.35, 6);
+    expect(one.body.top_books).toEqual([]);
   });
 
   it("splits a book's usage into OCR and review", async () => {

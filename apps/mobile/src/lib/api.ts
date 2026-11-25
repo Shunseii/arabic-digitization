@@ -18,6 +18,7 @@ import type {
   ListTagsResponse,
   ListWorksResponse,
   PauseBookResponse,
+  QueuePageReviewResponse,
   QueueReviewResponse,
   ResumeBookResponse,
   ReviewSummaryResponse,
@@ -296,22 +297,36 @@ export const api = {
 
   /** Stop OCR for one book; its waiting pages stay queued until resumed. */
   /**
-   * Queue a book's done pages for the Opus review. Without `all` the book's
-   * review must be on; with it, every done page is reviewed once, already
-   * reviewed ones included (hand-edited pages are always skipped).
+   * Queue the pages done before the book's review was switched on (the
+   * review must be on). Hand-edited and blank pages are left out.
    */
   queueReview: async ({
     bookId,
-    all = false,
   }: {
     bookId: string;
-    all?: boolean;
   }): Promise<QueueReviewResponse> =>
     asJson<QueueReviewResponse>(
       await fetch(`${base()}/api/books/${bookId}/review`, {
         method: "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify(all ? { all: true } : {}),
+        headers: authHeaders(),
+      }),
+    ),
+
+  /**
+   * Re-run one page's Opus review: queues it (even with the book's review
+   * off) and starts a review run unless one is already going.
+   */
+  reviewPage: async ({
+    bookId,
+    fileId,
+  }: {
+    bookId: string;
+    fileId: string;
+  }): Promise<QueuePageReviewResponse> =>
+    asJson<QueuePageReviewResponse>(
+      await fetch(`${base()}/api/books/${bookId}/files/${fileId}/review`, {
+        method: "POST",
+        headers: authHeaders(),
       }),
     ),
 

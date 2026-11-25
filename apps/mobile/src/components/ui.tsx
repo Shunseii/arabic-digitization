@@ -679,30 +679,41 @@ export const ListRow = ({
   onPress,
   danger = false,
   chevron = false,
+  disabled = false,
 }: {
   icon?: IconName;
   title: string;
+  /** With `disabled`, say why. */
   subtitle?: string;
   value?: string;
   onPress?: () => void;
   danger?: boolean;
   chevron?: boolean;
+  disabled?: boolean;
 }) => {
   const c = useColors();
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       className="flex-row items-center gap-3 px-4 py-3 active:bg-surface-2"
     >
       {icon ? (
         <View
           className={`h-9 w-9 items-center justify-center rounded-lg ${danger ? "bg-danger-soft" : "bg-surface-2"}`}
+          style={{ opacity: disabled ? 0.4 : 1 }}
         >
           <Feather name={icon} size={18} color={danger ? c.danger : c.ink2} />
         </View>
       ) : null}
       <View className="flex-1">
-        <T className={danger ? "text-danger" : ""}>{title}</T>
+        <T
+          className={danger ? "text-danger" : ""}
+          style={{ opacity: disabled ? 0.4 : 1 }}
+        >
+          {title}
+        </T>
         {subtitle ? (
           <T variant="small" className="text-ink-3">
             {subtitle}

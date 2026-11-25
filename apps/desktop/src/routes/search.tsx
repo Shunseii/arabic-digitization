@@ -1,8 +1,15 @@
 import type { HighlightResponse } from "@qiraa/shared";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Loader2, Search as SearchIcon, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  Highlighter,
+  Search as SearchIcon,
+  SearchX,
+} from "lucide-react";
 import {
   type ComponentProps,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -11,14 +18,26 @@ import {
 } from "react";
 import {
   InstantSearch,
+  useClearRefinements,
   useInfiniteHits,
   useInstantSearch,
   useRefinementList,
   useSearchBox,
 } from "react-instantsearch";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import {
+  Button,
+  CheckOption,
+  cx,
+  DropdownTrigger,
+  EmptyState,
+  PageHeader,
+  Popover,
+  SearchField,
+} from "@/components/ui";
 import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
+import { count } from "@/lib/format";
 import { Markdown } from "@/lib/markdown";
 import {
   cleanSnippet,
@@ -43,75 +62,45 @@ const SearchBar = () => {
   );
   const { query, refine } = useSearchBox({ queryHook });
   const { status } = useInstantSearch();
-  const busy = status === "loading" || status === "stalled";
   const [value, setValue] = useState(query);
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-4 py-3">
-      <SearchIcon size={18} className="shrink-0 text-text-muted" />
-      <input
-        // biome-ignore lint/a11y/noAutofocus: search-first screen
-        autoFocus
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          refine(e.target.value);
-        }}
-        placeholder="Search the library…"
-        className="flex-1 bg-transparent text-base text-ink outline-none placeholder:text-text-muted"
-      />
-      {busy ? (
-        <Loader2 size={18} className="shrink-0 animate-spin text-text-muted" />
-      ) : value.length > 0 ? (
-        <button
-          type="button"
-          onClick={() => {
-            setValue("");
-            refine("");
-          }}
-          className="text-text-muted hover:text-ink"
-        >
-          <X size={18} />
-        </button>
-      ) : null}
-    </div>
+    <SearchField
+      className="w-[640px]"
+      value={value}
+      busy={status === "loading" || status === "stalled"}
+      onChange={(v) => {
+        setValue(v);
+        refine(v);
+      }}
+      placeholder="Search the text of every page…"
+    />
   );
 };
 
-// Popover shell: a labeled button showing the active count that opens a
-// scrollable panel with a click-away backdrop. Shared by the filters below.
 const FilterPopover = ({
   label,
-  activeCount,
+  active,
   children,
 }: {
-  label: string;
-  activeCount: number;
-  children: React.ReactNode;
+  label: ReactNode;
+  active: boolean;
+  children: ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <button
-        type="button"
+      <DropdownTrigger
+        label={label}
+        active={active}
         onClick={() => setOpen((o) => !o)}
-        className="h-full rounded-xl border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt"
+      />
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        className="left-0 top-[calc(100%+8px)] max-h-80 w-72 origin-top-left overflow-y-auto"
       >
-        {activeCount > 0 ? `${label}: ${activeCount}` : `All ${label}`}
-      </button>
-      {open && (
-        <>
-          {/* Click-away backdrop closes the popover. */}
-          <button
-            type="button"
-            aria-label={`Close ${label} filter`}
-            className="fixed inset-0 z-10 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute right-0 z-20 mt-1 max-h-80 w-72 overflow-y-auto rounded-xl border border-border bg-surface p-2 shadow-lg">
-            {children}
-          </div>
-        </>
-      )}
+        {children}
+      </Popover>
     </div>
   );
 };
@@ -123,7 +112,7 @@ const FilterPopover = ({
 // isn't in the facet data, so we build it from the works + books APIs and read
 // counts / refinement state off the two refinement lists. Copies whose work is
 // unknown (legacy, work_id NULL) are listed flat under "Ungrouped".
-const WorkTitleFilter = () => {
+const BookFilter = () => {
   const work = useRefinementList({ attribute: "work_name", limit: 500 });
   const title = useRefinementList({ attribute: "book_title", limit: 1000 });
   const { configured } = useConfigState();
@@ -165,9 +154,20 @@ const WorkTitleFilter = () => {
   );
 
   if (!tree) return null;
-  const activeCount =
-    work.items.filter((i) => i.isRefined).length +
-    title.items.filter((i) => i.isRefined).length;
+  const refined = [
+    ...work.items.filter((i) => i.isRefined),
+    ...title.items.filter((i) => i.isRefined),
+  ];
+  const label =
+    refined.length === 0 ? (
+      "All books"
+    ) : refined.length === 1 ? (
+      <span dir="rtl" className="font-ar">
+        {refined[0]?.value}
+      </span>
+    ) : (
+      `${refined.length} books`
+    );
 
   const toggleExpand = (name: string) =>
     setExpanded((prev) => {
@@ -177,70 +177,61 @@ const WorkTitleFilter = () => {
       return next;
     });
 
-  const TitleRow = ({ t }: { t: string }) => {
+  const arabic = (t: string) => (
+    <span dir="rtl" className="font-ar text-body">
+      {t}
+    </span>
+  );
+  const titleRow = (t: string) => {
     const item = titleItem.get(t);
     if (!item) return null; // no matches for the current query
     return (
-      <label className="flex cursor-pointer items-center gap-2 rounded-lg py-1 pl-7 pr-2 hover:bg-surface-alt">
-        <input
-          type="checkbox"
-          checked={item.isRefined}
-          onChange={() => title.refine(t)}
-          className="accent-accent"
-        />
-        <span className="flex-1 truncate text-sm text-ink">{t}</span>
-        <span className="text-xs text-text-muted">{item.count}</span>
-      </label>
+      <CheckOption
+        key={t}
+        className="pl-9"
+        checked={item.isRefined}
+        onToggle={() => title.refine(t)}
+        label={arabic(t)}
+        count={item.count}
+      />
     );
   };
 
   return (
-    <FilterPopover label="works" activeCount={activeCount}>
+    <FilterPopover label={label} active={refined.length > 0}>
       {[...tree.grouped.entries()].map(([name, titles]) => {
         const wItem = workItem.get(name);
         const isOpen = expanded.has(name);
         return (
           <div key={name}>
-            <div className="flex items-center gap-1 rounded-lg pr-2 hover:bg-surface-alt">
+            <div className="flex items-center">
               <button
                 type="button"
                 aria-label={isOpen ? "Collapse" : "Expand"}
                 onClick={() => toggleExpand(name)}
-                className="p-1 text-text-muted"
+                className="p-1 text-ink-3"
               >
-                <ChevronRight
-                  size={14}
-                  className={`transition-transform ${isOpen ? "rotate-90" : ""}`}
-                />
+                <ChevronRight size={14} className={isOpen ? "rotate-90" : ""} />
               </button>
-              <label className="flex flex-1 cursor-pointer items-center gap-2 py-1.5">
-                <input
-                  type="checkbox"
-                  checked={wItem?.isRefined ?? false}
-                  disabled={!wItem}
-                  onChange={() => work.refine(name)}
-                  className="accent-accent"
-                />
-                <span className="flex-1 truncate text-sm font-medium text-ink">
-                  {name}
-                </span>
-                {wItem && (
-                  <span className="text-xs text-text-muted">{wItem.count}</span>
-                )}
-              </label>
+              <CheckOption
+                className="flex-1 pl-1"
+                checked={wItem?.isRefined ?? false}
+                disabled={!wItem}
+                onToggle={() => work.refine(name)}
+                label={arabic(name)}
+                count={wItem?.count}
+              />
             </div>
-            {isOpen && [...titles].map((t) => <TitleRow key={t} t={t} />)}
+            {isOpen && [...titles].map(titleRow)}
           </div>
         );
       })}
       {tree.ungrouped.size > 0 && (
-        <div className="mt-1 border-t border-hairline pt-1">
-          <p className="px-2 py-1 text-xs font-medium text-text-muted">
+        <div className="mt-1 border-t border-line pt-1">
+          <p className="px-3 pb-1 pt-2 text-label font-semibold uppercase tracking-[0.08em] text-ink-3">
             Ungrouped
           </p>
-          {[...tree.ungrouped].map((t) => (
-            <TitleRow key={t} t={t} />
-          ))}
+          {[...tree.ungrouped].map(titleRow)}
         </div>
       )}
     </FilterPopover>
@@ -255,23 +246,24 @@ const TagFilter = () => {
     limit: 200,
   });
   if (items.length === 0) return null;
-  const activeCount = items.filter((i) => i.isRefined).length;
+  const refined = items.filter((i) => i.isRefined);
   return (
-    <FilterPopover label="tags" activeCount={activeCount}>
+    <FilterPopover
+      active={refined.length > 0}
+      label={
+        refined.length === 0
+          ? "All tags"
+          : `Tags: ${refined.map((i) => i.label).join(", ")}`
+      }
+    >
       {items.map((i) => (
-        <label
+        <CheckOption
           key={i.value}
-          className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-alt"
-        >
-          <input
-            type="checkbox"
-            checked={i.isRefined}
-            onChange={() => refine(i.value)}
-            className="accent-accent"
-          />
-          <span className="flex-1 truncate text-sm text-ink">{i.label}</span>
-          <span className="text-xs text-text-muted">{i.count}</span>
-        </label>
+          checked={i.isRefined}
+          onToggle={() => refine(i.value)}
+          label={i.label}
+          count={i.count}
+        />
       ))}
     </FilterPopover>
   );
@@ -289,7 +281,34 @@ const ResetPreviewOnQueryChange = ({ onReset }: { onReset: () => void }) => {
   return null;
 };
 
-const HitCard = ({
+// InstantSearch escapes the snippet and turns Meili's __ais-highlight__
+// markers into <mark> tags; keep those through the clean-up as control
+// characters, then split into plain and matched runs.
+const OPEN = "\u0001";
+const CLOSE = "\u0002";
+const snippetParts = (raw: string): { text: string; match: boolean }[] =>
+  cleanSnippet(
+    raw
+      .replace(/<mark>|__ais-highlight__/g, OPEN)
+      .replace(/<\/mark>|__\/ais-highlight__/g, CLOSE)
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&"),
+  )
+    .split(new RegExp(`(${OPEN}[^${CLOSE}]*${CLOSE})`))
+    .filter(Boolean)
+    .map((part) =>
+      part.startsWith(OPEN)
+        ? { text: part.slice(1, -1), match: true }
+        : { text: part, match: false },
+    );
+
+const pageLabel = (hit: SearchHit) =>
+  hit.page_number != null ? `Page ${count(hit.page_number)}` : null;
+
+const HitRow = ({
   hit,
   selected,
   onSelect,
@@ -301,26 +320,44 @@ const HitCard = ({
   <button
     type="button"
     onClick={() => onSelect(hit)}
-    className={`w-full rounded-xl border p-3.5 text-left transition-colors ${
-      selected
-        ? "border-accent bg-accent-soft"
-        : "border-border bg-surface hover:bg-surface-alt"
-    }`}
+    className={cx(
+      "flex w-full flex-col gap-1 rounded-md px-4 py-3 text-left",
+      selected ? "bg-accent-soft" : "hover:bg-surface-2",
+    )}
   >
-    <div className="flex items-center justify-between">
-      <span className="text-sm font-semibold text-accent">
+    <span className="flex items-center gap-2">
+      <span
+        dir="rtl"
+        className="font-ar text-body font-bold leading-[1.6] text-ink"
+      >
         {hit.book_title}
       </span>
-      {hit.page_number != null && (
-        <span className="text-xs text-text-muted">ص {hit.page_number}</span>
+      {pageLabel(hit) && (
+        <span className="text-small font-medium text-ink-3">
+          {pageLabel(hit)}
+        </span>
       )}
-    </div>
-    <p
+    </span>
+    <span
       dir="rtl"
-      className="mt-1.5 line-clamp-2 text-sm leading-7 text-text-secondary"
+      className="block truncate text-right font-ar text-body font-medium leading-[1.6] text-ink-2"
     >
-      {cleanSnippet(hit._formatted?.text ?? hit.text ?? "")}
-    </p>
+      {snippetParts(hit._snippetResult?.text?.value ?? hit.text ?? "").map(
+        (p, i) =>
+          p.match ? (
+            <mark
+              // biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+              key={i}
+              className="rounded bg-warn-soft px-1 font-bold text-ink"
+            >
+              {p.text}
+            </mark>
+          ) : (
+            // biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+            <span key={i}>{p.text}</span>
+          ),
+      )}
+    </span>
   </button>
 );
 
@@ -332,17 +369,10 @@ const Results = ({
   onSelect: (hit: SearchHit) => void;
 }) => {
   const { items, isLastPage, showMore } = useInfiniteHits<SearchHit>();
-  const { query } = useSearchBox();
-  if (items.length === 0)
-    return (
-      <p className="mt-10 text-center text-sm text-text-muted">
-        {query.trim() ? `No results for “${query}”.` : "Type to search."}
-      </p>
-    );
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex w-[520px] shrink-0 flex-col gap-1 overflow-y-auto">
       {items.map((hit) => (
-        <HitCard
+        <HitRow
           key={hit.id}
           hit={hit}
           selected={hit.id === selectedId}
@@ -350,13 +380,14 @@ const Results = ({
         />
       ))}
       {!isLastPage && (
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="secondary"
+          className="mt-2 self-center"
           onClick={showMore}
-          className="mt-1 self-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-alt"
         >
           Load more
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -367,6 +398,7 @@ const Results = ({
 const highlightCache = new Map<string, HighlightResponse>();
 
 const Preview = ({ hit }: { hit: SearchHit | null }) => {
+  const navigate = useNavigate();
   const { query } = useSearchBox();
   const q = query.trim();
   const [hl, setHl] = useState<HighlightResponse | null>(null);
@@ -376,9 +408,8 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
   // The page id (not the chunk id) — highlight and reader both address pages.
   const hitId = hit?.file_id;
   const bookId = hit?.book_id;
-  // Highlighting is an explicit action now, so drop any existing highlight when
+  // Highlighting is an explicit action, so drop any existing highlight when
   // the selected result or query changes — the button re-fetches on demand.
-  // hitId/q are triggers here, not values the effect reads.
   // biome-ignore lint/correctness/useExhaustiveDependencies: deps are reset triggers
   useEffect(() => {
     setHl(null);
@@ -408,14 +439,7 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
       .finally(() => setLoading(false));
   }, [hitId, bookId, q]);
 
-  if (!hit)
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-text-muted">
-          Select a result to preview the page.
-        </p>
-      </div>
-    );
+  if (!hit) return <div className="flex-1" />;
 
   // Each relevant span, split per-line so a passage spanning a line break still
   // matches against the per-line markdown the renderer produces.
@@ -426,74 +450,142 @@ const Preview = ({ hit }: { hit: SearchHit | null }) => {
       .filter(Boolean),
   );
 
+  let highlightAction: ReactNode = null;
+  if (q.length > 0) {
+    if (hl && highlight?.length === 0)
+      highlightAction = (
+        <span className="text-small text-ink-3">No matching passage</span>
+      );
+    else if (hl)
+      highlightAction = (
+        <Button size="sm" variant="ghost" onClick={() => setHl(null)}>
+          Clear highlight
+        </Button>
+      );
+    else
+      highlightAction = (
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={Highlighter}
+          loading={loading}
+          onClick={runHighlight}
+          className={failed ? "text-danger" : undefined}
+        >
+          {failed ? "Couldn't highlight. Retry" : "Highlight matches"}
+        </Button>
+      );
+  }
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-accent">{hit.book_title}</p>
-          {hit.page_number != null && (
-            <p className="text-xs text-text-muted">صفحة {hit.page_number}</p>
+    <section className="flex min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-lg border border-line bg-surface p-6">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col">
+          <span
+            dir="rtl"
+            className="font-ar text-body font-bold leading-[1.6] text-ink"
+          >
+            {hit.book_title}
+          </span>
+          {pageLabel(hit) && (
+            <span className="text-small font-medium text-ink-3">
+              {pageLabel(hit)}
+            </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {q.length > 0 &&
-            (loading ? (
-              <span className="flex items-center gap-1.5 text-xs text-text-muted">
-                <Loader2 size={14} className="animate-spin" />
-                Finding…
-              </span>
-            ) : failed ? (
-              <button
-                type="button"
-                onClick={runHighlight}
-                className="text-xs font-semibold text-st-fail hover:underline"
-              >
-                Couldn't highlight — retry
-              </button>
-            ) : hl ? (
-              highlight && highlight.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setHl(null)}
-                  className="text-xs font-semibold text-text-muted hover:text-ink"
-                >
-                  Clear highlight
-                </button>
-              ) : (
-                <span className="text-xs text-text-muted">
-                  No matching passage
-                </span>
-              )
-            ) : (
-              <button
-                type="button"
-                onClick={runHighlight}
-                className="rounded-lg border border-accent/40 px-2.5 py-1 text-xs font-semibold text-accent hover:bg-accent-soft"
-              >
-                Highlight matches
-              </button>
-            ))}
-          <Link
-            to={`/reader/${hit.book_id}/${hit.file_id}`}
-            className="text-xs font-semibold text-accent hover:underline"
+        <div className="ml-auto flex items-center gap-2">
+          {highlightAction}
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={BookOpen}
+            onClick={() => navigate(`/reader/${hit.book_id}/${hit.file_id}`)}
           >
-            Open in reader →
-          </Link>
+            Open in reader
+          </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-surface p-5">
+      <div className="h-px shrink-0 bg-line" />
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <Markdown
           source={hit.page_text ?? hit.text ?? ""}
           highlight={highlight}
         />
       </div>
-    </div>
+    </section>
+  );
+};
+
+const Body = () => {
+  const [selected, setSelected] = useState<SearchHit | null>(null);
+  const clearSelected = useCallback(() => setSelected(null), []);
+  const { results, status } = useInstantSearch();
+  const { query } = useSearchBox();
+  const { refine: clearFilters, canRefine: filtered } = useClearRefinements();
+  const q = query.trim();
+  const hits = q ? (results?.nbHits ?? 0) : 0;
+  const settled = status === "idle";
+
+  let content: ReactNode;
+  if (!q)
+    content = (
+      <EmptyState
+        icon={SearchIcon}
+        title="Search the Arabic text"
+        body="Type a word or phrase. Diacritics are optional; results match with or without tashkeel."
+      />
+    );
+  else if (settled && hits === 0)
+    content = (
+      <EmptyState
+        icon={SearchX}
+        title="No matching pages"
+        body={
+          filtered
+            ? "Nothing in the selected books matches. Try all books, or a shorter word."
+            : "Nothing matches. Try a shorter word, or fewer words."
+        }
+      >
+        {filtered && (
+          <Button variant="secondary" onClick={clearFilters}>
+            Search all books
+          </Button>
+        )}
+      </EmptyState>
+    );
+  else
+    content = (
+      <div className="flex min-h-0 flex-1 items-stretch gap-6 px-10 pb-10">
+        <Results selectedId={selected?.id ?? null} onSelect={setSelected} />
+        <Preview hit={selected} />
+      </div>
+    );
+
+  return (
+    <>
+      <ResetPreviewOnQueryChange onReset={clearSelected} />
+      <PageHeader
+        title="Search"
+        sub={
+          q && settled
+            ? `${count(hits)} ${hits === 1 ? "match" : "matches"}`
+            : undefined
+        }
+      >
+        <div className="flex items-center gap-3">
+          <SearchBar />
+          <BookFilter />
+          <TagFilter />
+        </div>
+      </PageHeader>
+      {content}
+    </>
   );
 };
 
 export const SearchScreen = () => {
+  const navigate = useNavigate();
   const { config, ready } = useConfigState();
-  const [selected, setSelected] = useState<SearchHit | null>(null);
   const searchClient = useMemo(
     () =>
       config?.meiliUrl && config.meiliKey
@@ -512,50 +604,32 @@ export const SearchScreen = () => {
     setLastQuery((uiState[SEARCH_INDEX] as { query?: string })?.query ?? "");
     setUiState(uiState);
   }, []);
-  const clearSelected = useCallback(() => setSelected(null), []);
 
   if (!ready) return null;
 
   if (!searchClient)
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-        <p className="text-lg font-semibold text-ink">Search isn't set up</p>
-        <p className="text-sm text-text-secondary">
-          Add your Meilisearch URL and read-only key in Settings.
-        </p>
-        <Link to="/settings" className="mt-1 font-semibold text-accent">
-          Open Settings →
-        </Link>
-      </div>
+      <>
+        <PageHeader title="Search" />
+        <EmptyState
+          icon={SearchIcon}
+          title="Search isn't set up"
+          body="Add your Meilisearch URL and a read-only search key in Settings."
+        >
+          <Button onClick={() => navigate("/settings")}>Open Settings</Button>
+        </EmptyState>
+      </>
     );
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden px-8 pt-10">
-      <h1 className="mb-5 text-3xl font-semibold text-ink">Search</h1>
-      <InstantSearch
-        searchClient={searchClient}
-        indexName={SEARCH_INDEX}
-        future={SEARCH_FUTURE}
-        initialUiState={initialUiState}
-        onStateChange={onStateChange}
-      >
-        <ResetPreviewOnQueryChange onReset={clearSelected} />
-        <div className="mb-5 flex items-stretch gap-2.5">
-          <div className="flex-1">
-            <SearchBar />
-          </div>
-          <WorkTitleFilter />
-          <TagFilter />
-        </div>
-        <div className="flex flex-1 gap-6 overflow-hidden pb-8">
-          <div className="w-[420px] shrink-0 overflow-y-auto pr-1">
-            <Results selectedId={selected?.id ?? null} onSelect={setSelected} />
-          </div>
-          <div className="flex-1 overflow-hidden border-l border-hairline pl-6">
-            <Preview hit={selected} />
-          </div>
-        </div>
-      </InstantSearch>
-    </div>
+    <InstantSearch
+      searchClient={searchClient}
+      indexName={SEARCH_INDEX}
+      future={SEARCH_FUTURE}
+      initialUiState={initialUiState}
+      onStateChange={onStateChange}
+    >
+      <Body />
+    </InstantSearch>
   );
 };

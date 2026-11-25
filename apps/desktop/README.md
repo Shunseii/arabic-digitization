@@ -60,25 +60,17 @@ Produces `.deb` + `.AppImage` on Linux and `.exe` (NSIS) on Windows, under
 
 ## Release
 
-Releases are cut by hand from the **desktop-release** GitHub Actions workflow
-(`.github/workflows/desktop-release.yml`). Run it from the Actions tab →
-*desktop-release* → **Run workflow**, then provide:
+Releases run when a GitHub release with a version tag is published (see
+"Releasing" in the root README and `.github/workflows/release.yml`):
 
-- **bump** — `patch` / `minor` / `major` (semver bump from the current version).
-- **notes** — the release notes for this version. **Required** — write what
-  changed (a short changelog) so every release has a record. This text becomes
-  the GitHub release body.
+```bash
+gh release create v0.6.0 --title "v0.6.0" --notes "What changed"
+```
 
-The workflow then:
-
-1. Bumps the version in `apps/desktop/package.json` and commits it back to
-   `master` (`chore(desktop): release vX.Y.Z [skip ci]`).
-2. Builds the Windows + Linux installers from that commit with electron-builder.
-3. Publishes them to two GitHub Releases:
-   - **`desktop-v<X.Y.Z>`** — immutable, with your release notes; the version
-     history.
-   - **`desktop-latest`** — rolling pointer to the newest build (stable
-     download URL).
+The workflow stamps the tag's version into `apps/desktop/package.json` for the
+build (nothing is committed back), builds the Windows + Linux installers,
+attaches them to that release, and recreates the rolling **`desktop-latest`**
+release (stable download URL). The same run publishes the mobile OTA update.
 
 There is no auto-updater and no code signing yet — users download the installer
 from the release page.

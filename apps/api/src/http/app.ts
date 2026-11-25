@@ -38,6 +38,7 @@ import { FileHighlight, fileHighlight } from "../endpoints/fileHighlight";
 import { FileImage, fileImage } from "../endpoints/fileImage";
 import { FileOcr, fileOcr } from "../endpoints/fileOcr";
 import { FileRecent, fileRecent } from "../endpoints/fileRecent";
+import { FileReview, fileReview } from "../endpoints/fileReview";
 import { FileReviews, fileReviews } from "../endpoints/fileReviews";
 import { FileText, fileText } from "../endpoints/fileText";
 import { FileTextEdit, fileTextEdit } from "../endpoints/fileTextEdit";
@@ -107,6 +108,7 @@ export const Api = HttpApi.make("api")
       FileText,
       FileTextEdit,
       FileTextHistory,
+      FileReview,
       FileReviews,
       FileImage,
       FileHighlight,
@@ -162,6 +164,7 @@ const FilesLive = HttpApiBuilder.group(Api, "Files", (handlers) =>
     .handle("fileText", fileText)
     .handle("fileTextEdit", fileTextEdit)
     .handle("fileTextHistory", fileTextHistory)
+    .handle("fileReview", fileReview)
     .handle("fileReviews", fileReviews)
     .handle("fileImage", fileImage)
     .handle("fileHighlight", fileHighlight),

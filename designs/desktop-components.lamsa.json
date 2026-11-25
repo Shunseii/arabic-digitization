@@ -581,6 +581,20 @@
       },
       "type": "text"
     },
+    "7KgOpL8h": {
+      "content": "Reason",
+      "index": "a1",
+      "name": "Hint",
+      "parentId": "cA1SksSa",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 400,
+        "line-height": 1.45
+      },
+      "type": "text"
+    },
     "7L33u8AA": {
       "componentId": "mNu5xbdb",
       "index": "a8",
@@ -850,6 +864,25 @@
       },
       "type": "frame"
     },
+    "9vaTZRWd": {
+      "componentId": "N74jC8SJ",
+      "index": "a0",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "BiOSh0wA",
+      "props": {
+        "hasHint": true,
+        "hint": "Hand-edited pages can't be reviewed",
+        "label": "Re-run review",
+        "state": "default",
+        "tone": "default"
+      },
+      "type": "instance"
+    },
     "A1AxKXSc": {
       "content": "Body · Inter 400, emphasis at 600",
       "index": "a1",
@@ -871,6 +904,17 @@
       "style": {
         "display": "flex",
         "width": 200
+      },
+      "type": "frame"
+    },
+    "Acpaexpq": {
+      "index": "a3",
+      "name": "Variant",
+      "parentId": "ncPO7Z3Q",
+      "style": {
+        "align-items": "center",
+        "display": "flex",
+        "gap": "{spacing.6}"
       },
       "type": "frame"
     },
@@ -913,6 +957,16 @@
         "align-items": "center",
         "display": "flex",
         "gap": "{spacing.6}"
+      },
+      "type": "frame"
+    },
+    "BiOSh0wA": {
+      "index": "a1",
+      "name": "Cell",
+      "parentId": "Acpaexpq",
+      "style": {
+        "display": "flex",
+        "width": 256
       },
       "type": "frame"
     },
@@ -1538,9 +1592,9 @@
     },
     "Iaapia1m": {
       "content": "Menu item",
-      "index": "a1",
+      "index": "a0",
       "name": "Label",
-      "parentId": "N74jC8SJ",
+      "parentId": "cA1SksSa",
       "style": {
         "color": "currentColor",
         "font-family": "{font.body}",
@@ -1871,6 +1925,25 @@
       },
       "type": "text"
     },
+    "MQB5rpdU": {
+      "componentId": "N74jC8SJ",
+      "index": "a0",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "fYN8KnfJ",
+      "props": {
+        "hasHint": true,
+        "hint": "Hand-edited pages can't be reviewed",
+        "label": "Re-run review",
+        "state": "hover",
+        "tone": "default"
+      },
+      "type": "instance"
+    },
     "MWU0MRVW": {
       "content": "disabled",
       "index": "a3",
@@ -1978,8 +2051,31 @@
     },
     "N74jC8SJ": {
       "component": {
-        "description": "Row in a popover menu. Icon set per instance.",
+        "description": "Row in a popover menu. Icon set per instance; an optional hint line says why a disabled item is unavailable.",
         "props": {
+          "hasHint": {
+            "default": false,
+            "overrides": {
+              "false": {
+                "7KgOpL8h": {
+                  "hidden": true
+                }
+              },
+              "true": {
+                "N74jC8SJ": {
+                  "style": {
+                    "padding": "{spacing.2} {spacing.3}"
+                  }
+                }
+              }
+            },
+            "type": "boolean"
+          },
+          "hint": {
+            "default": "Reason",
+            "target": "7KgOpL8h",
+            "type": "text"
+          },
           "label": {
             "default": "Menu item",
             "target": "Iaapia1m",
@@ -1994,7 +2090,12 @@
             ],
             "overrides": {
               "disabled": {
-                "N74jC8SJ": {
+                "Iaapia1m": {
+                  "style": {
+                    "opacity": 0.4
+                  }
+                },
+                "gUB750S8": {
                   "style": {
                     "opacity": 0.4
                   }
@@ -2043,7 +2144,7 @@
         "color": "{color.ink}",
         "display": "flex",
         "gap": "{spacing.3}",
-        "height": 40,
+        "min-height": 40,
         "padding": "{spacing.0} {spacing.3}",
         "width": 256
       },
@@ -2233,6 +2334,25 @@
         "flex": 1
       },
       "type": "frame"
+    },
+    "QQupmvhe": {
+      "componentId": "N74jC8SJ",
+      "index": "a0",
+      "name": "MenuItem",
+      "overrides": {
+        "gUB750S8": {
+          "icon": "sparkles"
+        }
+      },
+      "parentId": "trpqK7zB",
+      "props": {
+        "hasHint": true,
+        "hint": "Hand-edited pages can't be reviewed",
+        "label": "Re-run review",
+        "state": "disabled",
+        "tone": "default"
+      },
+      "type": "instance"
     },
     "Qg3volyw": {
       "content": "No bars growing in, no counting-up KPIs: it delays reading the number in a data-dense tool.",
@@ -3884,6 +4004,18 @@
       },
       "type": "text"
     },
+    "cA1SksSa": {
+      "index": "a1",
+      "name": "Text",
+      "parentId": "N74jC8SJ",
+      "style": {
+        "display": "flex",
+        "flex": 1,
+        "flex-direction": "column",
+        "min-width": 0
+      },
+      "type": "frame"
+    },
     "cCexwyQ2": {
       "content": "Fallback reasons",
       "index": "a0",
@@ -4187,6 +4319,16 @@
         "showFailures": true
       },
       "type": "instance"
+    },
+    "fYN8KnfJ": {
+      "index": "a2",
+      "name": "Cell",
+      "parentId": "Acpaexpq",
+      "style": {
+        "display": "flex",
+        "width": 256
+      },
+      "type": "frame"
     },
     "feWumd0V": {
       "content": "",
@@ -4547,6 +4689,21 @@
         "width": "100%"
       },
       "type": "instance"
+    },
+    "j0g7bLZu": {
+      "content": "with hint",
+      "index": "a0",
+      "name": "Row",
+      "parentId": "Acpaexpq",
+      "style": {
+        "color": "{color.ink-3}",
+        "font-family": "{font.body}",
+        "font-size": 13,
+        "font-weight": 500,
+        "line-height": 1.45,
+        "width": 110
+      },
+      "type": "text"
     },
     "j2ya3PeM": {
       "content": "cubic-bezier(0.77, 0, 0.175, 1)",
@@ -5583,6 +5740,16 @@
       "type": "frame",
       "x": 500,
       "y": 3460
+    },
+    "trpqK7zB": {
+      "index": "a3",
+      "name": "Cell",
+      "parentId": "Acpaexpq",
+      "style": {
+        "display": "flex",
+        "width": 256
+      },
+      "type": "frame"
     },
     "u4kiHeJm": {
       "index": "a1",

@@ -192,11 +192,13 @@ export interface OpCounts {
   d1Queries: number;
   d1RoundTrips: number;
   d1RowsRead: number;
+  d1RowsWritten: number;
   r2Reads: number;
   r2Writes: number;
   kvReads: number;
   kvWrites: number;
   queueSends: number;
+  workflowCreates: number;
 }
 
 export function countOps(operations: Operation[]): OpCounts {
@@ -215,11 +217,13 @@ export function countOps(operations: Operation[]): OpCounts {
     ),
     d1RoundTrips: count(["d1.query", "d1.batch"]),
     d1RowsRead: operations.reduce((n, o) => n + (o.rowsRead ?? 0), 0),
+    d1RowsWritten: operations.reduce((n, o) => n + (o.rowsWritten ?? 0), 0),
     r2Reads: count(["r2.get", "r2.head", "r2.list"]),
     r2Writes: count(["r2.put", "r2.delete"]),
     kvReads: count(["kv.get"]),
     kvWrites: count(["kv.put"]),
     queueSends: count(["queue.send"]),
+    workflowCreates: count(["workflow.create"]),
   };
 }
 

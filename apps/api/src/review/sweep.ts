@@ -21,7 +21,12 @@ export const STUCK_AFTER_MS = POLL_DEADLINE_MS + 2 * HOUR_MS;
 // running stage would already have been swept. Bounds the index range read.
 const SWEEP_WINDOW_MS = 7 * 24 * HOUR_MS;
 
-const RUNNING_STAGES = ["preparing", "submitting", "processing", "ingesting"];
+export const RUNNING_STAGES = [
+  "preparing",
+  "submitting",
+  "processing",
+  "ingesting",
+];
 // Instance states that mean it will never write its stage again. A status
 // that can't be read (null) means the instance is gone.
 const DEAD = new Set(["errored", "terminated", "unknown"]);

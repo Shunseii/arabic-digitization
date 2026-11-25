@@ -1,10 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, X, Zap } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ApiError, api } from "@/lib/api";
+import {
+  Button,
+  Chip,
+  ErrorBanner,
+  FieldLabel,
+  IconButton,
+  PageHeader,
+} from "@/components/ui";
+import { api } from "@/lib/api";
 import { useConfigState } from "@/lib/config-context";
-import { colors } from "@/theme";
+import { errorMessage } from "@/lib/errors";
+
+// Works shown before "More…"; the selected one is always shown.
+const WORKS_SHOWN = 3;
 
 export const NewBookScreen = () => {
   const navigate = useNavigate();
@@ -13,9 +24,9 @@ export const NewBookScreen = () => {
 
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [error, setError] = useState<string | null>(null);
   // null = auto-create a new work from the title; otherwise attach to this work.
   const [workId, setWorkId] = useState<string | null>(null);
+  const [allWorks, setAllWorks] = useState(false);
   // Tags for the auto-created work; only meaningful when workId is null.
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
@@ -31,6 +42,9 @@ export const NewBookScreen = () => {
     enabled: configured,
   });
   const works = worksQuery.data ?? [];
+  const shownWorks = allWorks
+    ? works
+    : works.filter((w, i) => i < WORKS_SHOWN || w.id === workId);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -45,147 +59,131 @@ export const NewBookScreen = () => {
       await queryClient.invalidateQueries({ queryKey: ["works"] });
       navigate(`/book/${book.id}`, { replace: true });
     },
-    onError: (err) => {
-      setError(
-        err instanceof ApiError ? `${err.status}: ${err.message}` : String(err),
-      );
-    },
   });
 
   return (
-    <div className="flex-1 overflow-y-auto px-10 py-8">
-      <div className="mx-auto flex min-h-full max-w-xl flex-col">
-        <div className="flex flex-row items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-          >
-            <ChevronLeft size={18} color={colors.textSecondary} />
-          </button>
-          <h1 className="text-[26px] font-semibold text-ink">New book</h1>
-        </div>
+    <>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-4">
+            <IconButton
+              icon={ChevronLeft}
+              label="Back"
+              variant="tonal"
+              onClick={() => navigate(-1)}
+            />
+            New book
+          </span>
+        }
+      />
+      <div className="flex min-h-0 flex-1 justify-center overflow-y-auto">
+        <form
+          className="flex w-[560px] flex-col gap-5 pb-10"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (title.trim()) mutation.mutate();
+          }}
+        >
+          <label className="flex flex-col gap-2">
+            <FieldLabel>Title</FieldLabel>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="نور الإيضاح"
+              dir="rtl"
+              className="h-[50px] rounded-md border border-line bg-surface px-3.5 font-ar text-section text-ink outline-none placeholder:text-ink-3 focus:border-accent"
+            />
+          </label>
 
-        <span className="mt-6 mb-2 block text-xs font-bold tracking-wide text-text-muted">
-          TITLE
-        </span>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="نور الإيضاح"
-          dir="rtl"
-          className="w-full rounded-xl border border-accent bg-surface px-4 py-3.5 text-lg text-ink outline-none placeholder:text-text-muted"
-        />
-
-        <span className="mt-5 mb-2 block text-xs font-bold tracking-wide text-text-muted">
-          WORK · OPTIONAL
-        </span>
-        <p className="mb-2 text-xs text-text-muted">
-          Attach this copy to an existing work, or leave it to auto-create a new
-          one from the title.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setWorkId(null)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-              workId === null
-                ? "border-accent bg-accent-soft text-accent"
-                : "border-border bg-surface text-text-secondary hover:bg-surface-alt"
-            }`}
-          >
-            + New work
-          </button>
-          {works.map((w) => (
-            <button
-              key={w.id}
-              type="button"
-              onClick={() => setWorkId(w.id)}
-              className={`max-w-[220px] truncate rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                workId === w.id
-                  ? "border-accent bg-accent-soft text-accent"
-                  : "border-border bg-surface text-text-secondary hover:bg-surface-alt"
-              }`}
-            >
-              {w.name} ({w.copies_total})
-            </button>
-          ))}
-        </div>
-
-        {workId === null && (
-          <>
-            <span className="mt-5 mb-2 block text-xs font-bold tracking-wide text-text-muted">
-              TAGS · OPTIONAL
+          <div className="flex flex-col gap-2">
+            <FieldLabel>Work</FieldLabel>
+            <div className="flex flex-wrap items-center gap-2">
+              <Chip selected={workId === null} onClick={() => setWorkId(null)}>
+                New work
+              </Chip>
+              {shownWorks.map((w) => (
+                <Chip
+                  key={w.id}
+                  selected={workId === w.id}
+                  onClick={() => setWorkId(w.id)}
+                >
+                  <span dir="rtl" className="font-ar">
+                    {w.name}
+                  </span>
+                </Chip>
+              ))}
+              {!allWorks && works.length > shownWorks.length && (
+                <Chip onClick={() => setAllWorks(true)}>More…</Chip>
+              )}
+            </div>
+            <span className="text-small text-ink-3">
+              Copies of the same work are grouped in the Library.
             </span>
-            {tags.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {tags.map((t) => (
-                  <span
-                    key={t}
-                    className="flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent"
-                  >
-                    {t}
-                    <button
-                      type="button"
-                      onClick={() =>
+          </div>
+
+          {workId === null && (
+            <div className="flex flex-col gap-2">
+              <FieldLabel>Tags</FieldLabel>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((t) => (
+                    <Chip
+                      key={t}
+                      onRemove={() =>
                         setTags((prev) => prev.filter((x) => x !== t))
                       }
-                      aria-label={`Remove ${t}`}
                     >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <input
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === ",") {
-                  e.preventDefault();
-                  addTag(tagInput);
-                }
-              }}
-              onBlur={() => tagInput.trim() && addTag(tagInput)}
-              placeholder="Add a tag, then Enter"
-              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-base text-ink outline-none placeholder:text-text-muted focus:border-accent"
+                      {t}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addTag(tagInput);
+                  }
+                }}
+                onBlur={() => tagInput.trim() && addTag(tagInput)}
+                placeholder="Add a tag, then Enter"
+                className="h-[50px] rounded-md border border-line bg-surface px-3.5 text-body text-ink outline-none placeholder:text-ink-3 focus:border-accent"
+              />
+            </div>
+          )}
+
+          <label className="flex flex-col gap-2">
+            <FieldLabel>OCR instructions · optional</FieldLabel>
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Preserve tashkeel. Keep footnotes at the bottom of the page."
+              className="min-h-[110px] resize-y rounded-md border border-line bg-surface px-4 py-3 text-body text-ink outline-none placeholder:text-ink-3 focus:border-accent"
             />
-          </>
-        )}
+            <span className="text-small text-ink-3">
+              Applied to every page of this book. Changing them starts a new
+              version, so Usage can compare before and after.
+            </span>
+          </label>
 
-        <span className="mt-5 mb-2 block text-xs font-bold tracking-wide text-text-muted">
-          OCR INSTRUCTIONS · OPTIONAL
-        </span>
-        <textarea
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          placeholder="Preserve tashkeel. Keep footnotes at the bottom of the page."
-          className="min-h-[110px] w-full resize-y rounded-xl border border-border bg-surface px-4 py-3.5 text-base text-text-secondary outline-none placeholder:text-text-muted focus:border-accent"
-        />
+          {mutation.isError && (
+            <ErrorBanner title="Couldn't create the book">
+              {errorMessage(mutation.error)} Your entries are kept.
+            </ErrorBanner>
+          )}
 
-        <div className="mt-5 flex flex-row items-center gap-2 rounded-xl bg-accent-soft px-3 py-2.5">
-          <Zap size={15} color={colors.accent} />
-          <span className="flex-1 text-xs text-accent">
-            Pages you upload into this book transcribe automatically.
-          </span>
-        </div>
-
-        {error && <p className="mt-4 text-sm text-st-fail">{error}</p>}
-
-        <div className="flex-1" />
-
-        <button
-          type="button"
-          onClick={() => mutation.mutate()}
-          disabled={!title.trim() || mutation.isPending}
-          className="mt-6 flex items-center justify-center rounded-xl bg-accent py-4 disabled:opacity-50"
-        >
-          <span className="text-base font-bold text-accent-ink">
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!title.trim()}
+            loading={mutation.isPending}
+          >
             {mutation.isPending ? "Creating…" : "Create book"}
-          </span>
-        </button>
+          </Button>
+        </form>
       </div>
-    </div>
+    </>
   );
 };

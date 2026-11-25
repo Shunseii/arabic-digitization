@@ -160,14 +160,27 @@ eas build --profile production --platform android   # store build, auto-incremen
 
 ### Desktop (Electron)
 
-Released by hand from the **desktop-release** workflow
-(`.github/workflows/desktop-release.yml`): Actions tab → *desktop-release* →
-**Run workflow**, pick a semver `bump` (patch/minor/major) and write the
-**release notes** (required). CI bumps the version in `apps/desktop/package.json`,
-commits it back to `master`, builds the Windows `.exe` and Linux `.deb` /
-`.AppImage` with electron-builder, and publishes them to an immutable
-**`desktop-v<X.Y.Z>`** release plus the rolling **`desktop-latest`** pointer.
-Full steps: `apps/desktop/README.md`. Get the latest installers:
+### Releasing (desktop + mobile OTA)
+
+Publishing a GitHub release with a version tag runs the **release** workflow
+(`.github/workflows/release.yml`):
+
+```bash
+gh release create v0.6.0 --title "v0.6.0" --notes "What changed"
+```
+
+- **Desktop:** builds the Windows `.exe` and Linux `.deb` / `.AppImage` with
+  the tag's version, attaches them to that release, and recreates the rolling
+  **`desktop-latest`** release.
+- **Mobile:** publishes an over-the-air update to the EAS `preview` channel,
+  with the first line of the notes as its message. If native code changed since
+  the previous `v*` release (compared by Expo fingerprint, recorded on each
+  release as `mobile-fingerprint.json`), the OTA job fails instead: bump the
+  app version, run an EAS build, then release again.
+- Needs the `EXPO_TOKEN` repository secret. The API deploy and remote D1
+  migrations stay manual.
+
+Get the latest desktop installers:
 
 ```bash
 gh release download desktop-latest --pattern '*.deb' --dir ~/Downloads --clobber

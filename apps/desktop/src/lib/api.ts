@@ -20,8 +20,12 @@ import type {
   ListBooksResponse,
   ListTagsResponse,
   ListWorksResponse,
+  QueuePageReviewResponse,
+  QueueReviewResponse,
   RecentFile,
   RecentFilesResponse,
+  ReviewSummaryResponse,
+  SpendResponse,
   UpdateBookResponse,
   UpdateWorkResponse,
   UploadContentType,
@@ -310,6 +314,67 @@ export const api = {
   jobs: async (): Promise<JobsResponse> =>
     asJson<JobsResponse>(
       await fetch(`${base()}/api/jobs`, { headers: authHeaders() }),
+    ),
+
+  /**
+   * Queue the pages done before the book's review was switched on.
+   * Hand-edited and blank pages are left out.
+   */
+  queueReview: async ({
+    bookId,
+  }: {
+    bookId: string;
+  }): Promise<QueueReviewResponse> =>
+    asJson<QueueReviewResponse>(
+      await fetch(`${base()}/api/books/${bookId}/review`, {
+        method: "POST",
+        headers: authHeaders(),
+      }),
+    ),
+
+  /**
+   * Re-run one page's Opus review: queues it (even with the book's review
+   * off) and starts a review run unless one is already going.
+   */
+  reviewPage: async ({
+    bookId,
+    fileId,
+  }: {
+    bookId: string;
+    fileId: string;
+  }): Promise<QueuePageReviewResponse> =>
+    asJson<QueuePageReviewResponse>(
+      await fetch(`${base()}/api/books/${bookId}/files/${fileId}/review`, {
+        method: "POST",
+        headers: authHeaders(),
+      }),
+    ),
+
+  /** Opus review totals over the last `days` (for review cost estimates). */
+  reviewSummary: async ({
+    days,
+  }: {
+    days: number;
+  }): Promise<ReviewSummaryResponse> =>
+    asJson<ReviewSummaryResponse>(
+      await fetch(`${base()}/api/reviews/summary?days=${days}`, {
+        headers: authHeaders(),
+      }),
+    ),
+
+  /** What OCR and the Opus review cost over the last `days` (Usage). */
+  spend: async ({
+    days,
+    bookId,
+  }: {
+    days: number;
+    bookId?: string;
+  }): Promise<SpendResponse> =>
+    asJson<SpendResponse>(
+      await fetch(
+        `${base()}/api/spend?days=${days}${bookId ? `&book=${encodeURIComponent(bookId)}` : ""}`,
+        { headers: authHeaders() },
+      ),
     ),
 
   recentFiles: async (limit = 25): Promise<RecentFile[]> =>

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { colors } from "@/theme";
 
 const RUBY = /<ruby>(.*?)<rt>(.*?)<\/rt><\/ruby>/g;
 const BR = /<br\s*\/?>/gi;
@@ -141,9 +140,7 @@ const inline = (
     nodes.push(
       <span key={`${keyBase}-r${i}`}>
         {match[1]}
-        <span
-          style={{ fontSize: 13, color: colors.accent, whiteSpace: "pre-line" }}
-        >
+        <span className="whitespace-pre-line font-body text-small text-accent">
           {" "}
           ({withBreaks(match[2] ?? "")})
         </span>
@@ -181,18 +178,7 @@ export const Markdown = ({
     const key = `l${index}`;
 
     if (line === "---") {
-      blocks.push(
-        <hr
-          key={key}
-          style={{
-            height: 1,
-            border: 0,
-            backgroundColor: colors.hairline,
-            alignSelf: "stretch",
-            width: "100%",
-          }}
-        />,
-      );
+      blocks.push(<hr key={key} className="h-px w-full border-0 bg-line" />);
       return;
     }
 
@@ -200,23 +186,10 @@ export const Markdown = ({
     if (heading) {
       const level = heading[1].length;
       const content = heading[2];
+      // The footnote heading becomes the short rule above the footnotes.
       if (content.includes("الحاشية")) {
         inFootnotes = true;
-        blocks.push(
-          <p
-            key={key}
-            dir="rtl"
-            style={{
-              textAlign: "right",
-              color: colors.textMuted,
-              fontSize: 13,
-              fontWeight: 700,
-              marginTop: 8,
-            }}
-          >
-            {inline(content, key, highlight)}
-          </p>,
-        );
+        blocks.push(<div key={key} className="h-px w-40 self-end bg-line" />);
         return;
       }
       const major = level <= 2;
@@ -224,13 +197,11 @@ export const Markdown = ({
         <p
           key={key}
           dir="rtl"
-          style={{
-            textAlign: "right",
-            marginTop: major ? 8 : 4,
-            fontSize: major ? 22 : 17,
-            fontWeight: major ? 700 : 600,
-            color: major ? colors.accent : colors.ink,
-          }}
+          className={
+            major
+              ? "text-center font-ar text-number font-bold leading-normal text-accent"
+              : "text-right font-ar text-section font-semibold leading-normal text-ink"
+          }
         >
           {inline(content, key, highlight)}
         </p>,
@@ -243,11 +214,7 @@ export const Markdown = ({
         <p
           key={key}
           dir="rtl"
-          style={{
-            textAlign: "center",
-            color: colors.textMuted,
-            fontSize: 13,
-          }}
+          className="text-center font-ar text-body font-medium leading-[1.6] text-ink-3"
         >
           {inline(line, key, highlight)}
         </p>,
@@ -259,21 +226,16 @@ export const Markdown = ({
       <p
         key={key}
         dir="rtl"
-        style={{
-          textAlign: "right",
-          color: inFootnotes ? colors.textSecondary : colors.ink,
-          fontSize: inFootnotes ? 15 : 19,
-          lineHeight: inFootnotes ? "26px" : "34px",
-        }}
+        className={
+          inFootnotes
+            ? "text-right font-ar text-body leading-[1.6] text-ink-2"
+            : "text-right font-ar text-section leading-[1.9] text-ink"
+        }
       >
         {inline(line, key, highlight)}
       </p>,
     );
   });
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {blocks}
-    </div>
-  );
+  return <div className="flex flex-col gap-4">{blocks}</div>;
 };

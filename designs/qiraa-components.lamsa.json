@@ -2826,6 +2826,13 @@
                   }
                 }
               },
+              "100": {
+                "evrVNtC7": {
+                  "style": {
+                    "width": "100%"
+                  }
+                }
+              },
               "25": {
                 "evrVNtC7": {
                   "style": {
@@ -2837,13 +2844,6 @@
                 "evrVNtC7": {
                   "style": {
                     "width": "90%"
-                  }
-                }
-              },
-              "100": {
-                "evrVNtC7": {
-                  "style": {
-                    "width": "100%"
                   }
                 }
               }
@@ -5658,9 +5658,22 @@
             "default": "default",
             "options": [
               "default",
-              "pressed"
+              "pressed",
+              "disabled"
             ],
             "overrides": {
+              "disabled": {
+                "GMxU95JX": {
+                  "style": {
+                    "opacity": 0.4
+                  }
+                },
+                "jrb5qyT2": {
+                  "style": {
+                    "opacity": 0.4
+                  }
+                }
+              },
               "pressed": {
                 "r5UVzwDh": {
                   "style": {

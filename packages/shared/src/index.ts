@@ -89,6 +89,42 @@ export interface QueueReviewResponse {
   already_queued?: number;
 }
 
+/** POST /api/books/:bookId/files/:fileId/review (202) */
+export interface QueuePageReviewResponse {
+  success: true;
+  /** The page was newly added to the review queue. */
+  queued: boolean;
+  /** The page was already waiting or in a running batch. */
+  already_queued: boolean;
+  /**
+   * A review run was started for it (or one started this minute already
+   * exists). False: a run is going, and the page waits for the next one.
+   */
+  run_started: boolean;
+  /** The run's Workflow instance id when run_started, else null. */
+  instance_id: string | null;
+}
+
+/**
+ * Why a page can't be sent for review, or null if it can. Mirrors the API's
+ * 409s for POST .../files/:fileId/review.
+ */
+export const pageReviewBlockedReason = (
+  file: Pick<FileStatus, "state" | "preview" | "text_edited_at">,
+): string | null => {
+  if (file.state !== "done") return "Not transcribed yet";
+  if (file.preview?.trim() === "") return "Blank page, nothing to review";
+  if (file.text_edited_at !== null)
+    return "Hand-edited pages can't be reviewed";
+  return null;
+};
+
+/** The short notice shown after a page was sent for review. */
+export const pageReviewNotice = (res: QueuePageReviewResponse): string =>
+  res.run_started
+    ? "Queued; review started"
+    : "Queued; starts with the next run";
+
 /** Outcome of one page's review try (page_reviews.status). */
 export type PageReviewStatus =
   | "applied"
