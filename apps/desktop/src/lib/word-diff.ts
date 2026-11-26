@@ -34,46 +34,67 @@ export const isMarkup = (token: string) => MARKUP.test(token);
 const countWords = (tokens: string[]) =>
   tokens.filter((token) => !WHITESPACE.test(token) && !isMarkup(token)).length;
 
-/** The end index of the line `count` lines into `text` (after its newline). */
-const afterLines = ({ text, count }: { text: string; count: number }) => {
-  let index = 0;
-  for (let line = 0; line < count; line++) {
-    const next = text.indexOf("\n", index);
-    if (next === -1) return text.length;
-    index = next + 1;
-  }
-  return index;
-};
+const RUBY_OPEN = "<ruby>";
+const RUBY_CLOSE = "</ruby>";
 
-/** The start index of the last `count` lines of `text`. */
-const beforeLastLines = ({ text, count }: { text: string; count: number }) => {
-  let index = text.length;
-  for (let line = 0; line <= count; line++) {
-    const previous = text.lastIndexOf("\n", index - 1);
-    if (previous === -1) return 0;
-    index = previous;
+const rubyDepthChange = (token: string) =>
+  token === RUBY_OPEN ? 1 : token === RUBY_CLOSE ? -1 : 0;
+
+/**
+ * Indexes just after each newline in `text` that sits outside any gloss, given
+ * the gloss depth at the start of `text`. A fold may only start or end there,
+ * so it never cuts a <ruby> in half.
+ */
+const lineStartsOutsideGlosses = ({
+  text,
+  startDepth,
+}: {
+  text: string;
+  startDepth: number;
+}) => {
+  const starts: number[] = [];
+  let depth = startDepth;
+  let offset = 0;
+  for (const token of tokenize(text)) {
+    depth += rubyDepthChange(token);
+    if (depth === 0 && WHITESPACE.test(token)) {
+      let newline = token.indexOf("\n");
+      while (newline !== -1) {
+        starts.push(offset + newline + 1);
+        newline = token.indexOf("\n", newline + 1);
+      }
+    }
+    offset += token.length;
   }
-  return index + 1;
+  return starts;
 };
 
 const foldUnchanged = ({
   text,
+  startDepth,
   isFirst,
   isLast,
 }: {
   text: string;
+  startDepth: number;
   isFirst: boolean;
   isLast: boolean;
 }): DiffSegment[] => {
-  const headEnd = isFirst ? 0 : afterLines({ text, count: CONTEXT_LINES });
+  const starts = lineStartsOutsideGlosses({ text, startDepth });
+  const headEnd = isFirst ? 0 : starts[CONTEXT_LINES - 1];
   const tailStart = isLast
     ? text.length
-    : beforeLastLines({ text, count: CONTEXT_LINES });
-  const folded = text.slice(headEnd, tailStart);
-  const lines = folded.split("\n").length - (folded.endsWith("\n") ? 1 : 0);
-  if (tailStart <= headEnd || lines < MIN_FOLDED_LINES) {
+    : starts[starts.length - CONTEXT_LINES - 1];
+  if (
+    headEnd === undefined ||
+    tailStart === undefined ||
+    tailStart <= headEnd
+  ) {
     return [{ kind: "same", text }];
   }
+  const folded = text.slice(headEnd, tailStart);
+  const lines = folded.split("\n").length - (folded.endsWith("\n") ? 1 : 0);
+  if (lines < MIN_FOLDED_LINES) return [{ kind: "same", text }];
   return [
     { kind: "same" as const, text: text.slice(0, headEnd) },
     { kind: "folded" as const, text: folded, lines },
@@ -92,21 +113,98 @@ export const wordDiff = ({
   const changes = diffArrays(tokenize(before), tokenize(after));
   let wordsAdded = 0;
   let wordsRemoved = 0;
+  // Gloss depth in the after text (unchanged + added tokens), which is the
+  // structure the diff is drawn in.
+  let afterDepth = 0;
   const segments = changes.flatMap((change, index): DiffSegment[] => {
     const text = change.value.join("");
-    if (change.added) {
-      wordsAdded += countWords(change.value);
-      return [{ kind: "added", text }];
-    }
     if (change.removed) {
       wordsRemoved += countWords(change.value);
       return [{ kind: "removed", text }];
     }
+    const startDepth = afterDepth;
+    for (const token of change.value) afterDepth += rubyDepthChange(token);
+    if (change.added) {
+      wordsAdded += countWords(change.value);
+      return [{ kind: "added", text }];
+    }
     return foldUnchanged({
       text,
+      startDepth,
       isFirst: index === 0,
       isLast: index === changes.length - 1,
     });
   });
   return { segments, wordsAdded, wordsRemoved };
+};
+
+export interface DiffPiece {
+  kind: ChangeKind;
+  text: string;
+}
+
+export type DiffNode =
+  | ({ type: "text" } & DiffPiece)
+  | { type: "gloss"; base: DiffPiece[]; gloss: DiffPiece[] };
+
+const pushPiece = ({
+  pieces,
+  piece,
+}: {
+  pieces: DiffPiece[];
+  piece: DiffPiece;
+}) => {
+  const last = pieces.at(-1);
+  if (last?.kind === piece.kind) last.text += piece.text;
+  else pieces.push({ ...piece });
+};
+
+/**
+ * Turns diffed pieces back into running text and glosses, so a gloss renders
+ * the way the reader shows it rather than as raw <ruby>/<rt> tags. The gloss
+ * structure comes from the after text; tags that only the before text had are
+ * dropped, and their words show as removed wherever they now fall.
+ */
+export const toDiffNodes = (pieces: DiffPiece[]): DiffNode[] => {
+  const nodes: DiffNode[] = [];
+  let open: { base: DiffPiece[]; gloss: DiffPiece[] } | null = null;
+  let inGloss = false;
+  const closeGloss = () => {
+    if (open) nodes.push({ type: "gloss", ...open });
+    open = null;
+    inGloss = false;
+  };
+  for (const { kind, text } of pieces) {
+    for (const token of tokenize(text)) {
+      if (isMarkup(token)) {
+        if (kind === "removed") continue;
+        if (token === RUBY_OPEN) {
+          closeGloss();
+          open = { base: [], gloss: [] };
+          continue;
+        }
+        if (token === "<rt>") {
+          inGloss = open !== null;
+          continue;
+        }
+        if (token === "</rt>") {
+          inGloss = false;
+          continue;
+        }
+        if (token === RUBY_CLOSE) {
+          closeGloss();
+          continue;
+        }
+      }
+      const piece = { kind, text: token };
+      if (open) pushPiece({ pieces: inGloss ? open.gloss : open.base, piece });
+      else {
+        const last = nodes.at(-1);
+        if (last?.type === "text" && last.kind === kind) last.text += token;
+        else nodes.push({ type: "text", ...piece });
+      }
+    }
+  }
+  closeGloss();
+  return nodes;
 };

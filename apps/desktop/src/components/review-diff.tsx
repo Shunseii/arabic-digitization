@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noArrayIndexKey: diff pieces and edits are derived lists that never reorder
 import {
   type PageReviewStatus,
   REVIEW_CATEGORY_LABELS,
@@ -9,8 +10,11 @@ import { cx, Tag, type Tone } from "@/components/ui";
 import { count, plural } from "@/lib/format";
 import {
   type ChangeKind,
+  type DiffNode,
+  type DiffPiece,
   type DiffSegment,
   isMarkup,
+  toDiffNodes,
   tokenize,
 } from "@/lib/word-diff";
 
@@ -50,9 +54,36 @@ const Tokens = ({ text }: { text: string }) =>
     ),
   );
 
-const FoldedLines = ({ segment }: { segment: DiffSegment }) => {
+/** Running text with glosses drawn the way the reader shows them: base (gloss). */
+const DiffNodes = ({ pieces }: { pieces: DiffPiece[] }) =>
+  toDiffNodes(pieces).map((node: DiffNode, index) =>
+    node.type === "text" ? (
+      <span key={index} className={CHANGE_STYLE[node.kind]}>
+        {node.text}
+      </span>
+    ) : (
+      <span key={index}>
+        {node.base.map((piece, pieceIndex) => (
+          <span key={pieceIndex} className={CHANGE_STYLE[piece.kind]}>
+            {piece.text}
+          </span>
+        ))}
+        <span className="whitespace-pre-line font-body text-small text-accent">
+          {" ("}
+          {node.gloss.map((piece, pieceIndex) => (
+            <span key={pieceIndex} className={CHANGE_STYLE[piece.kind]}>
+              {piece.text}
+            </span>
+          ))}
+          {")"}
+        </span>
+      </span>
+    ),
+  );
+
+const FoldedLines = ({ text, lines }: { text: string; lines: number }) => {
   const [open, setOpen] = useState(false);
-  if (open) return <Tokens text={segment.text} />;
+  if (open) return <DiffNodes pieces={[{ kind: "same", text }]} />;
   return (
     <button
       type="button"
@@ -61,15 +92,26 @@ const FoldedLines = ({ segment }: { segment: DiffSegment }) => {
       className="my-2 flex w-full items-center justify-center gap-2 rounded-sm bg-surface-2 py-1.5 font-body text-small font-medium text-ink-2 hover:text-ink"
     >
       <ChevronsUpDown size={14} />
-      {segment.kind === "folded" &&
-        plural({
-          n: segment.lines,
-          one: "unchanged line",
-          many: "unchanged lines",
-        })}
+      {plural({ n: lines, one: "unchanged line", many: "unchanged lines" })}
     </button>
   );
 };
+
+type DiffBlock =
+  | { type: "pieces"; pieces: DiffPiece[] }
+  | { type: "folded"; text: string; lines: number };
+
+const toBlocks = (segments: DiffSegment[]) =>
+  segments.reduce<DiffBlock[]>((blocks, segment) => {
+    if (segment.kind === "folded") {
+      blocks.push({ type: "folded", text: segment.text, lines: segment.lines });
+      return blocks;
+    }
+    const last = blocks.at(-1);
+    if (last?.type === "pieces") last.pieces.push(segment);
+    else blocks.push({ type: "pieces", pieces: [segment] });
+    return blocks;
+  }, []);
 
 /** The before and after texts as one RTL text: deletions struck, insertions marked. */
 export const DiffText = ({ segments }: { segments: DiffSegment[] }) => (
@@ -77,13 +119,11 @@ export const DiffText = ({ segments }: { segments: DiffSegment[] }) => (
     dir="rtl"
     className="whitespace-pre-wrap text-right font-ar text-section leading-[2.1] text-ink"
   >
-    {segments.map((segment, index) =>
-      segment.kind === "folded" ? (
-        <FoldedLines key={index} segment={segment} />
+    {toBlocks(segments).map((block, index) =>
+      block.type === "folded" ? (
+        <FoldedLines key={index} text={block.text} lines={block.lines} />
       ) : (
-        <span key={index} className={CHANGE_STYLE[segment.kind]}>
-          <Tokens text={segment.text} />
-        </span>
+        <DiffNodes key={index} pieces={block.pieces} />
       ),
     )}
   </div>
