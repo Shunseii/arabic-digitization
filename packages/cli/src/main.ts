@@ -96,9 +96,11 @@ Review (Opus proofreads OCR'd pages against the scan; costs money, ~$0.03/page)
   corpus review <book> <fileId|page...>
                                   review specific pages now (even with review off)
   corpus reviews [--days n] [--book <book>]
-                                  review totals: pages, edits by category, cost,
+                                  review totals: pages, words added/removed, cost,
                                   batch timing
-  corpus reviews <book> <fileId|page>     a page's reviews and their edits
+  corpus reviews <book> <fileId|page>
+                                  a page's reviews: status, cost, words added/removed
+                                  (older reviews: their find-and-replace edits)
                                   Reviews never touch hand-edited pages; each applied
                                   review is a "review" entry in corpus history.
 

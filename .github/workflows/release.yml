@@ -182,10 +182,10 @@ jobs:
         run: |
           mkdir -p latest-assets
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir latest-assets \
-            --pattern '*.AppImage' --pattern '*.deb' --pattern '*.exe'
+            --pattern 'Qiraa*.AppImage' --pattern 'Qiraa*.deb' --pattern 'Qiraa*.exe'
           # A fixed name and its checksum for scripts/install-desktop.sh,
           # which installs from this release.
-          cp latest-assets/*.AppImage latest-assets/Qiraa-x86_64.AppImage
+          cp latest-assets/Qiraa-*-x86_64.AppImage latest-assets/Qiraa-x86_64.AppImage
           (cd latest-assets && sha256sum Qiraa-x86_64.AppImage > qiraa-desktop-checksums.txt)
           cp scripts/install-desktop.sh latest-assets/
           gh release delete desktop-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true

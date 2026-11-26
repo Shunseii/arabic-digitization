@@ -74,8 +74,9 @@ release (stable download URL). The same run publishes the mobile OTA update.
 Each app is skipped when nothing it's built from changed since the last
 release that shipped it.
 
-Install on Linux with `scripts/install-desktop.sh` (published on
-`desktop-latest`; see "Releasing" in the root README); re-running it updates.
+Install and update: see "Desktop app" in the root README (Linux:
+`scripts/install-desktop.sh`, published on `desktop-latest`; Windows: the
+Setup `.exe`).
 There is no auto-updater and no code signing yet.
 
 ## App icons

@@ -111,6 +111,30 @@ corpus books
 
 Install details, non-interactive auth, env vars, update, uninstall and building from source: [`packages/cli/README.md`](packages/cli/README.md).
 
+## Desktop app
+
+The رقمنة desktop app (`apps/desktop`) runs on Linux and Windows. Every release
+that changes it refreshes the
+[`desktop-latest`](https://github.com/Shunseii/arabic-digitization/releases/tag/desktop-latest)
+release.
+
+- **Linux** (x86_64, per user, no sudo):
+
+  ```sh
+  curl -fsSL https://github.com/Shunseii/arabic-digitization/releases/download/desktop-latest/install-desktop.sh | sh
+  ```
+
+  It checks the AppImage's SHA-256, extracts it to
+  `~/.local/share/qiraa-app/releases/<version>` (`current` points at the one in
+  use), and adds a `qiraa-app` launcher in `~/.local/bin` and a menu entry.
+  Re-run it to update (it keeps one previous version), then restart the app.
+  Remove it with `… | sh -s -- --uninstall`. Don't also install the `.deb`, or
+  you get two menu entries.
+- **Windows:** download and run `Qiraa.Setup.<version>.exe` from `desktop-latest`.
+  To update, run the newer one.
+
+There is no auto-update yet. Set the API URL and key under **Settings** in the app.
+
 ## Develop
 
 ```bash
@@ -210,19 +234,7 @@ version-only change never counts as an app change below.
 - Needs the `EXPO_TOKEN` repository secret. The API deploy and remote D1
   migrations stay manual.
 
-Install or update the desktop app:
-
-- **Linux** (per user, no sudo; re-run to update, `--uninstall` to remove):
-
-  ```bash
-  curl -fsSL https://github.com/Shunseii/arabic-digitization/releases/download/desktop-latest/install-desktop.sh | sh
-  ```
-
-  It installs to `~/.local/share/qiraa-app` with a `qiraa-app` launcher and a
-  menu entry. Don't also install the `.deb`, or you get two menu entries.
-- **Windows:** run the `Qiraa Setup <version>.exe` from the
-  [`desktop-latest`](https://github.com/Shunseii/arabic-digitization/releases/tag/desktop-latest)
-  release.
+Installing the desktop app: see [Desktop app](#desktop-app).
 
 Build installers locally instead (output in `apps/desktop/release/`):
 

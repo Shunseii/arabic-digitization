@@ -34,17 +34,17 @@ Options, set as environment variables for the installer:
 
 | Variable | Effect |
 | --- | --- |
-| `CORPUS_VERSION=v0.6.0` | Install that release instead of the latest (pin or downgrade). |
+| `CORPUS_VERSION=v0.6.1` | Install that release instead of the latest (pin or downgrade; v0.6.1 is the first with the CLI). |
 | `CORPUS_INSTALL_DIR=/some/dir` | Install somewhere else. |
 | `CORPUS_NO_MODIFY_PATH=1` | Don't touch shell startup files or the user PATH. |
 | `CORPUS_DOWNLOAD_BASE=<url>` | Download the assets from this base URL instead of GitHub (mirrors, testing). |
 
 ```sh
-curl -fsSL https://github.com/Shunseii/arabic-digitization/releases/latest/download/install.sh | CORPUS_VERSION=v0.6.0 sh
+curl -fsSL https://github.com/Shunseii/arabic-digitization/releases/latest/download/install.sh | CORPUS_VERSION=v0.6.1 sh
 ```
 
 ```powershell
-$env:CORPUS_VERSION = 'v0.6.0'; irm https://github.com/Shunseii/arabic-digitization/releases/latest/download/install.ps1 | iex
+$env:CORPUS_VERSION = 'v0.6.1'; irm https://github.com/Shunseii/arabic-digitization/releases/latest/download/install.ps1 | iex
 ```
 
 ## Configure credentials
