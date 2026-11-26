@@ -117,38 +117,55 @@ Options
   --help     this help
 `;
 
-const { values: opts, positionals } = parseArgs({
-  allowPositionals: true,
-  options: {
-    json: { type: "boolean", default: false },
-    yes: { type: "boolean", default: false },
-    help: { type: "boolean", short: "h", default: false },
-    version: { type: "boolean", short: "v", default: false },
-    url: { type: "string" },
-    "key-stdin": { type: "boolean", default: false },
-    "meili-url": { type: "string" },
-    "meili-key-stdin": { type: "boolean", default: false },
-    "1password": { type: "boolean", default: false },
-    title: { type: "string" },
-    id: { type: "string" },
-    instructions: { type: "string" },
-    engine: { type: "string" },
-    work: { type: "string" },
-    state: { type: "string" },
-    states: { type: "string" },
-    book: { type: "string" },
-    ratio: { type: "string" },
-    limit: { type: "string" },
-    rev: { type: "string" },
-    old: { type: "string" },
-    new: { type: "string" },
-    edits: { type: "string" },
-    note: { type: "string" },
-    days: { type: "string" },
-    all: { type: "boolean", default: false },
-    "new-only": { type: "boolean", default: false },
-  },
-});
+const CLI_OPTIONS = {
+  json: { type: "boolean", default: false },
+  yes: { type: "boolean", default: false },
+  help: { type: "boolean", short: "h", default: false },
+  version: { type: "boolean", short: "v", default: false },
+  url: { type: "string" },
+  "key-stdin": { type: "boolean", default: false },
+  "meili-url": { type: "string" },
+  "meili-key-stdin": { type: "boolean", default: false },
+  "1password": { type: "boolean", default: false },
+  title: { type: "string" },
+  id: { type: "string" },
+  instructions: { type: "string" },
+  engine: { type: "string" },
+  work: { type: "string" },
+  state: { type: "string" },
+  states: { type: "string" },
+  book: { type: "string" },
+  ratio: { type: "string" },
+  limit: { type: "string" },
+  rev: { type: "string" },
+  old: { type: "string" },
+  new: { type: "string" },
+  edits: { type: "string" },
+  note: { type: "string" },
+  days: { type: "string" },
+  all: { type: "boolean", default: false },
+  "new-only": { type: "boolean", default: false },
+} as const;
+
+const isParseArgsError = (err: unknown): err is Error => {
+  const code: unknown =
+    err instanceof Error && "code" in err ? err.code : undefined;
+  return typeof code === "string" && code.startsWith("ERR_PARSE_ARGS_");
+};
+
+// Runs before main(), so a bad flag (unknown, or missing its value) must be
+// reported here as a usage error rather than escaping as an uncaught throw.
+const parseCliArgs = () => {
+  try {
+    return parseArgs({ allowPositionals: true, options: CLI_OPTIONS });
+  } catch (err) {
+    if (!isParseArgsError(err)) throw err;
+    console.error(`corpus: ${err.message}\nRun \`corpus --help\` for usage.`);
+    process.exit(2);
+  }
+};
+
+const { values: opts, positionals } = parseCliArgs();
 
 // Edits from --old/--new, or a JSON array from --edits <file> ("-" = stdin).
 const readEdits = (): TextEdit[] => {
