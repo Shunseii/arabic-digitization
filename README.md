@@ -206,11 +206,19 @@ gh release create v0.6.0 --title "v0.6.0" --notes "What changed"
 - Needs the `EXPO_TOKEN` repository secret. The API deploy and remote D1
   migrations stay manual.
 
-Get the latest desktop installers:
+Install or update the desktop app:
 
-```bash
-gh release download desktop-latest --pattern '*.deb' --dir ~/Downloads --clobber
-```
+- **Linux** (per user, no sudo; re-run to update, `--uninstall` to remove):
+
+  ```bash
+  curl -fsSL https://github.com/Shunseii/arabic-digitization/releases/download/desktop-latest/install-desktop.sh | sh
+  ```
+
+  It installs to `~/.local/share/qiraa-app` with a `qiraa-app` launcher and a
+  menu entry. Don't also install the `.deb`, or you get two menu entries.
+- **Windows:** run the `Qiraa Setup <version>.exe` from the
+  [`desktop-latest`](https://github.com/Shunseii/arabic-digitization/releases/tag/desktop-latest)
+  release.
 
 Build installers locally instead (output in `apps/desktop/release/`):
 

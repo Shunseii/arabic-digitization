@@ -74,8 +74,9 @@ release (stable download URL). The same run publishes the mobile OTA update.
 Each app is skipped when nothing it's built from changed since the last
 release that shipped it.
 
-There is no auto-updater and no code signing yet — users download the installer
-from the release page.
+Install on Linux with `scripts/install-desktop.sh` (published on
+`desktop-latest`; see "Releasing" in the root README); re-running it updates.
+There is no auto-updater and no code signing yet.
 
 ## App icons
 
