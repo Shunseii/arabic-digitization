@@ -1,9 +1,11 @@
 // Electron main process. The renderer is the Vite-built React app in dist/
 // (or the dev server in development) — it talks to the Cloudflare Worker over
-// fetch, so the main process needs no IPC, just a window. Chosen over a system
-// webview because Chromium shapes Arabic far better than Linux WebKitGTK.
+// fetch, so the main process needs no IPC, just a window and the auto-updater
+// (updater.cjs). Chosen over a system webview because Chromium shapes Arabic
+// far better than Linux WebKitGTK.
 const { app, BrowserWindow, nativeTheme, shell } = require("electron");
 const path = require("node:path");
+const { startAutoUpdates } = require("./updater.cjs");
 
 // The app name becomes the window identity Linux uses to match the window to its
 // installed .desktop file — the X11 WM_CLASS and, crucially on Wayland (GNOME,
@@ -57,6 +59,7 @@ const createWindow = () => {
 
 app.whenReady().then(() => {
   createWindow();
+  startAutoUpdates();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

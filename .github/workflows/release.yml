@@ -3,7 +3,10 @@ name: release
 # Publishing a GitHub release with a version tag (v1.2.3) ships the apps:
 #   - desktop: builds the Electron installers for Windows (.exe) and Linux
 #     (.deb / .AppImage), uploads them to that release, and mirrors them onto
-#     the rolling `desktop-latest` release;
+#     the rolling `desktop-latest` release. Installed apps auto-update from
+#     desktop-latest: Windows via electron-updater (latest.yml + the
+#     .exe.blockmap), Linux via electron/updater-linux.cjs
+#     (qiraa-desktop-version.txt, the fixed-name AppImage and its checksum);
 #   - mobile: publishes an over-the-air update to the EAS `preview` channel,
 #     unless native code changed since the last release (then it fails and asks
 #     for a new EAS build, because an OTA can't carry native changes);
@@ -152,6 +155,9 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: pnpm --filter @qiraa/desktop exec electron-builder ${{ matrix.builder_flag }} --publish never
 
+      # latest.yml and the .exe.blockmap feed the Windows auto-updater
+      # (electron-updater). Linux self-updates from the fixed-name AppImage
+      # that desktop-latest adds, so latest-linux.yml isn't uploaded.
       - name: Upload installers to the release
         shell: bash
         env:
@@ -160,7 +166,7 @@ jobs:
         run: |
           shopt -s nullglob
           cd apps/desktop/release
-          files=( *.AppImage *.deb *.exe )
+          files=( *.AppImage *.deb *.exe *.exe.blockmap latest.y[m]l )
           echo "Uploading: ${files[*]}"
           gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
@@ -181,12 +187,17 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           mkdir -p latest-assets
+          # Qiraa-prefixed, so the CLI's corpus-*.exe is never picked up.
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir latest-assets \
-            --pattern 'Qiraa*.AppImage' --pattern 'Qiraa*.deb' --pattern 'Qiraa*.exe'
-          # A fixed name and its checksum for scripts/install-desktop.sh,
-          # which installs from this release.
+            --pattern 'Qiraa*.AppImage' --pattern 'Qiraa*.deb' --pattern 'Qiraa*.exe' \
+            --pattern 'Qiraa*.exe.blockmap' --pattern 'latest.yml'
+          # Without latest.yml, installed Windows apps would stop updating.
+          test -f latest-assets/latest.yml || { echo "::error::latest.yml is missing from $TAG"; exit 1; }
+          # A fixed name and its checksum for scripts/install-desktop.sh and
+          # the Linux self-updater, plus the version the updater compares with.
           cp latest-assets/Qiraa-*-x86_64.AppImage latest-assets/Qiraa-x86_64.AppImage
           (cd latest-assets && sha256sum Qiraa-x86_64.AppImage > qiraa-desktop-checksums.txt)
+          printf '%s\n' "$VERSION" > latest-assets/qiraa-desktop-version.txt
           cp scripts/install-desktop.sh latest-assets/
           gh release delete desktop-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           # --latest=false keeps the v* release as GitHub's "Latest", which
