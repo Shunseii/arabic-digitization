@@ -89,9 +89,15 @@ beforeAll(async () => {
                    ${NOW} - (${BATCHES} - i / ${REVIEWS_PER_BATCH}) * 3 * ${HOUR} + 2 * ${HOUR},
                    'claude-opus-5-5', 'low',
                    CASE WHEN i % 10 = 9 THEN 'no_changes' WHEN i % 25 = 24 THEN 'errored' ELSE 'applied' END,
-                   3, 2, 1,
-                   '{"tashkeel":{"proposed":2,"applied":2,"failed":0},"spelling":{"proposed":1,"applied":0,"failed":1}}',
-                   '[{"find":"a","replace":"b","category":"tashkeel","applied":true}]',
+                   -- Book 1's reviews return the corrected page (a word diff);
+                   -- book 2's are older find-and-replace ones (edit counts).
+                   CASE WHEN i % 2 = 0 THEN 0 ELSE 3 END,
+                   CASE WHEN i % 2 = 0 THEN 0 ELSE 2 END,
+                   CASE WHEN i % 2 = 0 THEN 0 ELSE 1 END,
+                   CASE WHEN i % 2 = 1 THEN
+                     '{"tashkeel":{"proposed":2,"applied":2,"failed":0},"spelling":{"proposed":1,"applied":0,"failed":1}}' END,
+                   CASE WHEN i % 2 = 0 THEN '{"words_added":4,"words_removed":3}'
+                        ELSE '[{"find":"a","replace":"b","category":"tashkeel","applied":true}]' END,
                    12, 1500, 5000, 800, 0.02, i + 1 FROM n`,
     },
     // A hand edit after the review on every 20th reviewed page.
@@ -188,7 +194,13 @@ describe("GET /api/jobs", () => {
           request_counts: { processing: number };
         }[];
         waiting: { book_id: string; pages: number; retrying: number }[];
-        recent: { instance_id: string; stage: string; edits_applied: number }[];
+        recent: {
+          instance_id: string;
+          stage: string;
+          changed: number;
+          words_added: number;
+          words_removed: number;
+        }[];
       };
     }>({ label: "GET /api/jobs", path: "/api/jobs" });
 
@@ -228,6 +240,17 @@ describe("GET /api/jobs", () => {
       steps: 47,
       instance_id: "review-17",
       stage: "done",
+    });
+    const [batch17] = await h.query<{ changed: number; full_page: number }>(
+      `SELECT SUM(status = 'applied') AS changed,
+              SUM(status = 'applied' AND book_id = 'b1') AS full_page
+         FROM page_reviews WHERE batch_id = 'msgbatch_17'`,
+    );
+    expect(batch17?.full_page).toBeGreaterThan(0);
+    expect(body.review.recent[0]).toMatchObject({
+      changed: batch17?.changed,
+      words_added: (batch17?.full_page ?? 0) * 4,
+      words_removed: (batch17?.full_page ?? 0) * 3,
     });
     expect(body.review.waiting).toEqual([
       { book_id: "b2", title: "Book 2", pages: 30, retrying: 3 },
@@ -349,8 +372,7 @@ describe("GET /api/reviews/summary", () => {
       pages_reviewed: number;
       pages_changed: number;
       pages_not_reviewed: number;
-      edits: { proposed: number; applied: number; failed: number };
-      by_category: Record<string, { proposed: number }>;
+      words: { added: number; removed: number };
       text_changed_share: number;
       cost_per_page_usd: number;
       hand_edited_after_review: number;
@@ -370,13 +392,16 @@ describe("GET /api/reviews/summary", () => {
     });
     const pages = (BATCHES - 1) * REVIEWS_PER_BATCH - 10;
     expect(body.pages_reviewed + body.pages_not_reviewed).toBe(pages);
-    expect(body.edits.proposed).toBe(pages * 3);
-    expect(body.by_category.tashkeel?.proposed).toBe(pages * 2);
-    expect(body.by_category.quran).toEqual({
-      proposed: 0,
-      applied: 0,
-      failed: 0,
+    // Only applied full-page reviews have words; older rows count 0.
+    const [applied] = await h.query<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM page_reviews WHERE status = 'applied' AND book_id = 'b1'",
+    );
+    expect(applied?.n).toBeGreaterThan(0);
+    expect(body.words).toEqual({
+      added: (applied?.n ?? 0) * 4,
+      removed: (applied?.n ?? 0) * 3,
     });
+    expect(body).not.toHaveProperty("by_category");
     expect(body.text_changed_share).toBeGreaterThan(0);
     expect(body.hand_edited_after_review).toBeGreaterThan(0);
 
@@ -395,9 +420,9 @@ describe("GET /api/reviews/summary", () => {
 });
 
 describe("GET /api/books/:bookId/files/:fileId/reviews", () => {
-  it("lists a page's reviews with their edits", async () => {
+  it("lists a page's full-page reviews with their word diff", async () => {
     const { body, counts } = await readMeasured<{
-      reviews: { batch_id: string; edits: unknown[] }[];
+      reviews: Record<string, unknown>[];
     }>({
       label: "GET .../files/:fileId/reviews",
       path: "/api/books/b1/files/f0/reviews",
@@ -405,12 +430,34 @@ describe("GET /api/books/:bookId/files/:fileId/reviews", () => {
     expect(body.reviews).toEqual([
       expect.objectContaining({
         batch_id: "msgbatch_0",
+        format: "full_page",
+        words_added: 4,
+        words_removed: 3,
+        edits_proposed: 0,
+        edits: [],
+      }),
+    ]);
+    expect(counts.d1RowsRead).toBeLessThan(5);
+  });
+
+  it("still reads an older review's find-and-replace edits", async () => {
+    const response = await h.api("/api/books/b1/files/f1/reviews");
+    const body = (await response.json()) as {
+      reviews: Record<string, unknown>[];
+    };
+    expect(body.reviews).toEqual([
+      expect.objectContaining({
+        format: "edits",
+        words_added: null,
+        words_removed: null,
+        edits_proposed: 3,
+        edits_applied: 2,
+        edits_failed: 1,
         edits: [
           { find: "a", replace: "b", category: "tashkeel", applied: true },
         ],
       }),
     ]);
-    expect(counts.d1RowsRead).toBeLessThan(5);
   });
 });
 
@@ -424,6 +471,8 @@ describe("GET /api/reviews", () => {
       page_number: number | null;
       created_at: number;
       status: string;
+      format: string | null;
+      words_added: number | null;
       edits_applied: number;
       edits_failed: number;
       cost_usd: number;
@@ -442,11 +491,25 @@ describe("GET /api/reviews", () => {
     expect(body.reviews[0]).toMatchObject({
       batch_id: "msgbatch_18",
       book_title: expect.stringMatching(/^Book [12]$/),
-      edits_applied: 2,
-      edits_failed: 1,
       cost_usd: 0.02,
       revision_id: expect.any(Number),
     });
+    for (const review of body.reviews) {
+      if (review.book_id === "b1") {
+        expect(review).toMatchObject({
+          format: "full_page",
+          words_added: 4,
+          edits_applied: 0,
+        });
+      } else {
+        expect(review).toMatchObject({
+          format: "edits",
+          words_added: null,
+          edits_applied: 2,
+          edits_failed: 1,
+        });
+      }
+    }
     // Each listed review: its index entry, its row, its book and its page.
     expect(counts.d1RowsRead).toBeLessThan(250);
   });

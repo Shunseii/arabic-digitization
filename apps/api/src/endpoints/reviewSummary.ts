@@ -2,7 +2,6 @@ import { Effect, Schema } from "effect";
 import { HttpApiEndpoint, OpenApi } from "effect/http-api";
 import { type EndpointHandler, WorkerContext } from "../http/context";
 import { respond } from "../http/respond";
-import { REVIEW_CATEGORIES } from "../review/prompt";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_DAYS = 30;
@@ -90,12 +89,6 @@ const BATCH_TIMING_SQL = `
                  MAX(duration) AS duration_max, MAX(lag) AS lag_max
             FROM b) a`;
 
-const EditCounts = Schema.Struct({
-  proposed: Schema.Int,
-  applied: Schema.Int,
-  failed: Schema.Int.annotate({ description: "Failed to apply" }),
-});
-
 // The Usage dashboard's review panel: totals over page_reviews in a window.
 export const ReviewSummary = HttpApiEndpoint.get(
   "reviewSummary",
@@ -131,11 +124,16 @@ export const ReviewSummary = HttpApiEndpoint.get(
           "Reviews not applied because the page was hand-edited, changed or deleted meanwhile",
       }),
       by_status: Schema.Record(Schema.String, Schema.Int),
-      edits: EditCounts,
-      by_category: Schema.Record(Schema.String, EditCounts),
+      words: Schema.Struct({
+        added: Schema.Int,
+        removed: Schema.Int,
+      }).annotate({
+        description:
+          "Words the applied corrections added and removed (a word diff; reviews from before full-page answers count 0)",
+      }),
       text_changed_share: Schema.NullOr(Schema.Number).annotate({
         description:
-          "Characters changed by applied edits / characters of the reviewed pages",
+          "Characters changed by applied reviews / characters of the reviewed pages",
       }),
       cost_usd: Schema.Number,
       cost_per_page_usd: Schema.NullOr(Schema.Number).annotate({
@@ -152,24 +150,13 @@ export const ReviewSummary = HttpApiEndpoint.get(
 interface StatusRow {
   status: string;
   pages: number;
-  proposed: number;
-  applied: number;
-  failed: number;
   chars_changed: number;
   chars_total: number;
   cost_usd: number;
   hand_edited: number;
+  words_added: number | null;
+  words_removed: number | null;
 }
-
-const CATEGORY_FIELDS = ["proposed", "applied", "failed"] as const;
-
-// e.g. SUM(json_extract(r.categories, '$.tashkeel.applied')) AS tashkeel_applied
-const CATEGORY_SUMS = REVIEW_CATEGORIES.flatMap((category) =>
-  CATEGORY_FIELDS.map(
-    (field) =>
-      `SUM(json_extract(r.categories, '$.${category}.${field}')) AS ${category}_${field}`,
-  ),
-).join(",\n                ");
 
 export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
   query,
@@ -178,21 +165,19 @@ export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
     const { env } = yield* WorkerContext;
     const since = Date.now() - (query.days ?? DEFAULT_DAYS) * DAY_MS;
     const book = query.book ?? null;
-    // One pass over the window's rows (idx_page_reviews_created). Categories
-    // are read with json_extract on their fixed keys rather than json_each,
-    // which would read every row once per category.
+    // One pass over the window's rows (idx_page_reviews_created).
     const [statusResult, timingResult] = yield* Effect.promise(() =>
       env.DB.batch([
         env.DB.prepare(
           `SELECT r.status, COUNT(*) AS pages,
-                SUM(r.edits_proposed) AS proposed, SUM(r.edits_applied) AS applied,
-                SUM(r.edits_failed) AS failed, SUM(r.chars_changed) AS chars_changed,
+                SUM(r.chars_changed) AS chars_changed,
                 SUM(r.chars_total) AS chars_total, SUM(r.cost_usd) AS cost_usd,
+                SUM(CASE WHEN r.status = 'applied' THEN json_extract(r.edits, '$.words_added') END) AS words_added,
+                SUM(CASE WHEN r.status = 'applied' THEN json_extract(r.edits, '$.words_removed') END) AS words_removed,
                 SUM(CASE WHEN r.status = 'applied' THEN EXISTS (
                       SELECT 1 FROM text_revisions t
                        WHERE t.file_id = r.file_id AND t.created_at > r.created_at
-                         AND t.change = 'edit') ELSE 0 END) AS hand_edited,
-                ${CATEGORY_SUMS}
+                         AND t.change = 'edit') ELSE 0 END) AS hand_edited
            FROM page_reviews r
           WHERE r.created_at >= ?1 AND (?2 IS NULL OR r.book_id = ?2)
           GROUP BY r.status`,
@@ -200,8 +185,7 @@ export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
         env.DB.prepare(BATCH_TIMING_SQL).bind(since),
       ]),
     );
-    const statuses = (statusResult?.results ?? []) as (StatusRow &
-      Record<string, number | null>)[];
+    const statuses = (statusResult?.results ?? []) as StatusRow[];
     const timing = (timingResult?.results[0] ?? null) as BatchTimingRow | null;
 
     const count = (names: readonly string[]) =>
@@ -215,19 +199,6 @@ export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
       .filter((row) => REVIEWED.includes(row.status))
       .reduce((n, row) => n + row.chars_total, 0);
     const costUsd = sum("cost_usd");
-
-    const categorySum = (column: string) =>
-      statuses.reduce((n, row) => n + (row[column] ?? 0), 0);
-    const byCategory = Object.fromEntries(
-      REVIEW_CATEGORIES.map((category) => [
-        category,
-        {
-          proposed: categorySum(`${category}_proposed`),
-          applied: categorySum(`${category}_applied`),
-          failed: categorySum(`${category}_failed`),
-        },
-      ]),
-    );
 
     return respond({
       endpoint: ReviewSummary,
@@ -247,12 +218,7 @@ export const reviewSummary: EndpointHandler<typeof ReviewSummary> = ({
         by_status: Object.fromEntries(
           statuses.map((row) => [row.status, row.pages]),
         ),
-        edits: {
-          proposed: sum("proposed"),
-          applied: sum("applied"),
-          failed: sum("failed"),
-        },
-        by_category: byCategory,
+        words: { added: sum("words_added"), removed: sum("words_removed") },
         text_changed_share:
           charsTotal > 0 ? sum("chars_changed") / charsTotal : null,
         cost_usd: costUsd,

@@ -3,12 +3,12 @@ import { HttpApiEndpoint, OpenApi } from "effect/http-api";
 import { type EndpointHandler, WorkerContext } from "../http/context";
 import { NotFound, notFound } from "../http/errors";
 import { respond } from "../http/respond";
-import { REVIEW_CATEGORIES } from "../review/prompt";
+import type { PageReviewDetail } from "../review/apply";
 
 const ReviewedEdit = Schema.Struct({
   find: Schema.String,
   replace: Schema.String,
-  category: Schema.Literals(REVIEW_CATEGORIES),
+  category: Schema.String,
   applied: Schema.Boolean.annotate({
     description:
       "False when `find` didn't match exactly once (failed to apply)",
@@ -24,10 +24,24 @@ const PageReview = Schema.Struct({
   status: Schema.String,
   error_type: Schema.NullOr(Schema.String),
   error: Schema.NullOr(Schema.String),
-  edits_proposed: Schema.Int,
+  format: Schema.NullOr(Schema.Literals(["full_page", "edits"])).annotate({
+    description:
+      "full_page: Opus returned the corrected page, diffed by the server (words_*); edits: an older find-and-replace review (edits, edits_*); null: no answer was compared with the page",
+  }),
+  words_added: Schema.NullOr(Schema.Int).annotate({
+    description: "Word diff of the correction (full_page only)",
+  }),
+  words_removed: Schema.NullOr(Schema.Int),
+  edits_proposed: Schema.Int.annotate({
+    description: "Older find-and-replace reviews only; 0 for full_page",
+  }),
   edits_applied: Schema.Int,
-  edits_failed: Schema.Int,
-  edits: Schema.Array(ReviewedEdit),
+  edits_failed: Schema.Int.annotate({
+    description: "Edits whose find didn't match exactly once",
+  }),
+  edits: Schema.Array(ReviewedEdit).annotate({
+    description: "Older find-and-replace reviews only; empty otherwise",
+  }),
   chars_changed: Schema.Int,
   chars_total: Schema.Int,
   cost_usd: Schema.Number,
@@ -37,7 +51,8 @@ const PageReview = Schema.Struct({
   }),
 });
 
-// One page's Opus reviews, newest first, with each edit and its category.
+// One page's Opus reviews, newest first, with how much each changed (a
+// full-page review) or its edits (an older find-and-replace one).
 export const FileReviews = HttpApiEndpoint.get(
   "fileReviews",
   "/api/books/:bookId/files/:fileId/reviews",
@@ -50,10 +65,41 @@ export const FileReviews = HttpApiEndpoint.get(
     }),
     error: NotFound,
   },
-).annotate(OpenApi.Summary, "List a file's Opus reviews and their edits");
+).annotate(OpenApi.Summary, "List a file's Opus reviews and what they changed");
 
-type PageReviewRow = Omit<typeof PageReview.Type, "edits"> & {
+type PageReviewRow = Omit<
+  typeof PageReview.Type,
+  "format" | "words_added" | "words_removed" | "edits"
+> & {
   edits: string | null;
+};
+
+type ReviewDetails = Pick<
+  typeof PageReview.Type,
+  "format" | "words_added" | "words_removed" | "edits"
+>;
+
+// page_reviews.edits holds the edit list of a find-and-replace review (an
+// array) or the word counts of a full-page one (an object).
+const readDetails = (json: string | null): ReviewDetails => {
+  const none = {
+    words_added: null,
+    words_removed: null,
+    edits: [],
+  };
+  if (!json) return { format: null, ...none };
+  const parsed = JSON.parse(json) as
+    | (typeof ReviewedEdit.Type)[]
+    | PageReviewDetail;
+  if (Array.isArray(parsed)) {
+    return { ...none, format: "edits", edits: parsed };
+  }
+  return {
+    ...none,
+    format: "full_page",
+    words_added: parsed.words_added,
+    words_removed: parsed.words_removed,
+  };
 };
 
 export const fileReviews: EndpointHandler<typeof FileReviews> = ({ params }) =>
@@ -77,12 +123,7 @@ export const fileReviews: EndpointHandler<typeof FileReviews> = ({ params }) =>
       return yield* notFound(`File '${params.fileId}' not found`);
     }
     const reviews = ((reviewRows?.results ?? []) as PageReviewRow[]).map(
-      (row) => ({
-        ...row,
-        edits: row.edits
-          ? (JSON.parse(row.edits) as (typeof ReviewedEdit.Type)[])
-          : [],
-      }),
+      ({ edits, ...row }) => ({ ...row, ...readDetails(edits) }),
     );
     return respond({
       endpoint: FileReviews,

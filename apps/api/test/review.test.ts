@@ -4,10 +4,15 @@ import type { AppServices } from "../src/effect/services";
 import { REVIEW_MODEL, reviewCostUsd } from "../src/lib/cost";
 import { sha256Hex } from "../src/lib/ocrRuns";
 import { transcribe } from "../src/ocr";
-import { applyReview, applyReviewEdits } from "../src/review/apply";
+import { applyReview, correctedText } from "../src/review/apply";
+import {
+  countArabicLetters,
+  diffPageWords,
+  rejectCorrection,
+} from "../src/review/correction";
 import { type ReviewApplyMessage, reviewCustomId } from "../src/review/message";
 import { workflowSteps } from "../src/review/poll";
-import type { ReviewEdit } from "../src/review/prompt";
+import { REVIEW_MAX_TOKENS } from "../src/review/prompt";
 import {
   type BatchCheck,
   checkBatch,
@@ -43,6 +48,7 @@ const run = <A, E>(
 const ANTHROPIC_ENDED_AT = Date.parse("2026-11-24T12:05:00Z");
 
 const PAGE = "١٢ كتاب الطهارة\n\n---\n\nقال المصنف رحمه الله: الماء طهور";
+const CORRECTED = PAGE.replace("الماء طهور", "الماءُ طَهورٌ");
 const textKeyOf = (fileId: string) => `books/${BOOK_ID}/text/${fileId}.md`;
 
 function seedBook(
@@ -145,10 +151,12 @@ const USAGE = {
 
 function succeededLine({
   fileId,
-  edits,
+  text,
+  stopReason = "end_turn",
 }: {
   fileId: string;
-  edits: ReviewEdit[];
+  text: string;
+  stopReason?: string;
 }): string {
   return JSON.stringify({
     custom_id: customIdOf(fileId),
@@ -161,9 +169,9 @@ function succeededLine({
         model: REVIEW_MODEL,
         content: [
           { type: "thinking", thinking: "", signature: "sig" },
-          { type: "text", text: JSON.stringify({ edits }) },
+          { type: "text", text },
         ],
-        stop_reason: "end_turn",
+        stop_reason: stopReason,
         usage: USAGE,
       },
     },
@@ -189,63 +197,96 @@ const expiredLine = (fileId: string) =>
     result: { type: "expired" },
   });
 
-describe("applyReviewEdits", () => {
-  it("applies an exact, unique match", () => {
-    const outcome = applyReviewEdits({
-      text: PAGE,
-      edits: [
-        { find: "الماء طهور", replace: "الماءُ طَهورٌ", category: "tashkeel" },
-      ],
+describe("correctedText", () => {
+  it("keeps the original's surrounding whitespace and drops a code fence", () => {
+    expect(
+      correctedText({ answer: `\n${PAGE}\n\n`, original: `${PAGE}\n` }),
+    ).toBe(`${PAGE}\n`);
+    expect(
+      correctedText({
+        answer: `\`\`\`markdown\n${PAGE}\n\`\`\``,
+        original: PAGE,
+      }),
+    ).toBe(PAGE);
+    expect(correctedText({ answer: "  \n", original: PAGE })).toBe("");
+  });
+});
+
+describe("diffPageWords", () => {
+  it("counts the words and characters a correction changed", () => {
+    const after = PAGE.replace("الماء طهور", "الماءُ طَهورٌ");
+    expect(diffPageWords({ before: PAGE, after })).toEqual({
+      wordsAdded: 2,
+      wordsRemoved: 2,
+      // Per changed word, the longer spelling: الماءُ (6) and طَهورٌ (6).
+      charsChanged: 12,
     });
-    expect(outcome.text).toBe(PAGE.replace("الماء طهور", "الماءُ طَهورٌ"));
-    expect(outcome).toMatchObject({
-      applied: 1,
-      failed: 0,
-      categories: { tashkeel: { proposed: 1, applied: 1, failed: 0 } },
+    expect(diffPageWords({ before: PAGE, after: PAGE })).toEqual({
+      wordsAdded: 0,
+      wordsRemoved: 0,
+      charsChanged: 0,
     });
   });
 
-  it("counts a find that matches nowhere, twice, or empty as failed, and applies the rest", () => {
-    const text = "باب باب الطهارة";
-    const outcome = applyReviewEdits({
-      text,
-      edits: [
-        { find: "غير موجود", replace: "x", category: "spelling" },
-        { find: "باب", replace: "كتاب", category: "spelling" },
-        { find: "", replace: "x", category: "layout" },
-        { find: "الطهارة", replace: "الطَّهارة", category: "tashkeel" },
-      ],
-    });
-    expect(outcome.text).toBe("باب باب الطَّهارة");
-    expect(outcome.applied).toBe(1);
-    expect(outcome.failed).toBe(3);
-    expect(outcome.categories).toEqual({
-      spelling: { proposed: 2, applied: 0, failed: 2 },
-      layout: { proposed: 1, applied: 0, failed: 1 },
-      tashkeel: { proposed: 1, applied: 1, failed: 0 },
+  it("treats a gloss's tags as their own tokens", () => {
+    const before = "قال <ruby>الماء<rt>أي المطلق</rt></ruby> طهور";
+    const after = "قال <ruby>الماء<rt>أي الماء المطلق</rt></ruby> طهور";
+    expect(diffPageWords({ before, after })).toMatchObject({
+      wordsAdded: 1,
+      wordsRemoved: 0,
     });
   });
+});
 
-  it("matches each edit against the text left by the edits before it", () => {
-    const outcome = applyReviewEdits({
-      text: "أ ب",
-      edits: [
-        { find: "أ", replace: "ب", category: "spelling" },
-        { find: "ب", replace: "ج", category: "spelling" },
-      ],
-    });
-    // After the first edit the text is "ب ب": the second find is ambiguous.
-    expect(outcome).toMatchObject({ text: "ب ب", applied: 1, failed: 1 });
+describe("rejectCorrection", () => {
+  const long = Array.from({ length: 40 }, () => "الماء طهور").join(" ");
+
+  it("lets a normal correction through, tashkeel changes included", () => {
+    const tashkeel = long.replaceAll("الماء", "الماءُ");
+    expect(rejectCorrection({ original: long, corrected: tashkeel })).toBe(
+      null,
+    );
+    expect(countArabicLetters(tashkeel)).toBe(countArabicLetters(long));
+  });
+
+  it("rejects an empty page", () => {
+    expect(
+      rejectCorrection({ original: PAGE, corrected: " \n" }),
+    ).toMatchObject({ reason: "empty_text" });
+  });
+
+  it("rejects a page missing more than 15% of its Arabic letters", () => {
+    const words = long.split(" ");
+    const shortened = words.slice(0, Math.floor(words.length * 0.8)).join(" ");
+    expect(
+      rejectCorrection({ original: long, corrected: shortened }),
+    ).toMatchObject({ reason: "text_loss" });
+    // Losing a share that small, or a few letters of a short page, is a fix.
+    const trimmed = words.slice(0, Math.floor(words.length * 0.9)).join(" ");
+    expect(rejectCorrection({ original: long, corrected: trimmed })).toBe(null);
+    expect(
+      rejectCorrection({
+        original: PAGE,
+        corrected: PAGE.replace(" طهور", ""),
+      }),
+    ).toBe(null);
+  });
+
+  it("rejects a page that lost its footnote section", () => {
+    const withNotes = `${PAGE}\n\n---\n\n### الحاشية\n(١) أي المطلق.`;
+    expect(
+      rejectCorrection({
+        original: withNotes,
+        corrected: withNotes.replace("### الحاشية", "الحاشية"),
+      }),
+    ).toMatchObject({ reason: "footnotes_lost" });
   });
 });
 
 describe("indexResultLines", () => {
   it("finds every line's byte range and custom_id without parsing it", () => {
     const lines = [
-      succeededLine({
-        fileId: "file-a",
-        edits: [{ find: "ا", replace: "أ", category: "spelling" }],
-      }),
+      succeededLine({ fileId: "file-a", text: PAGE }),
       erroredLine("file-b"),
       expiredLine("file-c"),
     ];
@@ -323,6 +364,7 @@ describe("review batch", () => {
         custom_id: string;
         params: {
           model: string;
+          max_tokens: number;
           thinking: unknown;
           output_config: { effort: string };
           system: { text: string; cache_control: unknown }[];
@@ -335,7 +377,9 @@ describe("review batch", () => {
     expect(request?.custom_id).toBe("review-1-file-a");
     expect(request?.params.model).toBe("claude-opus-5-5");
     expect(request?.params.thinking).toEqual({ type: "adaptive" });
-    expect(request?.params.output_config.effort).toBe("low");
+    // Plain text out (the corrected page), no JSON schema.
+    expect(request?.params.output_config).toEqual({ effort: "low" });
+    expect(request?.params.max_tokens).toBe(REVIEW_MAX_TOKENS);
     expect(request?.params.system.map((block) => block.cache_control)).toEqual([
       { type: "ephemeral", ttl: "1h" },
       { type: "ephemeral", ttl: "1h" },
@@ -356,13 +400,7 @@ describe("review batch", () => {
     const messages = await reviewThroughDispatch({
       world,
       resultLines: () => [
-        succeededLine({
-          fileId: "file-a",
-          edits: [
-            { find: "الماء طهور", replace: "الماءُ طَهورٌ", category: "tashkeel" },
-            { find: "ليس في الصفحة", replace: "x", category: "spelling" },
-          ],
-        }),
+        succeededLine({ fileId: "file-a", text: CORRECTED }),
         erroredLine("file-b"),
         expiredLine("file-c"),
       ],
@@ -378,15 +416,14 @@ describe("review batch", () => {
       await run(world, applyReview(message));
     }
 
-    const corrected = PAGE.replace("الماء طهور", "الماءُ طَهورٌ");
-    expect(world.bucket.text(textKeyOf("file-a"))).toBe(corrected);
-    expect(world.indexed).toEqual([{ fileId: "file-a", text: corrected }]);
+    expect(world.bucket.text(textKeyOf("file-a"))).toBe(CORRECTED);
+    expect(world.indexed).toEqual([{ fileId: "file-a", text: CORRECTED }]);
     const [revision] = revisions(world);
     expect(revision).toMatchObject({
       file_id: "file-a",
       change: "review",
       model: REVIEW_MODEL,
-      note: "Opus review (msgbatch_1): 1 applied, 1 failed to apply",
+      note: "Opus review (msgbatch_1): 2 words added, 2 removed",
     });
     // The revision holds the text before the review, so it can be restored.
     expect(world.bucket.text(revision?.prev_key ?? "")).toBe(PAGE);
@@ -406,34 +443,21 @@ describe("review batch", () => {
     expect(rows[0]).toMatchObject({
       model: REVIEW_MODEL,
       effort: "low",
-      edits_proposed: 2,
-      edits_applied: 1,
-      edits_failed: 1,
+      edits_proposed: 0,
+      edits_applied: 0,
+      edits_failed: 0,
+      categories: null,
       input_tokens: 5200,
       cache_read_input_tokens: 2100,
       output_tokens: 900,
       revision_id: revision?.id,
     });
     expect(rows[0]?.cost_usd).toBeCloseTo(reviewCostUsd(usage));
-    expect(JSON.parse(rows[0]?.categories ?? "")).toEqual({
-      tashkeel: { proposed: 1, applied: 1, failed: 0 },
-      spelling: { proposed: 1, applied: 0, failed: 1 },
+    expect(JSON.parse(rows[0]?.edits ?? "")).toEqual({
+      words_added: 2,
+      words_removed: 2,
     });
-    expect(JSON.parse(rows[0]?.edits ?? "")).toEqual([
-      {
-        find: "الماء طهور",
-        replace: "الماءُ طَهورٌ",
-        category: "tashkeel",
-        applied: true,
-      },
-      {
-        find: "ليس في الصفحة",
-        replace: "x",
-        category: "spelling",
-        applied: false,
-      },
-    ]);
-    expect(rows[0]?.chars_changed).toBe("الماءُ طَهورٌ".length);
+    expect(rows[0]?.chars_changed).toBe(12);
     expect(rows[0]?.chars_total).toBe(PAGE.length);
     // An invalid request is never retried.
     expect(rows[1]).toMatchObject({
@@ -460,12 +484,7 @@ describe("review batch", () => {
     );
     const messages = await reviewThroughDispatch({
       world,
-      resultLines: () => [
-        succeededLine({
-          fileId: "file-a",
-          edits: [{ find: "الماء", replace: "الماءُ", category: "tashkeel" }],
-        }),
-      ],
+      resultLines: () => [succeededLine({ fileId: "file-a", text: CORRECTED })],
     });
     world.sqlite.exec(
       "UPDATE files SET text_edited_at = 77 WHERE file_id = 'file-a'",
@@ -478,9 +497,8 @@ describe("review batch", () => {
     expect(revisions(world)).toEqual([]);
     expect(reviewRows(world)[0]).toMatchObject({
       status: "skipped_hand_edited",
-      edits_proposed: 1,
-      edits_applied: 0,
-      edits_failed: 0,
+      edits: null,
+      chars_changed: 0,
     });
   });
 
@@ -493,12 +511,7 @@ describe("review batch", () => {
     );
     const messages = await reviewThroughDispatch({
       world,
-      resultLines: () => [
-        succeededLine({
-          fileId: "file-a",
-          edits: [{ find: "الماء", replace: "الماءُ", category: "tashkeel" }],
-        }),
-      ],
+      resultLines: () => [succeededLine({ fileId: "file-a", text: CORRECTED })],
     });
     const reOcrd = `${PAGE} (re-OCR)`;
     world.bucket.putMarkdown({ key: textKeyOf("file-a"), text: reOcrd });
@@ -507,6 +520,114 @@ describe("review batch", () => {
     expect(message.textSha).toBe(await sha256Hex(PAGE));
     expect(await run(world, applyReview(message))).toBe("stale");
     expect(world.bucket.text(textKeyOf("file-a"))).toBe(reOcrd);
+    expect(queueRows(world)).toEqual([
+      { file_id: "file-a", instance_id: null },
+    ]);
+  });
+
+  // One page through a batch whose result for it is `line`.
+  async function applyLine({
+    line,
+    text = PAGE,
+  }: {
+    line: (fileId: string) => string;
+    text?: string;
+  }) {
+    const world = makeWorld();
+    seedBook(world);
+    seedDonePage({ world, fileId: "file-a", text });
+    world.sqlite.exec(
+      "INSERT INTO review_queue (file_id, book_id, queued_at) VALUES ('file-a', 'test-book', 1)",
+    );
+    const [message] = await reviewThroughDispatch({
+      world,
+      resultLines: () => [line("file-a")],
+    });
+    if (!message) throw new Error("no message");
+    const status = await run(world, applyReview(message));
+    return { world, status, row: reviewRows(world)[0] };
+  }
+
+  it("records no changes when Opus returns the page as it was", async () => {
+    const { world, status, row } = await applyLine({
+      line: (id) => succeededLine({ fileId: id, text: `${PAGE}\n` }),
+    });
+    expect(status).toBe("no_changes");
+    expect(world.bucket.text(textKeyOf("file-a"))).toBe(PAGE);
+    expect(revisions(world)).toEqual([]);
+    expect(row).toMatchObject({
+      chars_changed: 0,
+      chars_total: PAGE.length,
+      revision_id: null,
+    });
+    expect(JSON.parse(row?.edits ?? "")).toEqual({
+      words_added: 0,
+      words_removed: 0,
+    });
+  });
+
+  it("never applies an answer cut off at max_tokens, even a readable one", async () => {
+    const { world, status, row } = await applyLine({
+      line: (id) =>
+        succeededLine({
+          fileId: id,
+          text: CORRECTED.slice(0, 20),
+          stopReason: "max_tokens",
+        }),
+    });
+    expect(status).toBe("invalid_output");
+    expect(world.bucket.text(textKeyOf("file-a"))).toBe(PAGE);
+    expect(revisions(world)).toEqual([]);
+    expect(row).toMatchObject({
+      error_type: "max_tokens",
+      error: `the answer was cut off at max_tokens (${REVIEW_MAX_TOKENS})`,
+      output_tokens: USAGE.output_tokens,
+    });
+    expect(row?.cost_usd).toBeGreaterThan(0);
+    // Billed, and not retried.
+    expect(queueRows(world)).toEqual([]);
+  });
+
+  it("rejects a correction that dropped part of the page", async () => {
+    const page = `${PAGE} ${Array.from({ length: 30 }, () => "باب الطهارة").join(" ")}`;
+    const { world, status, row } = await applyLine({
+      text: page,
+      line: (id) => succeededLine({ fileId: id, text: PAGE }),
+    });
+    expect(status).toBe("invalid_output");
+    expect(world.bucket.text(textKeyOf("file-a"))).toBe(page);
+    expect(world.indexed).toEqual([]);
+    expect(revisions(world)).toEqual([]);
+    expect(row).toMatchObject({ error_type: "text_loss", revision_id: null });
+    expect(row?.error).toContain("fewer Arabic letters");
+    expect(JSON.parse(row?.edits ?? "")).toEqual({
+      words_added: 0,
+      words_removed: 60,
+    });
+  });
+
+  it("rejects an empty answer", async () => {
+    const { world, status, row } = await applyLine({
+      line: (id) => succeededLine({ fileId: id, text: "" }),
+    });
+    expect(status).toBe("invalid_output");
+    expect(world.bucket.text(textKeyOf("file-a"))).toBe(PAGE);
+    expect(row).toMatchObject({ error_type: "empty_text" });
+  });
+
+  it("queues a page again when its result is an old find-and-replace answer", async () => {
+    const { world, status, row } = await applyLine({
+      line: (id) =>
+        succeededLine({
+          fileId: id,
+          text: JSON.stringify({
+            edits: [{ find: "الماء", replace: "الماءُ", category: "tashkeel" }],
+          }),
+        }),
+    });
+    expect(status).toBe("invalid_output");
+    expect(world.bucket.text(textKeyOf("file-a"))).toBe(PAGE);
+    expect(row).toMatchObject({ error_type: "legacy_output" });
     expect(queueRows(world)).toEqual([
       { file_id: "file-a", instance_id: null },
     ]);

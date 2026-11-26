@@ -16,6 +16,7 @@ import {
   DiffText,
   EditList,
   REVIEW_STATUS,
+  reviewStatusLabel,
 } from "@/components/review-diff";
 import {
   Badge,
@@ -234,7 +235,7 @@ export const ReviewScreen = () => {
       <Callout>
         {review.status === "no_changes"
           ? "Opus found nothing to change on this page, so the text was left as it was."
-          : `${REVIEW_STATUS[review.status].label}. This review didn't change the page's text.${review.error ? ` ${review.error}` : ""}`}
+          : `${reviewStatusLabel(review)}. This review didn't change the page's text.${review.error ? ` ${review.error}` : ""}`}
       </Callout>
     );
   } else if (textsError) {
@@ -292,7 +293,7 @@ export const ReviewScreen = () => {
         </div>
         {review && (
           <Badge tone={REVIEW_STATUS[review.status].tone}>
-            {REVIEW_STATUS[review.status].label}
+            {reviewStatusLabel(review)}
           </Badge>
         )}
         <Button
@@ -320,20 +321,28 @@ export const ReviewScreen = () => {
           <div className="flex w-full max-w-2xl flex-col gap-8 px-8 py-8">
             {review && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink-2">
-                <span>
-                  {plural({
-                    n: review.edits_proposed,
-                    one: "edit proposed",
-                    many: "edits proposed",
-                  })}
-                </span>
-                <span className="text-ok">
-                  {count(review.edits_applied)} applied
-                </span>
-                {review.edits_failed > 0 && (
-                  <span className="text-warn">
-                    {count(review.edits_failed)} not applied
-                  </span>
+                {review.format === "edits" ? (
+                  <>
+                    <span>
+                      {plural({
+                        n: review.edits_proposed,
+                        one: "edit proposed",
+                        many: "edits proposed",
+                      })}
+                    </span>
+                    <span className="text-ok">
+                      {count(review.edits_applied)} applied
+                    </span>
+                    {review.edits_failed > 0 && (
+                      <span className="text-warn">
+                        {count(review.edits_failed)} not applied
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  review.format === "full_page" && (
+                    <span>Opus returned the corrected page</span>
+                  )
                 )}
                 <span className="ml-auto tabular-nums text-ink-3">
                   {review.model} · {review.effort} effort ·{" "}

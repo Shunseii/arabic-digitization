@@ -96,15 +96,7 @@ const succeededLine = ({
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              edits: [
-                {
-                  find: "الماء طهور",
-                  replace: "الماءُ طَهورٌ",
-                  category: "tashkeel",
-                },
-              ],
-            }),
+            text: PAGE.replace("الماء طهور", "الماءُ طَهورٌ"),
           },
         ],
         stop_reason: "end_turn",
@@ -355,9 +347,13 @@ describe("apply", () => {
     ]);
     expect(
       world.sqlite
-        .prepare("SELECT status, edits_applied, revision_id FROM page_reviews")
+        .prepare("SELECT status, edits, revision_id FROM page_reviews")
         .get(),
-    ).toEqual({ status: "applied", edits_applied: 1, revision_id: 1 });
+    ).toEqual({
+      status: "applied",
+      edits: JSON.stringify({ words_added: 2, words_removed: 2 }),
+      revision_id: 1,
+    });
     expect(message.textSha).toBe(await sha256Hex(PAGE));
   });
 

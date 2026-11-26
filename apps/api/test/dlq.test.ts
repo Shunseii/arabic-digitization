@@ -193,7 +193,7 @@ describe("recordDeadMessages", () => {
       result: {
         type: "succeeded",
         message: {
-          content: [{ type: "text", text: JSON.stringify({ edits: [] }) }],
+          content: [{ type: "text", text: PAGE }],
           stop_reason: "end_turn",
           usage: { input_tokens: 1, output_tokens: 1 },
         },
