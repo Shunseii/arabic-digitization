@@ -10,7 +10,8 @@
 #   ~/.local/bin/qiraa-app                         launcher
 #   ~/.local/share/applications/qiraa.desktop      menu entry, with its icon
 # Re-run to update; it keeps the previous version and removes older ones.
-# Restart the app after an update.
+# Restart the app after an update. The installed app also updates itself
+# (apps/desktop/electron/updater-linux.cjs) into the same layout.
 #
 #   sh install-desktop.sh --uninstall    remove all of the above
 #
@@ -119,7 +120,7 @@ main() {
     return
   fi
   [ "$(uname -s)" = "Linux" ] ||
-    fail "this installer is for Linux; on Windows, run the Qiraa Setup .exe from https://github.com/$REPO/releases/tag/desktop-latest"
+    fail "this installer is for Linux; on Windows, run Qiraa-Setup-<version>.exe from https://github.com/$REPO/releases/tag/desktop-latest"
   [ "$(uname -m)" = "x86_64" ] || fail "only x86_64 Linux builds are published"
   command -v curl >/dev/null 2>&1 || fail "curl is required"
 

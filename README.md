@@ -127,13 +127,25 @@ release.
   It checks the AppImage's SHA-256, extracts it to
   `~/.local/share/qiraa-app/releases/<version>` (`current` points at the one in
   use), and adds a `qiraa-app` launcher in `~/.local/bin` and a menu entry.
-  Re-run it to update (it keeps one previous version), then restart the app.
+  The app then updates itself (below); re-running the script also updates it.
   Remove it with `… | sh -s -- --uninstall`. Don't also install the `.deb`, or
   you get two menu entries.
-- **Windows:** download and run `Qiraa.Setup.<version>.exe` from `desktop-latest`.
-  To update, run the newer one.
+- **Windows:** download and run `Qiraa-Setup-<version>.exe` from `desktop-latest`.
+  The builds aren't code-signed, so SmartScreen may warn on the first install
+  ("More info" → "Run anyway").
 
-There is no auto-update yet. Set the API URL and key under **Settings** in the app.
+**Auto-update.** The app checks `desktop-latest` shortly after it starts and
+every 6 hours while it runs. It downloads a newer version in the background,
+then asks "Restart now" or "Later" (Later switches on the next start). It stays
+silent when it's up to date or offline. This works for:
+
+- Linux installs made by `install-desktop.sh`. The app checks the new AppImage's
+  SHA-256, extracts it to `releases/<version>`, repoints `current`, and keeps
+  the previous version. The `.deb` and a directly run AppImage don't
+  auto-update.
+- Windows installs made by the Setup `.exe` (electron-updater reads `latest.yml`).
+
+Set the API URL and key under **Settings** in the app.
 
 ## Develop
 

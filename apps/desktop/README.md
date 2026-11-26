@@ -20,8 +20,9 @@ manuscript gold), same screens. Runs on **Windows** and **Linux**.
 The renderer talks to the deployed Cloudflare Worker with a plain `fetch`. The
 Worker sends a wildcard CORS header (`Access-Control-Allow-Origin: *`), so calls
 from the `file://` (prod) and `localhost` (dev) origins are allowed. The main
-process needs no IPC, so every UI library is a build-time `devDependency` and
-the packaged app's `node_modules` is empty.
+process needs no IPC, so every UI library is a build-time `devDependency`. The
+packaged app's `node_modules` holds only `electron-updater`, the one runtime
+`dependency`.
 
 ## What differs from mobile
 
@@ -55,7 +56,8 @@ pnpm --filter @qiraa/desktop dev   # http://localhost:1420
 pnpm desktop:build    # = vite build + electron-builder
 ```
 
-Produces `.deb` + `.AppImage` on Linux and `.exe` (NSIS) on Windows, under
+Produces `.deb` + `.AppImage` on Linux and `Qiraa-Setup-<version>.exe` (NSIS)
+plus `latest.yml` and the `.exe.blockmap` on Windows, under
 `apps/desktop/release/`.
 
 ## Release
@@ -76,8 +78,37 @@ release that shipped it.
 
 Install and update: see "Desktop app" in the root README (Linux:
 `scripts/install-desktop.sh`, published on `desktop-latest`; Windows: the
-Setup `.exe`).
-There is no auto-updater and no code signing yet.
+Setup `.exe`). There is no code signing yet, so Windows SmartScreen may warn
+on the first install.
+
+## Auto-update
+
+`electron/updater.cjs` starts when the app is packaged. It checks the
+`desktop-latest` release 15 seconds after launch and every 6 hours, one check
+at a time, silently when up to date or offline. When a newer version is ready
+it asks "Restart now" / "Later".
+
+- **Windows:** `electron-updater` with the generic provider reads `latest.yml`
+  from `desktop-latest` and downloads the Setup `.exe` in the background. Later
+  installs it when the app quits.
+- **Linux:** `electron/updater-linux.cjs`, only when the app runs from
+  `<XDG_DATA_HOME or ~/.local/share>/qiraa-app/releases/<version>/` (an
+  `install-desktop.sh` install). It reads `qiraa-desktop-version.txt`,
+  downloads `Qiraa-x86_64.AppImage` into a staging dir inside `qiraa-app/`,
+  checks it against `qiraa-desktop-checksums.txt`, extracts it, checks the
+  version inside, moves it to `releases/<version>`, swaps `current` atomically
+  and prunes to the new version plus the running one. On any failure it logs
+  and leaves the install as it was. Restart now runs `~/.local/bin/qiraa-app`.
+  electron-updater's AppImage updater doesn't apply, because the app runs
+  extracted rather than as an AppImage. The `.deb`, a raw AppImage and dev
+  runs don't update.
+
+To try it against a local feed, set `QIRAA_UPDATE_BASE` to a URL that serves
+the same files as `desktop-latest`. The pure helpers have unit tests:
+
+```sh
+pnpm --filter @qiraa/desktop test
+```
 
 ## App icons
 
