@@ -75,6 +75,9 @@ importers:
       concurrently:
         specifier: ^9.1.0
         version: 9.2.3
+      diff:
+        specifier: 8.0.2
+        version: 8.0.2
       electron:
         specifier: ^33.2.0
         version: 33.4.11
@@ -3121,6 +3124,10 @@ packages:
 
   didyoumean@1.2.2:
     resolution: {integrity: sha512-gxtyfqMg7GKyhQmb056K7M3xszy/myH8w+B4RT+QXBQsvAOdc3XymqDDPHx1BgPgsdAA5SIifona89YtRATDzw==}
+
+  diff@8.0.2:
+    resolution: {integrity: sha512-sSuxWU5j5SR9QQji/o2qMvqRNYRDOcBTgsJ/DeCf4iSN4gW+gNMXM7wFIP+fdXZxoNiAnHUTGjCr+TSWXdRDKg==}
+    engines: {node: '>=0.3.1'}
 
   dir-compare@4.2.0:
     resolution: {integrity: sha512-2xMCmOoMrdQIPHdsTawECdNPwlVFB9zGcz3kuhmBO6U3oU+UQjsue0i8ayLKpgBcm+hcXPMVSGUN9d+pvJ6+VQ==}
@@ -9269,6 +9276,8 @@ snapshots:
     optional: true
 
   didyoumean@1.2.2: {}
+
+  diff@8.0.2: {}
 
   dir-compare@4.2.0:
     dependencies:

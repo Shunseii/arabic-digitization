@@ -20,12 +20,15 @@ import type {
   ListBooksResponse,
   ListTagsResponse,
   ListWorksResponse,
+  PageReviewsResponse,
   QueuePageReviewResponse,
   QueueReviewResponse,
   RecentFile,
   RecentFilesResponse,
+  RecentReviewsResponse,
   ReviewSummaryResponse,
   SpendResponse,
+  TextHistoryResponse,
   UpdateBookResponse,
   UpdateWorkResponse,
   UploadContentType,
@@ -208,20 +211,52 @@ export const api = {
       )
     ).files,
 
+  /** A page's text; with `rev`, the text just before that history entry. */
   fileText: async ({
     bookId,
     fileId,
+    rev,
   }: {
     bookId: string;
     fileId: string;
+    rev?: number;
   }): Promise<string> => {
     const res = await fetch(
-      `${base()}/api/books/${bookId}/files/${fileId}/text`,
+      `${base()}/api/books/${bookId}/files/${fileId}/text${rev === undefined ? "" : `?rev=${rev}`}`,
       { headers: authHeaders() },
     );
     if (!res.ok) throw new ApiError(res.status, await safeText(res));
     return res.text();
   },
+
+  /** Every change to a page's text, newest first. */
+  textHistory: async ({
+    bookId,
+    fileId,
+  }: {
+    bookId: string;
+    fileId: string;
+  }): Promise<TextHistoryResponse> =>
+    asJson<TextHistoryResponse>(
+      await fetch(
+        `${base()}/api/books/${bookId}/files/${fileId}/text/history`,
+        { headers: authHeaders() },
+      ),
+    ),
+
+  /** A page's Opus reviews with their edits, newest first. */
+  pageReviews: async ({
+    bookId,
+    fileId,
+  }: {
+    bookId: string;
+    fileId: string;
+  }): Promise<PageReviewsResponse> =>
+    asJson<PageReviewsResponse>(
+      await fetch(`${base()}/api/books/${bookId}/files/${fileId}/reviews`, {
+        headers: authHeaders(),
+      }),
+    ),
 
   /**
    * Ask the API which passages on a page to highlight for a search query.
@@ -361,6 +396,26 @@ export const api = {
         headers: authHeaders(),
       }),
     ),
+
+  /** The newest page reviews in the last `days`, across books or for one. */
+  recentReviews: async ({
+    days,
+    bookId,
+    limit,
+  }: {
+    days: number;
+    bookId?: string;
+    limit?: number;
+  }): Promise<RecentReviewsResponse> => {
+    const params = new URLSearchParams({ days: String(days) });
+    if (bookId) params.set("book", bookId);
+    if (limit !== undefined) params.set("limit", String(limit));
+    return asJson<RecentReviewsResponse>(
+      await fetch(`${base()}/api/reviews?${params}`, {
+        headers: authHeaders(),
+      }),
+    );
+  },
 
   /** What OCR and the Opus review cost over the last `days` (Usage). */
   spend: async ({

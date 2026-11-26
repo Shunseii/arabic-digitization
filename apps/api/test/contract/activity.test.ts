@@ -413,3 +413,69 @@ describe("GET /api/books/:bookId/files/:fileId/reviews", () => {
     expect(counts.d1RowsRead).toBeLessThan(5);
   });
 });
+
+describe("GET /api/reviews", () => {
+  type Listed = {
+    reviews: {
+      file_id: string;
+      batch_id: string;
+      book_id: string;
+      book_title: string | null;
+      page_number: number | null;
+      created_at: number;
+      status: string;
+      edits_applied: number;
+      edits_failed: number;
+      cost_usd: number;
+      revision_id: number | null;
+    }[];
+  };
+
+  it("lists the newest reviews across books, reading only the rows it returns", async () => {
+    const { body, counts } = await readMeasured<Listed>({
+      label: "GET /api/reviews?limit=50",
+      path: "/api/reviews?limit=50",
+    });
+    expect(body.reviews).toHaveLength(50);
+    const times = body.reviews.map((r) => r.created_at);
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    expect(body.reviews[0]).toMatchObject({
+      batch_id: "msgbatch_18",
+      book_title: expect.stringMatching(/^Book [12]$/),
+      edits_applied: 2,
+      edits_failed: 1,
+      cost_usd: 0.02,
+      revision_id: expect.any(Number),
+    });
+    // Each listed review: its index entry, its row, its book and its page.
+    expect(counts.d1RowsRead).toBeLessThan(250);
+  });
+
+  it("lists one book's reviews through the book index", async () => {
+    const { body, counts } = await readMeasured<Listed>({
+      label: "GET /api/reviews?book=b2&limit=20",
+      path: "/api/reviews?book=b2&limit=20",
+    });
+    expect(body.reviews).toHaveLength(20);
+    expect(new Set(body.reviews.map((r) => r.book_id))).toEqual(
+      new Set(["b2"]),
+    );
+    expect(counts.d1RowsRead).toBeLessThan(100);
+  });
+
+  it("keeps to the window", async () => {
+    const { body } = await readMeasured<Listed>({
+      label: "GET /api/reviews?days=1",
+      path: "/api/reviews?days=1",
+    });
+    expect(body.reviews.length).toBeGreaterThan(0);
+    for (const review of body.reviews) {
+      expect(review.created_at).toBeGreaterThanOrEqual(NOW - DAY);
+    }
+  });
+
+  it("rejects a limit over 100", async () => {
+    const response = await h.api("/api/reviews?limit=101");
+    expect(response.status).toBe(400);
+  });
+});
