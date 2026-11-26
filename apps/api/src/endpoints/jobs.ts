@@ -91,8 +91,14 @@ const ReviewBatch = Schema.Struct({
       "Workflow steps used (sleeps included); set when the batch is finalized",
   }),
   request_counts: RequestCounts,
-  edits_applied: Schema.Int,
-  edits_failed: Schema.Int,
+  changed: Schema.Int.annotate({
+    description: "Pages whose review changed the text",
+  }),
+  words_added: Schema.Int.annotate({
+    description:
+      "Words the batch's applied corrections added (a word diff; 0 for reviews from before full-page answers)",
+  }),
+  words_removed: Schema.Int,
   errors: Schema.Int.annotate({
     description: "Pages that ended without a review (failed or retried)",
   }),
@@ -214,8 +220,9 @@ interface BatchRow {
 interface BatchReviewRow {
   batch_id: string;
   reviewed: number;
-  edits_applied: number;
-  edits_failed: number;
+  changed: number;
+  words_added: number | null;
+  words_removed: number | null;
   errors: number;
   cost_usd: number;
 }
@@ -393,7 +400,9 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
       const { results } = yield* Effect.promise(() =>
         env.DB.prepare(
           `SELECT batch_id, COUNT(*) AS reviewed,
-                  SUM(edits_applied) AS edits_applied, SUM(edits_failed) AS edits_failed,
+                  SUM(status = 'applied') AS changed,
+                  SUM(CASE WHEN status = 'applied' THEN json_extract(edits, '$.words_added') END) AS words_added,
+                  SUM(CASE WHEN status = 'applied' THEN json_extract(edits, '$.words_removed') END) AS words_removed,
                   SUM(status IN ('failed', 'errored', 'expired', 'canceled', 'invalid_output', 'refused')) AS errors,
                   SUM(cost_usd) AS cost_usd
              FROM page_reviews
@@ -445,8 +454,9 @@ export const jobs: EndpointHandler<typeof Jobs> = () =>
           expired: row.expired,
           canceled: row.canceled,
         },
-        edits_applied: totals?.edits_applied ?? 0,
-        edits_failed: totals?.edits_failed ?? 0,
+        changed: totals?.changed ?? 0,
+        words_added: totals?.words_added ?? 0,
+        words_removed: totals?.words_removed ?? 0,
         errors: totals?.errors ?? 0,
         cost_usd: totals?.cost_usd ?? 0,
         error: row.error,

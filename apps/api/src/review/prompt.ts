@@ -1,73 +1,34 @@
 // What the Opus review asks for, and how its answer is read. Opus compares a
-// page's stored transcription with the scan and returns only find-and-replace
-// edits (never the full text), each tagged with a category.
+// page's stored transcription with the scan and answers with the whole page,
+// corrected, as plain Markdown and nothing else; the server compares it with
+// the stored text (review/apply.ts). It used to return find-and-replace edits,
+// but long quotes it re-typed (often with tashkeel added) didn't match the
+// page, so the biggest fixes were the ones skipped.
 
 import { isRecord } from "../effect/services";
 import { REVIEW_MODEL } from "../lib/cost";
 import { SYSTEM_PROMPT } from "../ocr";
 import type { ReviewEffort } from "./message";
 
-export const REVIEW_CATEGORIES = [
-  "tashkeel",
-  "spelling",
-  "quran",
-  "footnotes",
-  "punctuation",
-  "layout",
-] as const;
-export type ReviewCategory = (typeof REVIEW_CATEGORIES)[number];
+// The answer is the whole page (a dense page with footnotes is a few thousand
+// tokens; the OCR fits a page and its thinking in 16k) plus the review's
+// thinking. Twice the OCR's cap leaves room for the longest pages. Only
+// generated tokens are billed, so the headroom costs nothing unless used; an
+// answer cut off here is never applied.
+export const REVIEW_MAX_TOKENS = 32000;
 
-export interface ReviewEdit {
-  find: string;
-  replace: string;
-  category: ReviewCategory;
-}
+const REVIEW_RULES = `You proofread transcriptions of scanned pages of classical Arabic printed books. You get the page scan and the stored transcription of it. Compare them closely and correct every place where the transcription differs from the printed page or breaks the transcription standard below.
 
-// Thinking counts against this too; a page's edits are short.
-const REVIEW_MAX_TOKENS = 16000;
-
-const REVIEW_RULES = `You proofread transcriptions of scanned pages of classical Arabic printed books. You get the page scan and the stored transcription of it. Compare them closely and report every place where the transcription differs from the printed page or breaks the transcription standard below.
-
-Answer with find-and-replace edits only, never the full text:
-- "find" is copied verbatim from the transcription (every letter, diacritic, space and line break) and must occur exactly once in it. If the wrong text is short or repeated, include enough surrounding words to make it unique.
-- "replace" is what that exact span should be.
-- Keep each edit as small as it can be while staying unique. Separate mistakes get separate edits; edits must not overlap.
-- Fix only real mismatches with the scan or with the standard. Do not restyle, re-punctuate or reflow text that already matches the page.
-- If the transcription is correct, return an empty list.
-
-Give each edit one category:
-- tashkeel: diacritics (harakat, shadda, sukun, tanwin) added, missing or wrong.
-- spelling: wrong, missing or extra letters or words in the author's text.
-- quran: Qur'an text not in the printed Uthmani spelling, or a wrong word in an ayah.
-- footnotes: the footnote block, its heading or footnote markers.
-- punctuation: punctuation marks and brackets.
-- layout: headings, the running header and its divider, paragraph and line breaks, interlinear glosses (ruby).
+Answer with the whole corrected transcription and nothing else:
+- Output the complete page in the Markdown format the standard below describes. No preamble, no notes, no list of changes, no code fences.
+- Change only what the scan shows is wrong, or what breaks the standard. Copy everything else exactly as it is in the transcription, character for character: do not add or remove tashkeel unless the scan shows it is wrong, do not normalise hamza, alif or ya, and do not tidy punctuation, spacing or line breaks that already match the page.
+- Never drop, shorten or summarise any text. Keep the running header, the whole matn, the footnote block and every gloss.
+- If the transcription is already correct, output it exactly as it is.
 
 ## The transcription standard
 The transcription was produced under these instructions. Judge it against them.
 
 ${SYSTEM_PROMPT}`;
-
-const OUTPUT_SCHEMA = {
-  type: "object",
-  properties: {
-    edits: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          find: { type: "string" },
-          replace: { type: "string" },
-          category: { type: "string", enum: [...REVIEW_CATEGORIES] },
-        },
-        required: ["find", "replace", "category"],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ["edits"],
-  additionalProperties: false,
-} as const;
 
 // Batches can take an hour or more between requests that share the prefix,
 // so the prompt is cached with the 1-hour TTL.
@@ -101,10 +62,7 @@ export function reviewRequestParams({
     model: REVIEW_MODEL,
     max_tokens: REVIEW_MAX_TOKENS,
     thinking: { type: "adaptive" },
-    output_config: {
-      effort,
-      format: { type: "json_schema", schema: OUTPUT_SCHEMA },
-    },
+    output_config: { effort },
     system,
     messages: [
       {
@@ -113,7 +71,7 @@ export function reviewRequestParams({
           { type: "image", source: { type: "url", url: imageUrl } },
           {
             type: "text",
-            text: `<transcription>\n${text}\n</transcription>\n\nReview this transcription against the scan.`,
+            text: `<transcription>\n${text}\n</transcription>\n\nReview this transcription against the scan and output the corrected transcription.`,
           },
         ],
       },
@@ -121,33 +79,15 @@ export function reviewRequestParams({
   };
 }
 
-const isCategory = (value: unknown): value is ReviewCategory =>
-  REVIEW_CATEGORIES.some((category) => category === value);
-
-// The edits in Opus's JSON answer, or null if it isn't the expected shape.
-export function parseReviewEdits(answer: string): ReviewEdit[] | null {
-  let raw: unknown;
+// The find-and-replace JSON a batch sent before the full-page prompt answers
+// with ({"edits": [...]}); such an answer is not a page.
+export function isLegacyEditsAnswer(answer: string): boolean {
+  const trimmed = answer.trim();
+  if (!trimmed.startsWith("{")) return false;
   try {
-    raw = JSON.parse(answer);
+    const raw: unknown = JSON.parse(trimmed);
+    return isRecord(raw) && Array.isArray(raw.edits);
   } catch {
-    return null;
+    return false;
   }
-  if (!isRecord(raw) || !Array.isArray(raw.edits)) return null;
-  const edits: ReviewEdit[] = [];
-  for (const item of raw.edits) {
-    if (
-      !isRecord(item) ||
-      typeof item.find !== "string" ||
-      typeof item.replace !== "string" ||
-      !isCategory(item.category)
-    ) {
-      return null;
-    }
-    edits.push({
-      find: item.find,
-      replace: item.replace,
-      category: item.category,
-    });
-  }
-  return edits;
 }

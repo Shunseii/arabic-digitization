@@ -20,10 +20,8 @@ import {
   type PauseBookResponse,
   type QueuePageReviewResponse,
   type QueueReviewResponse,
-  REVIEW_CATEGORY_LABELS,
   type ResumeBookResponse,
   type ReviewBatchJob,
-  type ReviewCategory,
   type ReviewSummaryResponse,
   type SpendResponse,
   type SpendTotals,
@@ -414,6 +412,20 @@ type PageReviewResult = Omit<QueuePageReviewResponse, "success"> & {
   error: string | null;
 };
 
+// What a review changed: a full-page review's word diff, or an older
+// find-and-replace review's edit counts.
+const reviewChange = (r: PageReview): string => {
+  if (r.format === "full_page") {
+    return r.words_added === null
+      ? "not compared"
+      : `+${r.words_added} / -${r.words_removed} words`;
+  }
+  if (r.format === "edits") {
+    return `${r.edits_applied}/${r.edits_proposed} edits applied${r.edits_failed ? `, ${r.edits_failed} failed` : ""}`;
+  }
+  return "no answer";
+};
+
 const pageLabel = (f: Pick<FileStatus, "page_number" | "file_id">): string =>
   `p${f.page_number ?? "?"}  ${f.file_id}`;
 
@@ -432,8 +444,8 @@ const batchLine = (b: ReviewBatchJob): string => {
     `  ${b.stage}${b.instance_status ? ` (${b.instance_status})` : ""}  ${b.reviewed}/${b.pages} pages reviewed`,
     duration,
     counts ? `anthropic: ${counts}` : null,
-    b.edits_applied || b.edits_failed
-      ? `edits ${b.edits_applied} applied, ${b.edits_failed} failed`
+    b.changed
+      ? `${b.changed} changed (+${b.words_added} / -${b.words_removed} words)`
       : null,
     b.errors ? `${b.errors} without review` : null,
     usd(b.cost_usd),
@@ -611,17 +623,6 @@ const reviewSummary = async () => {
     service: "api",
     path: `/api/reviews/summary${windowQuery({ days, bookId: book?.id })}`,
   });
-  const categories = (
-    Object.entries(s.by_category) as [
-      ReviewCategory,
-      ReviewSummaryResponse["by_category"][ReviewCategory],
-    ][]
-  )
-    .filter(([, c]) => c.proposed > 0)
-    .map(
-      ([k, c]) =>
-        `${REVIEW_CATEGORY_LABELS[k] ?? k} ${c.applied}/${c.proposed}${c.failed ? ` (${c.failed} failed)` : ""}`,
-    );
   const statuses = Object.entries(s.by_status)
     .map(([k, n]) => `${k} ${n}`)
     .join(" / ");
@@ -633,10 +634,7 @@ const reviewSummary = async () => {
         `Reviews since ${timestamp(s.since).slice(0, 10)} (${book ? book.title : "all books"})`,
         `  ${s.pages_reviewed} pages reviewed · ${s.pages_changed} changed · ${s.pages_not_reviewed} tries without a review · ${s.pages_skipped} not applied (page changed meanwhile)`,
         statuses ? `  status: ${statuses}` : null,
-        `  edits: ${s.edits.applied} applied of ${s.edits.proposed} proposed${s.edits.failed ? `, ${s.edits.failed} failed to apply` : ""}${s.text_changed_share != null ? ` · ${(s.text_changed_share * 100).toFixed(2)}% of text changed` : ""}`,
-        categories.length
-          ? `  by category (applied/proposed): ${categories.join(" · ")}`
-          : null,
+        `  words: ${s.words.added} added, ${s.words.removed} removed${s.text_changed_share != null ? ` · ${(s.text_changed_share * 100).toFixed(2)}% of text changed` : ""}`,
         `  cost ${usd(s.cost_usd)}${s.cost_per_page_usd != null ? ` (${perPage(s.cost_per_page_usd)})` : ""}${s.hand_edited_after_review ? ` · ${s.hand_edited_after_review} pages hand-edited after review` : ""}`,
         `Batches started in the window (all books): ${b.count}${b.pages_avg != null ? `, avg ${b.pages_avg.toFixed(1)} pages` : ""}`,
         b.count
@@ -691,7 +689,7 @@ const pageReviews = async ({
               : reviews
                   .map((r) =>
                     [
-                      `  ${timestamp(r.created_at)}  ${r.status}  ${r.model} (${r.effort})${r.attempt ? ` try ${r.attempt + 1}` : ""}  ${r.edits_applied}/${r.edits_proposed} edits applied${r.edits_failed ? `, ${r.edits_failed} failed` : ""}  ${usd(r.cost_usd)}${r.revision_id != null ? `  rev ${r.revision_id}` : ""}`,
+                      `  ${timestamp(r.created_at)}  ${r.status}  ${r.model} (${r.effort})${r.attempt ? ` try ${r.attempt + 1}` : ""}  ${reviewChange(r)}  ${usd(r.cost_usd)}${r.revision_id != null ? `  rev ${r.revision_id}` : ""}`,
                       r.error
                         ? `      ${r.error_type ? `${r.error_type}: ` : ""}${r.error.slice(0, 160)}`
                         : null,

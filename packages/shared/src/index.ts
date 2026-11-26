@@ -52,25 +52,6 @@ export interface Book {
 /** Opus review effort level. */
 export type ReviewEffort = "low" | "medium" | "high";
 
-/** Category of an Opus review edit, as stored in page_reviews.categories. */
-export type ReviewCategory =
-  | "tashkeel"
-  | "spelling"
-  | "quran"
-  | "footnotes"
-  | "punctuation"
-  | "layout";
-
-/** Display labels for review categories (the usage dashboard's names). */
-export const REVIEW_CATEGORY_LABELS: Record<ReviewCategory, string> = {
-  tashkeel: "Tashkeel",
-  spelling: "Spelling",
-  quran: "Qur'an text",
-  footnotes: "Footnotes",
-  punctuation: "Punctuation",
-  layout: "Layout",
-};
-
 /**
  * What one page's Opus review costs, for an estimate before any review has
  * run (batch prices, low effort; a trial measured $0.02-0.06 a page). Once
@@ -142,10 +123,30 @@ export type PageReviewStatus =
   /** Not retried: an invalid request, or the third try in a row without a review. */
   | "failed";
 
+/**
+ * Why an invalid_output review wasn't applied (page_reviews.error_type). The
+ * last three are guards on the corrected page; the page keeps its text.
+ */
+export const INVALID_OUTPUT_REASONS: Record<string, string> = {
+  max_tokens: "Answer cut off",
+  legacy_output: "Old answer format, queued again",
+  empty_text: "Rejected: empty page",
+  text_loss: "Rejected: text missing",
+  footnotes_lost: "Rejected: footnotes missing",
+};
+
+/**
+ * full_page: Opus returned the corrected page and the server diffed it
+ * (words_added/removed). edits: an older review made of find-and-replace
+ * edits (edits, edits_*). null: no answer was compared with the page.
+ */
+export type ReviewFormat = "full_page" | "edits" | null;
+
+/** An edit of an older find-and-replace review. */
 export interface ReviewedEdit {
   find: string;
   replace: string;
-  category: ReviewCategory;
+  category: string;
   /** False when `find` didn't match exactly once (failed to apply). */
   applied: boolean;
 }
@@ -160,9 +161,15 @@ export interface PageReview {
   status: PageReviewStatus;
   error_type: string | null;
   error: string | null;
+  format: ReviewFormat;
+  /** Word diff of the correction (full_page only). */
+  words_added: number | null;
+  words_removed: number | null;
+  /** Older find-and-replace reviews only; 0 for full_page. */
   edits_proposed: number;
   edits_applied: number;
   edits_failed: number;
+  /** Older find-and-replace reviews only; empty for full_page. */
   edits: ReviewedEdit[];
   chars_changed: number;
   chars_total: number;
@@ -178,7 +185,7 @@ export interface PageReviewsResponse {
   reviews: PageReview[];
 }
 
-/** One row of GET /api/reviews: a page review, without its edits. */
+/** One row of GET /api/reviews: a page review, without an older review's edits. */
 export interface RecentPageReview {
   file_id: string;
   batch_id: string;
@@ -190,6 +197,11 @@ export interface RecentPageReview {
   model: string;
   effort: string;
   status: PageReviewStatus;
+  error_type: string | null;
+  format: ReviewFormat;
+  /** See PageReview. */
+  words_added: number | null;
+  words_removed: number | null;
   edits_proposed: number;
   edits_applied: number;
   edits_failed: number;
@@ -207,13 +219,6 @@ export interface RecentReviewsResponse {
   reviews: RecentPageReview[];
 }
 
-export interface EditCounts {
-  proposed: number;
-  applied: number;
-  /** Failed to apply. */
-  failed: number;
-}
-
 /** GET /api/reviews/summary */
 export interface ReviewSummaryResponse {
   success: true;
@@ -224,9 +229,9 @@ export interface ReviewSummaryResponse {
   pages_not_reviewed: number;
   pages_skipped: number;
   by_status: Partial<Record<PageReviewStatus, number>>;
-  edits: EditCounts;
-  by_category: Record<ReviewCategory, EditCounts>;
-  /** Characters changed by applied edits / characters of the reviewed pages. */
+  /** Words the applied corrections added and removed (older reviews count 0). */
+  words: { added: number; removed: number };
+  /** Characters changed by applied reviews / characters of the reviewed pages. */
   text_changed_share: number | null;
   cost_usd: number;
   cost_per_page_usd: number | null;
@@ -282,8 +287,11 @@ export interface ReviewBatchJob {
     expired: number;
     canceled: number;
   };
-  edits_applied: number;
-  edits_failed: number;
+  /** Pages whose review changed the text. */
+  changed: number;
+  /** Words the applied corrections added and removed (older reviews count 0). */
+  words_added: number;
+  words_removed: number;
   /** Pages that ended without a review (failed or retried). */
   errors: number;
   cost_usd: number;

@@ -208,8 +208,8 @@ corpus review <book> on [--yes | --new-only]  review pages as they finish OCR; a
 corpus review <book> off                      stop reviewing new pages
 corpus review <book> --all [--yes]            re-review every done page, even with review off (asks first)
 corpus review <book> <fileId|page...>         review specific pages now, even with review off
-corpus reviews [--days n] [--book <book>]     review totals: pages, edits by category, cost, batch timing
-corpus reviews <book> <fileId|page>           a page's reviews and each edit (applied or skipped)
+corpus reviews [--days n] [--book <book>]     review totals: pages, words changed, cost, batch timing
+corpus reviews <book> <fileId|page>           a page's reviews and words changed (older reviews: each edit)
 
 corpus jobs                                   live OCR per book, review batches, pages that gave up
 corpus spend [--days n] [--book <book>]       OCR vs review cost: by model, daily, top books
@@ -221,7 +221,7 @@ Editing: each `old` must occur exactly once in the page (add surrounding words t
 
 OCR engine: each book OCRs with Inkling by default, falling back to Claude when Inkling is rate-limited, down, or cuts a page off at its length cap. `--engine claude` (on `create`) or `corpus engine <book> claude` flips the order: Claude first, Inkling as the fallback. `default` resets it to Inkling. Changing the engine only affects pages OCR'd from then on; to re-OCR finished pages run `corpus retry <book> --states done` (this overwrites hand edits, see above). `corpus books` tags each book that has an engine set.
 
-Review: Claude Opus proofreads OCR'd pages against the scan in batches (one every 3 hours, results within a day) and applies exact find-and-replace edits. Each applied review is a `review` entry in `corpus history`, so it can be undone like any change. **A review never changes a hand-edited page**, and hand-edited pages are left out when queueing. **It costs money** (about $0.03 a page): `corpus review <book> on` and `--all` show the page count and an estimate (pages × the measured cost per page from the last 90 days, or $0.03 before any review has run) and ask before queueing. Without a terminal they refuse unless you pass `--yes` (queue) or, for `on`, `--new-only` (review only pages OCR'd from now on). Pages named one by one (`corpus review <book> 12 13`) are queued without asking and start a review run if none is running. A page number can match several fragments of one page; all of them are queued.
+Review: Claude Opus proofreads OCR'd pages against the scan in batches (one every 3 hours, results within a day) returns each page whole with its corrections; the server applies it only if it passes sanity checks (not cut off, no large share of the text missing, footnotes kept). Each applied review is a `review` entry in `corpus history`, so it can be undone like any change. **A review never changes a hand-edited page**, and hand-edited pages are left out when queueing. **It costs money** (about $0.03 a page): `corpus review <book> on` and `--all` show the page count and an estimate (pages × the measured cost per page from the last 90 days, or $0.03 before any review has run) and ask before queueing. Without a terminal they refuse unless you pass `--yes` (queue) or, for `on`, `--new-only` (review only pages OCR'd from now on). Pages named one by one (`corpus review <book> 12 13`) are queued without asking and start a review run if none is running. A page number can match several fragments of one page; all of them are queued.
 
 Activity: `corpus jobs` reads the same data as the desktop Activity screen; run it when you want a look, don't loop it (it reads the database on every call). `corpus reviews` and `corpus spend` default to the last 30 days.
 

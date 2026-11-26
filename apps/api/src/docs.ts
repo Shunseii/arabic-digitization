@@ -50,7 +50,7 @@ Checking a page's history (agents: do this before overwriting or restoring):
   GET .../files/:fileId/text/history   -> revisions, newest first
     Each revision is one change: change ("edit" by hand | "ocr" re-run, with
     model | "review" an applied Opus review, with model), note (why/who, for
-    edits; the batch and edit counts, for reviews), created_at (epoch ms). Its id addresses
+    edits; the batch and change counts, for reviews), created_at (epoch ms). Its id addresses
     the text as it was just BEFORE that change:
   GET .../files/:fileId/text?rev=<id>  -> that earlier text
   The current text is GET .../files/:fileId/text (no rev).
@@ -65,9 +65,12 @@ To undo an Opus review, restore the text of its "review" revision this way.
 
 ## Opus review (per book, off by default)
 A book with review_enabled = true gets each page proofread by Claude Opus
-after OCR: Opus compares the stored text with the scan and returns exact
-find-and-replace edits, each with a category (tashkeel, spelling, quran,
-footnotes, punctuation, layout). It runs through the Anthropic Message
+after OCR: Opus compares the stored text with the scan and answers with the
+whole page, corrected, and nothing else (the page as it was if nothing is
+wrong). The server compares it with the stored text: identical means
+no_changes; otherwise it is diffed word by word. Reviews before 2026-11-25
+returned find-and-replace edits instead; their rows keep their edits (format
+"edits"). It runs through the Anthropic Message
 Batches API (half price, results within 24 hours), not inline:
 - A page of an opted-in book that reaches 'done' (with text) waits for review.
   Turning review on does not queue pages already done: POST .../review does.
@@ -75,14 +78,20 @@ Batches API (half price, results within 24 hours), not inline:
   Results are applied page by page as they come back.
 - POST .../files/:fileId/review re-runs one page's review and starts a run
   at once (see below).
-- Edits are applied like a hand edit: each "find" must match exactly once,
-  in order; one that doesn't is counted as failed to apply and skipped. The
-  applied change is one "review" revision in the page's history (undoable).
+- The corrected page replaces the text whole, or not at all. It is rejected
+  (status invalid_output, the page keeps its text) when the answer was cut off
+  at max_tokens (error_type max_tokens), or when the corrected page is empty (empty_text), has lost more than 15% of
+  the page's Arabic letters, and at least 25 of them (text_loss), or has
+  dropped the "### الحاشية" footnote section the page had (footnotes_lost).
+  A batch sent before the full-page prompt is queued again (legacy_output).
+  The applied change is one "review" revision in the page's history (undoable).
 - Pages edited by hand (text_edited_at != null) are never reviewed or
   changed, nor is a page whose text changed while it was in review (it is
   queued again). A review does not set text_edited_at.
 - review_effort (low | medium | high, default low) trades cost for depth.
-  Rough cost per page at batch prices: $0.02-0.06.
+  Rough cost per page at batch prices: $0.02-0.06, measured with the older
+  edit answers; a changed page now also pays for its full text as output.
+  GET /api/reviews/summary's cost_per_page_usd has the current figure.
 - A request that errors on Anthropic's side (api_error, overloaded_error, ...),
   expires or is canceled is not billed; the page is queued again, up to 3
   tries in a row, then its review is marked failed with the last reason. An
@@ -90,8 +99,9 @@ Batches API (half price, results within 24 hours), not inline:
 - If a batch's Workflow instance dies (errored or terminated), the cron marks
   the batch failed once it is 28 hours old and puts its pages back in the
   queue (each counting a try).
-- Each review is recorded in D1 (table page_reviews): status, each edit with
-  its category and whether it applied, tokens and cost, model, batch id. Read
+- Each review is recorded in D1 (table page_reviews): status, words added and
+  removed (older reviews: each edit and whether it applied), tokens and cost,
+  model, batch id. Read
   them with GET .../files/:fileId/reviews, GET /api/reviews, GET /api/reviews/summary and
   GET /api/jobs.
 
@@ -276,12 +286,19 @@ GET /api/books/:bookId/files/:fileId/text/history
 GET /api/books/:bookId/files/:fileId/reviews
   The page's Opus reviews, newest first.
   200 -> { success, file_id, reviews: [ { batch_id, created_at, model, effort, attempt,
-           status, error_type, error, edits_proposed, edits_applied, edits_failed,
+           status, error_type, error, format, words_added, words_removed,
+           edits_proposed, edits_applied, edits_failed,
            edits: [ { find, replace, category, applied } ], chars_changed, chars_total,
            cost_usd, revision_id } ] }
   // status: applied | no_changes | skipped_hand_edited | stale | conflict |
-  // page_gone | invalid_output | refused | errored | expired | canceled (queued
-  // again) | failed (not retried). revision_id is the "review" history entry.
+  // page_gone | invalid_output (error_type says why; see "Opus review") |
+  // refused | errored | expired | canceled (queued again) | failed (not
+  // retried). revision_id is the "review" history entry.
+  // format: full_page (words_added/removed: a word diff of the correction;
+  // edits is [] and edits_* 0) | edits (an older find-and-replace review:
+  // edits and edits_proposed/applied/failed; words_* null) | null (no answer
+  // was compared with the page).
+  // chars_changed: per changed stretch, the longer of old and new text.
   404 if file missing.
 
 ## Activity and usage (read-only)
@@ -307,7 +324,7 @@ GET /api/jobs
   Batch = { instance_id, batch_id, stage, instance_status, pages, reviewed,
             created_at, submitted_at, ended_at, anthropic_ended_at, checks, steps,
             request_counts: { processing, succeeded, errored, expired, canceled },
-            edits_applied, edits_failed, errors, cost_usd, error }
+            changed, words_added, words_removed, errors, cost_usd, error }
   // failed: queue messages that ran out of retries (OCR of a page, applying
   // a page's review, a search rebuild step) and haven't been resolved by a
   // later success of the same page and kind: count, and the 10 newest by
@@ -344,14 +361,14 @@ GET /api/reviews/summary[?days=<1-90, default 30>][&book=<bookId>]
   Opus review totals over the window, for the usage dashboard.
   200 -> { success, since, book_id, pages_reviewed, pages_changed,
            pages_not_reviewed, pages_skipped, by_status: { status: n },
-           edits: { proposed, applied, failed }, by_category: { tashkeel|spelling|
-           quran|footnotes|punctuation|layout: { proposed, applied, failed } },
-           text_changed_share, cost_usd, cost_per_page_usd, hand_edited_after_review,
+           words: { added, removed }, text_changed_share, cost_usd,
+           cost_per_page_usd, hand_edited_after_review,
            batches: { count, pages_avg, duration_ms: { p50, p90, max },
                       polling_lag_ms: { p50, max }, checks: { avg, max },
                       steps: { avg, max } } }
-  // edits.failed = failed to apply (find didn't match exactly once).
-  // text_changed_share = characters changed by applied edits / characters of
+  // words = words added/removed by applied reviews (older find-and-replace
+  // reviews count 0).
+  // text_changed_share = characters changed by applied reviews / characters of
   // the reviewed pages. hand_edited_after_review = pages a review changed that
   // were then edited by hand.
   // batches: review batches started in the window (all books, since a batch
@@ -362,11 +379,12 @@ GET /api/reviews/summary[?days=<1-90, default 30>][&book=<bookId>]
 
 GET /api/reviews[?days=<1-90, default 30>][&limit=<1-100, default 50>][&book=<bookId>]
   The newest page reviews (every status), newest first, for a list of reviewed
-  pages. The edits of one are on GET .../files/:fileId/reviews (match batch_id).
+  pages. An older review's edits are on GET .../files/:fileId/reviews
+  (match batch_id); the fields mean the same there.
   200 -> { success, since, book_id, reviews: [ { file_id, batch_id, book_id,
-           book_title, page_number, created_at, model, effort, status,
-           edits_proposed, edits_applied, edits_failed, chars_changed, cost_usd,
-           revision_id } ] }
+           book_title, page_number, created_at, model, effort, status, error_type,
+           format, words_added, words_removed, edits_proposed, edits_applied,
+           edits_failed, chars_changed, cost_usd, revision_id } ] }
   // revision_id is the review's "review" history entry (null unless applied):
   // GET .../text?rev=<revision_id> is the text just before the review; the text
   // it produced is the next newer revision's ?rev= text, or the current text

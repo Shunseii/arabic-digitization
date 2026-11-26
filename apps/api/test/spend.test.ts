@@ -182,10 +182,10 @@ describe("review spend", () => {
     };
   }
 
-  const succeeded = (edits: unknown[]) => ({
+  const succeeded = (text: string) => ({
     type: "succeeded",
     message: {
-      content: [{ type: "text", text: JSON.stringify({ edits }) }],
+      content: [{ type: "text", text }],
       stop_reason: "end_turn",
       usage,
     },
@@ -217,9 +217,7 @@ describe("review spend", () => {
     const message = await reviewMessage({
       world,
       batchId: "msgbatch_1",
-      result: succeeded([
-        { find: "الماء طهور", replace: "الماءُ طَهورٌ", category: "tashkeel" },
-      ]),
+      result: succeeded(PAGE.replace("الماء طهور", "الماءُ طَهورٌ")),
     });
     expect(await run(world, applyReview(message))).toBe("applied");
     // A redelivery adds nothing.
@@ -245,7 +243,7 @@ describe("review spend", () => {
       const message = await reviewMessage({
         world,
         batchId,
-        result: succeeded([]),
+        result: succeeded(PAGE),
       });
       expect(await run(world, applyReview(message))).toBe("no_changes");
     }

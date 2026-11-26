@@ -10,7 +10,11 @@ import {
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { REVIEW_STATUS } from "@/components/review-diff";
+import {
+  REVIEW_STATUS,
+  ReviewChangeSummary,
+  reviewStatusLabel,
+} from "@/components/review-diff";
 import { HeaderCell, LeadCell, Stat } from "@/components/table";
 import {
   Badge,
@@ -250,7 +254,7 @@ const ReviewedPages = ({
         <HeaderCell className="w-20">Page</HeaderCell>
         <HeaderCell className="flex-1">Book</HeaderCell>
         <HeaderCell className="w-44">Result</HeaderCell>
-        <HeaderCell className="w-52">Edits</HeaderCell>
+        <HeaderCell className="w-52">Change</HeaderCell>
         <HeaderCell className="w-24 justify-end">Cost</HeaderCell>
         <HeaderCell className="w-20 justify-end">When</HeaderCell>
         <HeaderCell className="w-12" />
@@ -295,18 +299,11 @@ const ReviewedPages = ({
           </span>
           <span className="w-44 px-3">
             <Badge tone={REVIEW_STATUS[review.status].tone}>
-              {REVIEW_STATUS[review.status].label}
+              {reviewStatusLabel(review)}
             </Badge>
           </span>
           <span className="flex w-52 items-baseline gap-2 px-3 text-small tabular-nums">
-            <span className="text-ink">
-              {count(review.edits_applied)} applied
-            </span>
-            {review.edits_failed > 0 && (
-              <span className="text-warn">
-                {count(review.edits_failed)} not applied
-              </span>
-            )}
+            <ReviewChangeSummary review={review} />
           </span>
           <span className="w-24 px-3 text-right text-small tabular-nums text-ink">
             {money(review.cost_usd, 3)}

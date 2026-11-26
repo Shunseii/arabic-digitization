@@ -1,12 +1,14 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: diff pieces and edits are derived lists that never reorder
 import {
+  INVALID_OUTPUT_REASONS,
+  type PageReview,
   type PageReviewStatus,
-  REVIEW_CATEGORY_LABELS,
+  type RecentPageReview,
   type ReviewedEdit,
 } from "@qiraa/shared";
 import { ChevronsUpDown } from "lucide-react";
 import { useState } from "react";
-import { cx, Tag, type Tone } from "@/components/ui";
+import { cx, type Tone } from "@/components/ui";
 import { count, plural } from "@/lib/format";
 import {
   type ChangeKind,
@@ -34,6 +36,46 @@ export const REVIEW_STATUS: Record<
   expired: { label: "Expired, retried", tone: "warn" },
   canceled: { label: "Canceled, retried", tone: "warn" },
   failed: { label: "Failed", tone: "danger" },
+};
+
+/** The status label, naming the guard or cut-off for an answer that wasn't applied. */
+export const reviewStatusLabel = ({
+  status,
+  error_type,
+}: Pick<PageReview, "status" | "error_type">): string =>
+  (status === "invalid_output" && error_type
+    ? INVALID_OUTPUT_REASONS[error_type]
+    : undefined) ?? REVIEW_STATUS[status].label;
+
+type ReviewChange = Pick<
+  RecentPageReview,
+  "format" | "words_added" | "words_removed" | "edits_applied" | "edits_failed"
+>;
+
+/** How much a review changed, in the measure its format has. */
+export const ReviewChangeSummary = ({ review }: { review: ReviewChange }) => {
+  if (review.format === "edits") {
+    return (
+      <>
+        <span className="text-ink">{count(review.edits_applied)} applied</span>
+        {review.edits_failed > 0 && (
+          <span className="text-warn">
+            {count(review.edits_failed)} not applied
+          </span>
+        )}
+      </>
+    );
+  }
+  if (review.words_added === null || review.words_removed === null) {
+    return <span className="text-ink-3">—</span>;
+  }
+  return (
+    <>
+      <span className="text-ok">+{count(review.words_added)}</span>
+      <span className="text-danger">−{count(review.words_removed)}</span>
+      <span className="text-ink-3">words</span>
+    </>
+  );
 };
 
 const CHANGE_STYLE: Record<ChangeKind, string> = {
@@ -178,7 +220,6 @@ export const EditList = ({ edits }: { edits: ReviewedEdit[] }) => (
           <span className="w-6 text-small tabular-nums text-ink-3">
             {index + 1}
           </span>
-          <Tag>{REVIEW_CATEGORY_LABELS[edit.category] ?? edit.category}</Tag>
           <span
             className={cx(
               "ml-auto text-small font-medium",

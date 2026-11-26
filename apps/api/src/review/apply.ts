@@ -1,11 +1,13 @@
 // Applies one page's Opus review: the queue consumer's half of the review
 // Workflow (review/workflow.ts). It reads the page's line from the batch
-// results in R2, applies the edits that still match, and records the change
-// the same way a hand edit is recorded (a text_revisions row holding the text
-// it replaced), so the review shows in the page's history and can be undone.
+// results in R2, checks the corrected page Opus returned, and records the
+// change the same way a hand edit is recorded (a text_revisions row holding
+// the text it replaced), so the review shows in the page's history and can be
+// undone.
 //
 // A page that a person edited by hand (files.text_edited_at) is never touched,
-// and nor is a page whose text changed after it was sent for review.
+// and nor is a page whose text changed after it was sent for review. A
+// correction is applied whole or not at all.
 
 import { Effect, Option, Schema } from "effect";
 import { resolveFailure } from "../dlq";
@@ -21,18 +23,18 @@ import {
   statement,
   WallClock,
 } from "../effect/services";
-import { applyEdits } from "../endpoints/fileTextEdit";
 import { REVIEW_MODEL, type ReviewUsage, reviewCostUsd } from "../lib/cost";
 import { sha256Hex } from "../lib/ocrRuns";
 import { reviewHistoryKey } from "../lib/pageText";
 import { addSpend, spendDay } from "../lib/spend";
+import {
+  diffPageWords,
+  type PageDiffStats,
+  rejectCorrection,
+} from "./correction";
 import { REVIEW_MAX_ATTEMPTS, type ReviewApplyMessage } from "./message";
 import { enqueueReview } from "./pending";
-import {
-  parseReviewEdits,
-  type ReviewCategory,
-  type ReviewEdit,
-} from "./prompt";
+import { isLegacyEditsAnswer, REVIEW_MAX_TOKENS } from "./prompt";
 
 export type ReviewStatus =
   | "applied"
@@ -48,79 +50,50 @@ export type ReviewStatus =
   | "canceled"
   | "failed";
 
-export interface CategoryCounts {
-  proposed: number;
-  applied: number;
-  failed: number;
+// page_reviews.error_type of an invalid_output row: why Opus's answer wasn't
+// applied. The last three are the guards in review/correction.ts.
+export type InvalidOutputReason =
+  | "max_tokens"
+  | "legacy_output"
+  | "empty_text"
+  | "text_loss"
+  | "footnotes_lost";
+
+// page_reviews.edits of a full-page review: the word diff of the correction.
+// Rows of the older find-and-replace reviews hold a JSON array of
+// {find, replace, category, applied} instead.
+export interface PageReviewDetail {
+  words_added: number;
+  words_removed: number;
 }
 
-export type CategoryStats = Partial<Record<ReviewCategory, CategoryCounts>>;
+const NO_CHANGE: PageDiffStats = {
+  wordsAdded: 0,
+  wordsRemoved: 0,
+  charsChanged: 0,
+};
 
-export interface ReviewedEdit extends ReviewEdit {
-  applied: boolean;
-}
+const CODE_FENCE = /^```[a-z]*\n([\s\S]*)\n```$/;
 
-export interface EditsOutcome {
-  text: string;
-  applied: number;
-  failed: number;
-  categories: CategoryStats;
-  edits: ReviewedEdit[];
-  // Characters the applied edits replaced or inserted (per edit, the longer
-  // of find and replace): a cheap measure of how much of the page changed.
-  charsChanged: number;
-}
-
-// Apply the edits in order. Each `find` must occur exactly once in the text as
-// it stands after the previous edits, the same rule as a hand edit; one that
-// doesn't is counted as failed to apply and skipped, never forced.
-export function applyReviewEdits({
-  text,
-  edits,
+// The page Opus returned, as it would be stored: without a code fence it may
+// have wrapped the page in, and with the original's leading and trailing
+// whitespace, so whitespace around the page never counts as a change.
+export function correctedText({
+  answer,
+  original,
 }: {
-  text: string;
-  edits: readonly ReviewEdit[];
-}): EditsOutcome {
-  let current = text;
-  let applied = 0;
-  let failed = 0;
-  let charsChanged = 0;
-  const categories: CategoryStats = {};
-  const reviewed: ReviewedEdit[] = [];
-  for (const edit of edits) {
-    const counts = categories[edit.category] ?? {
-      proposed: 0,
-      applied: 0,
-      failed: 0,
-    };
-    categories[edit.category] = counts;
-    counts.proposed += 1;
-    const result =
-      edit.find === ""
-        ? null
-        : applyEdits({
-            text: current,
-            edits: [{ old: edit.find, new: edit.replace }],
-          });
-    if (result?.ok) {
-      current = result.text;
-      counts.applied += 1;
-      applied += 1;
-      charsChanged += Math.max(edit.find.length, edit.replace.length);
-    } else {
-      counts.failed += 1;
-      failed += 1;
-    }
-    reviewed.push({ ...edit, applied: result?.ok === true });
-  }
-  return {
-    text: current,
-    applied,
-    failed,
-    categories,
-    edits: reviewed,
-    charsChanged,
-  };
+  answer: string;
+  original: string;
+}): string {
+  const trimmed = answer.trim();
+  const page = (CODE_FENCE.exec(trimmed)?.[1] ?? trimmed).trim();
+  if (page === "") return "";
+  const leading = original.slice(
+    0,
+    original.length - original.trimStart().length,
+  );
+  const trailing = original.slice(original.trimEnd().length);
+  return leading + page + trailing;
 }
 
 export const UNREADABLE_RESULT = "unreadable_result";
@@ -251,14 +224,17 @@ interface ReviewRecord {
   status: ReviewStatus;
   errorType?: string | null;
   error?: string | null;
-  proposed?: number;
-  outcome?: EditsOutcome | null;
+  // The word diff of the correction; null when it was never compared with
+  // the page (skipped, or no answer).
+  stats?: PageDiffStats | null;
   charsTotal?: number;
   usage?: ReviewUsage;
   // The revision id is last_insert_rowid() of the revision insert just before.
   revisionFromLastInsert?: boolean;
 }
 
+// edits_proposed/applied/failed and categories belong to the older
+// find-and-replace reviews and are left at their defaults (0, NULL).
 function insertPageReview({
   msg,
   at,
@@ -269,15 +245,18 @@ function insertPageReview({
   record: ReviewRecord;
 }): Statement {
   const usage = record.usage ?? NO_USAGE;
-  const outcome = record.outcome ?? null;
+  const stats = record.stats ?? null;
+  const detail: PageReviewDetail | null = stats && {
+    words_added: stats.wordsAdded,
+    words_removed: stats.wordsRemoved,
+  };
   return statement(
     `INSERT OR IGNORE INTO page_reviews (
        file_id, batch_id, book_id, created_at, model, effort, attempt, status,
-       error_type, error, edits_proposed, edits_applied, edits_failed,
-       categories, edits, chars_changed, chars_total,
+       error_type, error, edits, chars_changed, chars_total,
        input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
        output_tokens, cost_usd, revision_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${
        record.revisionFromLastInsert ? "last_insert_rowid()" : "NULL"
 })`,
     [
@@ -291,12 +270,8 @@ function insertPageReview({
       record.status,
       record.errorType ?? null,
       record.error ?? null,
-      record.proposed ?? 0,
-      outcome?.applied ?? 0,
-      outcome?.failed ?? 0,
-      outcome ? JSON.stringify(outcome.categories) : null,
-      outcome ? JSON.stringify(outcome.edits) : null,
-      outcome?.charsChanged ?? 0,
+      detail ? JSON.stringify(detail) : null,
+      stats?.charsChanged ?? 0,
       record.charsTotal ?? 0,
       usage.inputTokens,
       usage.cacheCreationInputTokens,
@@ -482,15 +457,46 @@ export function applyReview(
     if (stopReason === "refusal") {
       return yield* finish({ status: "refused", usage });
     }
-    const edits = parseReviewEdits(readAnthropicMessage(result.message).text);
-    if (!edits) {
-      return yield* finish({
-        status: "invalid_output",
-        error: `stop_reason=${String(stopReason)}`,
-        usage,
+    const invalid = ({
+      reason,
+      error,
+      extra = [],
+      stats = null,
+      charsTotal,
+    }: {
+      reason: InvalidOutputReason;
+      error: string;
+      extra?: Statement[];
+      stats?: PageDiffStats | null;
+      charsTotal?: number;
+    }) =>
+      finish(
+        {
+          status: "invalid_output",
+          errorType: reason,
+          error,
+          usage,
+          stats,
+          charsTotal,
+        },
+        extra,
+      );
+    // A cut-off answer is a page that ends early: never apply it.
+    if (stopReason === "max_tokens") {
+      return yield* invalid({
+        reason: "max_tokens",
+        error: `the answer was cut off at max_tokens (${REVIEW_MAX_TOKENS})`,
       });
     }
-    const unapplied = { usage, proposed: edits.length };
+    const answer = readAnthropicMessage(result.message).text;
+    // A batch sent before the full-page prompt: review the page again.
+    if (isLegacyEditsAnswer(answer)) {
+      return yield* invalid({
+        reason: "legacy_output",
+        error: "find-and-replace answer from before the full-page review",
+        extra: [requeue()],
+      });
+    }
 
     const page = yield* db.first<PageRow>(
       statement(
@@ -499,14 +505,14 @@ export function applyReview(
       ),
     );
     if (page?.state !== "done" || !page.text_key) {
-      return yield* finish({ status: "page_gone", ...unapplied });
+      return yield* finish({ status: "page_gone", usage });
     }
     if (page.text_edited_at !== null) {
-      return yield* finish({ status: "skipped_hand_edited", ...unapplied });
+      return yield* finish({ status: "skipped_hand_edited", usage });
     }
     const textKey = page.text_key;
     const current = yield* bucket.getVersionedText(textKey);
-    if (!current) return yield* finish({ status: "page_gone", ...unapplied });
+    if (!current) return yield* finish({ status: "page_gone", usage });
     const sha = (text: string) => Effect.promise(() => sha256Hex(text));
     const prevKey = reviewHistoryKey({
       bookId: msg.bookId,
@@ -515,8 +521,8 @@ export function applyReview(
     });
 
     // The text the review was made from: the page's current text, or, when
-    // an earlier delivery already wrote the reviewed text and then failed
-    // before D1, the copy it saved first. The edits are deterministic, so
+    // an earlier delivery already wrote the corrected text and then failed
+    // before D1, the copy it saved first. The correction is deterministic, so
     // that copy re-derives exactly what was written.
     let original = current.text;
     let alreadyWritten = false;
@@ -527,22 +533,33 @@ export function applyReview(
       if (
         !saved ||
         !savedIsOriginal ||
-        applyReviewEdits({ text: saved, edits }).text !== current.text
+        correctedText({ answer, original: saved }) !== current.text
       ) {
-        return yield* finish({ status: "stale", ...unapplied }, [requeue()]);
+        return yield* finish({ status: "stale", usage }, [requeue()]);
       }
       original = saved;
       alreadyWritten = true;
     }
 
-    const outcome = applyReviewEdits({ text: original, edits });
-    const reviewed = {
-      ...unapplied,
-      outcome,
-      charsTotal: original.length,
-    };
-    if (outcome.text === original) {
-      return yield* finish({ status: "no_changes", ...reviewed });
+    const corrected = correctedText({ answer, original });
+    const charsTotal = original.length;
+    if (corrected === original) {
+      return yield* finish({
+        status: "no_changes",
+        usage,
+        stats: NO_CHANGE,
+        charsTotal,
+      });
+    }
+    const stats = diffPageWords({ before: original, after: corrected });
+    const rejection = rejectCorrection({ original, corrected });
+    if (rejection) {
+      return yield* invalid({
+        reason: rejection.reason,
+        error: rejection.detail,
+        stats,
+        charsTotal,
+      });
     }
 
     // R2 first, then D1. The old text is saved under a key fixed by the
@@ -553,17 +570,15 @@ export function applyReview(
       yield* bucket.putText({ key: prevKey, text: original });
       const written = yield* bucket.putTextIfMatch({
         key: textKey,
-        text: outcome.text,
+        text: corrected,
         etag: current.etag,
       });
       if (!written) {
         // A twin delivery may have written the same text first; anything
         // else means a hand edit or re-OCR won the race.
         const now = yield* bucket.getText(textKey);
-        if (now !== outcome.text) {
-          return yield* finish({ status: "conflict", ...unapplied }, [
-            requeue(),
-          ]);
+        if (now !== corrected) {
+          return yield* finish({ status: "conflict", usage }, [requeue()]);
         }
       }
     }
@@ -573,7 +588,13 @@ export function applyReview(
     // insertPageReview (OR IGNORE) reads its id with last_insert_rowid().
     const at = clock.now();
     yield* finish(
-      { status: "applied", ...reviewed, revisionFromLastInsert: true },
+      {
+        status: "applied",
+        usage,
+        stats,
+        charsTotal,
+        revisionFromLastInsert: true,
+      },
       [
         statement(
           `INSERT INTO text_revisions (file_id, book_id, change, model, note, prev_key, created_at)
@@ -583,16 +604,16 @@ export function applyReview(
             msg.fileId,
             msg.bookId,
             REVIEW_MODEL,
-            `Opus review (${msg.batchId}): ${outcome.applied} applied, ${outcome.failed} failed to apply`,
+            `Opus review (${msg.batchId}): ${stats.wordsAdded} words added, ${stats.wordsRemoved} removed`,
             prevKey,
             at,
             ...key,
           ],
         ),
       ],
-      outcome.text.slice(0, 120),
+      corrected.slice(0, 120),
     );
-    yield* indexer.index({ fileId: msg.fileId, text: outcome.text });
+    yield* indexer.index({ fileId: msg.fileId, text: corrected });
     return "applied" as const;
   });
 }

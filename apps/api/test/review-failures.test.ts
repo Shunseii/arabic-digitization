@@ -174,15 +174,7 @@ const goodLine = (fileId: string) =>
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              edits: [
-                {
-                  find: "الماء طهور",
-                  replace: "الماءُ طَهورٌ",
-                  category: "tashkeel",
-                },
-              ],
-            }),
+            text: PAGE.replace("الماء طهور", "الماءُ طَهورٌ"),
           },
         ],
         stop_reason: "end_turn",
