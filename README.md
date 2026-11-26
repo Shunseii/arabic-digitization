@@ -188,8 +188,12 @@ Publishing a GitHub release with a version tag runs the **release** workflow
 (`.github/workflows/release.yml`):
 
 ```bash
-gh release create v0.6.0 --title "v0.6.0" --notes "What changed"
+scripts/set-version.sh 0.6.5 && git commit -am "chore: release 0.6.5" && git push
+gh release create v0.6.5 --title "v0.6.5" --notes "What changed"
 ```
+
+`set-version.sh` keeps every `package.json` on the release version; a
+version-only change never counts as an app change below.
 
 - **Desktop:** builds the Windows `.exe` and Linux `.deb` / `.AppImage` with
   the tag's version, attaches them to that release, and recreates the rolling

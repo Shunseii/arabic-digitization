@@ -86,7 +86,13 @@ jobs:
           changed() {
             base=$1; shift
             if [ -z "$base" ]; then echo true; return; fi
-            if git diff --quiet "$base" "$TAG" -- "$@"; then echo false; else echo true; fi
+            # A release's version bump alone doesn't count as a change.
+            if git diff "$base" "$TAG" -- "$@" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' \
+                 | grep -vqE '^[+-][[:space:]]*"version": '; then
+              echo true
+            else
+              echo false
+            fi
           }
           shared=(packages/shared package.json pnpm-lock.yaml pnpm-workspace.yaml)
           desktop_base=$(last_with '\.AppImage$')

@@ -1,6 +1,6 @@
 {
   "name": "@qiraa/cli",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "private": true,
   "type": "module",
   "description": "corpus: command-line access to the Arabic digitization API and search, with credentials in the OS keychain",
