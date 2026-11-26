@@ -196,9 +196,13 @@ gh release create v0.6.0 --title "v0.6.0" --notes "What changed"
   **`desktop-latest`** release.
 - **Mobile:** publishes an over-the-air update to the EAS `preview` channel,
   with the first line of the notes as its message. If native code changed since
-  the previous `v*` release (compared by Expo fingerprint, recorded on each
-  release as `mobile-fingerprint.json`), the OTA job fails instead: bump the
+  the last release that published an OTA (compared by Expo fingerprint,
+  recorded on that release as `mobile-fingerprint.json`), the OTA job fails instead: bump the
   app version, run an EAS build, then release again.
+- **Skipped when unchanged:** desktop runs only if `apps/desktop/`,
+  `packages/shared/` or the root package files changed since the last release
+  that shipped desktop installers; mobile likewise for `apps/mobile/` since the
+  last release that published an OTA. The CLI always builds.
 - Needs the `EXPO_TOKEN` repository secret. The API deploy and remote D1
   migrations stay manual.
 

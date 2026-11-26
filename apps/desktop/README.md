@@ -71,6 +71,8 @@ The workflow stamps the tag's version into `apps/desktop/package.json` for the
 build (nothing is committed back), builds the Windows + Linux installers,
 attaches them to that release, and recreates the rolling **`desktop-latest`**
 release (stable download URL). The same run publishes the mobile OTA update.
+Each app is skipped when nothing it's built from changed since the last
+release that shipped it.
 
 There is no auto-updater and no code signing yet — users download the installer
 from the release page.

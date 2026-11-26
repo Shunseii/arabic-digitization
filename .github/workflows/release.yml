@@ -7,6 +7,8 @@ name: release
 #   - mobile: publishes an over-the-air update to the EAS `preview` channel,
 #     unless native code changed since the last release (then it fails and asks
 #     for a new EAS build, because an OTA can't carry native changes);
+#   - desktop and mobile are skipped when nothing they're built from changed
+#     since the last release that shipped them (see `prepare`);
 #   - cli: compiles the `corpus` CLI with Bun for Linux, macOS and Windows and
 #     uploads the binaries, their checksums, and the install.sh / install.ps1
 #     one-line installers to that release.
@@ -39,6 +41,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      desktop: ${{ steps.changes.outputs.desktop }}
+      mobile: ${{ steps.changes.outputs.mobile }}
+      mobile_base: ${{ steps.changes.outputs.mobile_base }}
     steps:
       - name: Read the version from the tag
         id: version
@@ -52,8 +57,52 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      # Compare with the last release that actually shipped each app (the one
+      # holding its assets), not just the previous tag, so a skipped or failed
+      # release never hides a change from the next one.
+      - name: Decide which apps changed
+        id: changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git fetch --tags --force --quiet
+          releases=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 \
+                       --json tagName,isDraft --jq '.[] | select(.isDraft | not) | .tagName' \
+                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$TAG" || true)
+          last_with() {
+            for tag in $releases; do
+              if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+                   --jq '.assets[].name' | grep -qE "$1"; then
+                echo "$tag"; return
+              fi
+            done
+          }
+          changed() {
+            base=$1; shift
+            if [ -z "$base" ]; then echo true; return; fi
+            if git diff --quiet "$base" "$TAG" -- "$@"; then echo false; else echo true; fi
+          }
+          shared=(packages/shared package.json pnpm-lock.yaml pnpm-workspace.yaml)
+          desktop_base=$(last_with '\.AppImage$')
+          mobile_base=$(last_with '^mobile-fingerprint\.json$')
+          desktop=$(changed "$desktop_base" apps/desktop "${shared[@]}")
+          mobile=$(changed "$mobile_base" apps/mobile "${shared[@]}")
+          echo "desktop: $desktop (since ${desktop_base:-none}) · mobile: $mobile (since ${mobile_base:-none})"
+          {
+            echo "desktop=$desktop"
+            echo "mobile=$mobile"
+            echo "mobile_base=$mobile_base"
+          } >> "$GITHUB_OUTPUT"
+
   desktop:
     needs: prepare
+    if: needs.prepare.outputs.desktop == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -186,11 +235,13 @@ jobs:
 
   mobile-ota:
     needs: prepare
+    if: needs.prepare.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG: ${{ github.event.release.tag_name }}
+      PREV: ${{ needs.prepare.outputs.mobile_base }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -210,7 +261,7 @@ jobs:
 
       # An OTA only reaches builds with the same runtime version (app.json
       # uses the appVersion policy), and it can't carry native changes. Compare
-      # the native fingerprint with the one the previous release recorded.
+      # the native fingerprint with the one the last OTA release recorded.
       - name: Check for native changes since the last release
         working-directory: apps/mobile
         run: |
@@ -224,18 +275,13 @@ jobs:
             > /tmp/mobile-fingerprint.json
           cat /tmp/mobile-fingerprint.json
 
-          PREV=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 \
-                   --json tagName,isDraft --jq '.[] | select(.isDraft | not) | .tagName' \
-                 | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$TAG" | head -1 || true)
+          # PREV is the last release that published an OTA (prepare found it).
           if [ -z "$PREV" ]; then
-            echo "::warning::No earlier v* release to compare with; publishing and recording this fingerprint as the baseline."
+            echo "::warning::No earlier release published an OTA; publishing and recording this fingerprint as the baseline."
             exit 0
           fi
-          if ! gh release download "$PREV" --repo "$GITHUB_REPOSITORY" \
-                 --pattern mobile-fingerprint.json --dir /tmp/prev 2>/dev/null; then
-            echo "::warning::$PREV has no mobile-fingerprint.json; publishing and recording a baseline."
-            exit 0
-          fi
+          gh release download "$PREV" --repo "$GITHUB_REPOSITORY" \
+            --pattern mobile-fingerprint.json --dir /tmp/prev
           if ! cmp -s /tmp/prev/mobile-fingerprint.json /tmp/mobile-fingerprint.json; then
             echo "::error::Native code changed since $PREV. An OTA can't ship this: bump the app version, run an EAS build (preview profile), then release again."
             exit 1
