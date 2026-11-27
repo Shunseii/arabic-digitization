@@ -117,6 +117,68 @@ export async function upsertDocs({
   return task.taskUid;
 }
 
+// A Meili filter matching one exact value, quoted so ids can't break the syntax.
+export const filterEquals = ({
+  attribute,
+  value,
+}: {
+  attribute: "book_id" | "work_id";
+  value: string;
+}): string => `${attribute} = "${value.replace(/["\\]/g, "\\$&")}"`;
+
+// The search fields copied from a book and its work onto every chunk.
+export type DenormalizedFields = Partial<
+  Pick<SearchDoc, "book_title" | "work_id" | "work_name" | "author" | "tags">
+>;
+
+const FETCH_PAGE = 1000;
+
+// Ids of every chunk matching a filter. Fetches only the `id` field.
+async function fetchDocIds({
+  env,
+  filter,
+}: {
+  env: MeiliEnv;
+  filter: string;
+}): Promise<string[]> {
+  const ids: string[] = [];
+  for (let offset = 0; ; offset += FETCH_PAGE) {
+    const page = (await meili({
+      env,
+      method: "POST",
+      path: `/indexes/${INDEX}/documents/fetch`,
+      body: { filter, fields: ["id"], limit: FETCH_PAGE, offset },
+    })) as { results: { id: string }[] };
+    ids.push(...page.results.map((r) => r.id));
+    if (page.results.length < FETCH_PAGE) return ids;
+  }
+}
+
+// Set the given fields on every chunk matching `filter`, leaving the text and
+// everything else as is. No page is re-read from R2 and nothing is re-embedded
+// (the embedder only reads `text`). `skipCreation` (Meili >= 1.31) keeps a chunk
+// that a concurrent page reindex just deleted from coming back as a stub.
+// Returns Meili's async taskUid, or null when no chunk matched.
+export async function patchDocsByFilter({
+  env,
+  filter,
+  fields,
+}: {
+  env: MeiliEnv;
+  filter: string;
+  fields: DenormalizedFields;
+}): Promise<number | null> {
+  const ids = await fetchDocIds({ env, filter });
+  if (ids.length === 0) return null;
+  const task = (await meili({
+    env,
+    method: "PUT",
+    path: `/indexes/${INDEX}/documents?skipCreation=true`,
+    body: ids.map((id) => ({ id, ...fields })),
+  })) as { taskUid: number };
+  return task.taskUid;
+}
+
 // Delete every chunk of one page. Called before re-indexing a page — chunk count
 // can change between OCR runs, so stale `file_id#N` docs must be cleared first.
 // Tasks are FIFO, so enqueueing this before upsertDocs guarantees ordering.

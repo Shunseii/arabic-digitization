@@ -4,7 +4,7 @@ import { type EndpointHandler, WorkerContext } from "../http/context";
 import { NotFound, notFound } from "../http/errors";
 import { respond } from "../http/respond";
 import { deleteBook } from "../lib/deleteBook";
-import { reindexBook } from "../lib/reindex";
+import { clearWorkFields } from "../lib/reindex";
 import { WorkDeleteMode } from "../types";
 
 // Delete a work. Two modes for its copies (books):
@@ -67,18 +67,16 @@ export const workDelete: EndpointHandler<typeof WorkDelete> = ({
         return deleted;
       }
 
-      // Unlink: copies survive, flattened. Clear the FK, then reindex each so its
-      // denormalized work fields (work_name/author/tags) drop from search.
+      // Unlink: copies survive, flattened. Clear the FK, then clear the copied
+      // work fields (work_name/author/tags) from their search chunks.
       await env.DB.prepare("UPDATE books SET work_id = NULL WHERE work_id = ?")
         .bind(params.workId)
         .run();
-      if (env.MEILI_URL && env.MEILI_KEY) {
-        for (const b of copies) {
-          try {
-            await reindexBook({ env, bookId: b.id });
-          } catch (err) {
-            console.error(`search reindex failed for book ${b.id}: ${err}`);
-          }
+      if (env.MEILI_URL && env.MEILI_KEY && copies.length > 0) {
+        try {
+          await clearWorkFields({ env, workId: params.workId });
+        } catch (err) {
+          console.error(`search sync failed for work ${params.workId}: ${err}`);
         }
       }
       return copies.length;

@@ -26,6 +26,8 @@ export interface FakeMeili {
   url: string;
   calls: { method: string; path: string; body: unknown }[];
   failing: boolean;
+  // Chunk ids that POST /documents/fetch returns, whatever the filter.
+  docIds: string[];
 }
 
 export interface Harness {
@@ -52,24 +54,38 @@ async function startFakeMeili(): Promise<{
   meili: FakeMeili;
   server: Server;
 }> {
-  const meili: FakeMeili = { url: "", calls: [], failing: false };
+  const meili: FakeMeili = {
+    url: "",
+    calls: [],
+    failing: false,
+    docIds: [],
+  };
   const server = createServer((req, res) => {
     let raw = "";
     req.on("data", (chunk) => {
       raw += chunk;
     });
     req.on("end", () => {
+      const body = raw ? JSON.parse(raw) : null;
       meili.calls.push({
         method: req.method ?? "",
         path: req.url ?? "",
-        body: raw ? JSON.parse(raw) : null,
+        body,
       });
       res.writeHead(meili.failing ? 500 : 202, {
         "content-type": "application/json",
       });
-      res.end(
-        JSON.stringify(meili.failing ? { message: "down" } : { taskUid: 1 }),
-      );
+      if (meili.failing) {
+        res.end(JSON.stringify({ message: "down" }));
+      } else if (req.url?.endsWith("/documents/fetch")) {
+        const { offset = 0, limit = 20 } = body ?? {};
+        const results = meili.docIds
+          .slice(offset, offset + limit)
+          .map((id) => ({ id }));
+        res.end(JSON.stringify({ results, offset, limit }));
+      } else {
+        res.end(JSON.stringify({ taskUid: 1 }));
+      }
     });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

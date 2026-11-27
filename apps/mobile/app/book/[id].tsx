@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import {
+  type BookUpdateBody,
   type BookWithStatus,
   DEFAULT_REVIEW_COST_PER_PAGE_USD,
   type FileState,
@@ -259,15 +260,19 @@ export default function BookScreen() {
   };
 
   const saveBook = useMutation({
-    mutationFn: async () =>
-      api.updateBook({
-        id,
-        body: {
-          title: bookTitle.trim(),
-          ocr_instructions: bookInstructions.trim() || null,
-          work_id: await resolveWorkId(),
-        },
-      }),
+    mutationFn: async () => {
+      const title = bookTitle.trim();
+      const instructions = bookInstructions.trim() || null;
+      const workId = await resolveWorkId();
+      const body: BookUpdateBody = {
+        ...(title !== book?.title && { title }),
+        ...(instructions !== (book?.ocr_instructions ?? null) && {
+          ocr_instructions: instructions,
+        }),
+        ...(workId !== (book?.work_id ?? null) && { work_id: workId }),
+      };
+      if (Object.keys(body).length > 0) await api.updateBook({ id, body });
+    },
     onSuccess: () => {
       for (const key of ["book", "books", "works", "work"])
         queryClient.invalidateQueries({ queryKey: [key] });

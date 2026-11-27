@@ -662,9 +662,10 @@ describe("books", () => {
     });
   });
 
-  it("updates a book and reindexes it when its title changes", async () => {
+  it("updates a book and patches its search chunks when its title changes", async () => {
     await seedBook({ h, id: "upd-1", title: "Before", createdAt: 55 });
     h.meili.calls.length = 0;
+    h.meili.docIds = ["f1_0", "f1_1"];
     const response = await postJson({
       h,
       method: "PATCH",
@@ -690,9 +691,61 @@ describe("books", () => {
         review_effort: null,
       },
     });
-    expect(h.meili.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-      "POST /indexes/books/documents/delete",
+    h.meili.docIds = [];
+    expect(h.meili.calls).toEqual([
+      {
+        method: "POST",
+        path: "/indexes/books/documents/fetch",
+        body: {
+          filter: 'book_id = "upd-1"',
+          fields: ["id"],
+          limit: 1000,
+          offset: 0,
+        },
+      },
+      {
+        method: "PUT",
+        path: "/indexes/books/documents?skipCreation=true",
+        body: ["f1_0", "f1_1"].map((id) => ({
+          id,
+          book_title: "After",
+          work_id: null,
+          work_name: null,
+          author: null,
+          tags: [],
+        })),
+      },
     ]);
+  });
+
+  it("pages through more than 1000 chunks when patching a book", async () => {
+    await seedBook({ h, id: "upd-big", title: "Before" });
+    h.meili.calls.length = 0;
+    h.meili.docIds = Array.from({ length: 1001 }, (_, i) => `big_${i}`);
+    await postJson({
+      h,
+      method: "PATCH",
+      path: "/api/books/upd-big",
+      body: { title: "After" },
+    });
+    h.meili.docIds = [];
+    const [first, second, put] = h.meili.calls;
+    expect(first?.body).toMatchObject({ offset: 0 });
+    expect(second?.body).toMatchObject({ offset: 1000 });
+    expect((put?.body as unknown[]).length).toBe(1001);
+  });
+
+  it("leaves search alone when a save resends the same title", async () => {
+    await seedBook({ h, id: "upd-same", title: "Same" });
+    h.meili.calls.length = 0;
+    const response = await postJson({
+      h,
+      method: "PATCH",
+      path: "/api/books/upd-same",
+      body: { title: "Same", work_id: null },
+    });
+    expect(response.status).toBe(200);
+    expect(h.meili.calls).toEqual([]);
   });
 
   it("clears nullable book fields without reindexing", async () => {
@@ -1519,6 +1572,7 @@ describe("works and tags", () => {
     await seedWork({ h, id: "w-upd", createdAt: 88, tags: ["old"] });
     await seedBook({ h, id: "w-upd-copy", workId: "w-upd" });
     h.meili.calls.length = 0;
+    h.meili.docIds = ["wc_0"];
     const response = await postJson({
       h,
       method: "PATCH",
@@ -1536,8 +1590,23 @@ describe("works and tags", () => {
         tags: ["new"],
       },
     });
-    expect(h.meili.calls.map((c) => c.path)).toEqual([
-      "/indexes/books/documents/delete",
+    h.meili.docIds = [];
+    expect(h.meili.calls.map((c) => [c.method, c.path, c.body])).toEqual([
+      [
+        "POST",
+        "/indexes/books/documents/fetch",
+        {
+          filter: 'work_id = "w-upd"',
+          fields: ["id"],
+          limit: 1000,
+          offset: 0,
+        },
+      ],
+      [
+        "PUT",
+        "/indexes/books/documents?skipCreation=true",
+        [{ id: "wc_0", work_name: "Renamed", author: "A", tags: ["new"] }],
+      ],
     ]);
     const cleared = await postJson({
       h,
@@ -1575,7 +1644,35 @@ describe("works and tags", () => {
   it("deletes a work, unlinking its copies by default", async () => {
     await seedWork({ h, id: "w-del", tags: ["t"] });
     await seedBook({ h, id: "w-del-copy", workId: "w-del" });
+    h.meili.calls.length = 0;
+    h.meili.docIds = ["wd_0"];
     const response = await h.api("/api/works/w-del", { method: "DELETE" });
+    h.meili.docIds = [];
+    expect(h.meili.calls.map((c) => [c.method, c.path, c.body])).toEqual([
+      [
+        "POST",
+        "/indexes/books/documents/fetch",
+        {
+          filter: 'work_id = "w-del"',
+          fields: ["id"],
+          limit: 1000,
+          offset: 0,
+        },
+      ],
+      [
+        "PUT",
+        "/indexes/books/documents?skipCreation=true",
+        [
+          {
+            id: "wd_0",
+            work_id: null,
+            work_name: null,
+            author: null,
+            tags: [],
+          },
+        ],
+      ],
+    ]);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       success: true,

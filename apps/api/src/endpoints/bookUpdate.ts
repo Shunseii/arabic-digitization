@@ -3,7 +3,7 @@ import { HttpApiEndpoint, OpenApi } from "effect/http-api";
 import { type EndpointHandler, WorkerContext } from "../http/context";
 import { NotFound, notFound } from "../http/errors";
 import { respond } from "../http/respond";
-import { reindexBook } from "../lib/reindex";
+import { syncBookFields } from "../lib/reindex";
 import type { ReviewEffort } from "../review/message";
 import { Book, BookUpdateBody, type OcrEngine } from "../types";
 
@@ -30,6 +30,15 @@ export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
 }) =>
   Effect.gen(function* () {
     const { env } = yield* WorkerContext;
+
+    const before = yield* Effect.promise(() =>
+      env.DB.prepare("SELECT title, work_id FROM books WHERE id = ?")
+        .bind(params.bookId)
+        .first<{ title: string; work_id: string | null }>(),
+    );
+    if (!before) {
+      return yield* notFound(`Book '${params.bookId}' not found`);
+    }
 
     // Build the SET clause from only the provided fields.
     const sets: string[] = [];
@@ -59,29 +68,27 @@ export const bookUpdate: EndpointHandler<typeof BookUpdate> = ({
       binds.push(body.review_effort); // null resets to the default effort
     }
 
-    const result = yield* Effect.promise(() =>
-      env.DB.prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = ?`)
-        .bind(...binds, params.bookId)
-        .run(),
-    );
-    if (result.meta.changes === 0) {
-      return yield* notFound(`Book '${params.bookId}' not found`);
+    if (sets.length > 0) {
+      yield* Effect.promise(() =>
+        env.DB.prepare(`UPDATE books SET ${sets.join(", ")} WHERE id = ?`)
+          .bind(...binds, params.bookId)
+          .run(),
+      );
     }
 
-    // Both title (indexed as book_title) and work_id (drives work_name/author/
-    // tags) are denormalized onto this book's search docs — reindex to resync.
-    // Best-effort: search staleness must not fail the write (reindex is the
-    // backstop). Only when Meili is configured and a denormalized field moved.
+    // Title (book_title) and work_id (work_name/author/tags) are copied onto
+    // this book's search chunks; patch them in place when one actually changed.
+    // Best-effort: search staleness must not fail the write
+    // (POST /api/search/reindex is the backstop).
     const denormChanged =
-      body.title !== undefined || body.work_id !== undefined;
+      (body.title !== undefined && body.title !== before.title) ||
+      (body.work_id !== undefined && body.work_id !== before.work_id);
     if (denormChanged && env.MEILI_URL && env.MEILI_KEY) {
       yield* Effect.promise(async () => {
         try {
-          await reindexBook({ env, bookId: params.bookId });
+          await syncBookFields({ env, bookId: params.bookId });
         } catch (err) {
-          console.error(
-            `search reindex failed for book ${params.bookId}: ${err}`,
-          );
+          console.error(`search sync failed for book ${params.bookId}: ${err}`);
         }
       });
     }

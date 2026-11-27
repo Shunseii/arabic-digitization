@@ -3,7 +3,7 @@ import { HttpApiEndpoint, OpenApi } from "effect/http-api";
 import { type EndpointHandler, WorkerContext } from "../http/context";
 import { NotFound, notFound } from "../http/errors";
 import { respond } from "../http/respond";
-import { reindexWork } from "../lib/reindex";
+import { syncWorkFields } from "../lib/reindex";
 import { getWorkTags, setWorkTags } from "../lib/tags";
 import { Work, WorkUpdateBody } from "../types";
 
@@ -56,17 +56,15 @@ export const workUpdate: EndpointHandler<typeof WorkUpdate> = ({
       );
     }
 
-    // name/author/tags are all denormalized onto every chunk of this work's
-    // copies — reindex them so search facets/hits reflect the edit. Best-effort:
+    // name/author/tags are copied onto every chunk of this work's copies —
+    // patch them in place so search facets/hits reflect the edit. Best-effort:
     // staleness must not fail the write (POST /api/search/reindex is the backstop).
     if (env.MEILI_URL && env.MEILI_KEY) {
       yield* Effect.promise(async () => {
         try {
-          await reindexWork({ env, workId: params.workId });
+          await syncWorkFields({ env, workId: params.workId });
         } catch (err) {
-          console.error(
-            `search reindex failed for work ${params.workId}: ${err}`,
-          );
+          console.error(`search sync failed for work ${params.workId}: ${err}`);
         }
       });
     }

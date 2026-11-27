@@ -1,12 +1,14 @@
 // Rebuild Meilisearch documents from the source of truth (R2 transcriptions),
 // joining in work-level fields (name/author/tags) that are denormalized onto
-// every chunk. Shared by POST /api/search/reindex and the work-edit hook that
-// keeps those denormalized fields fresh when a work is renamed/retagged or a
-// copy is (re)assigned.
+// every chunk. Used by POST /api/search/reindex. Edits that only change those
+// copied fields (book rename, work edit, copy (re)assigned) patch them in place
+// instead — see "Field sync" below.
 
 import {
   buildPageDocs,
   deleteDocsByBook,
+  filterEquals,
+  patchDocsByFilter,
   type SearchDoc,
   upsertDocs,
 } from "./meili";
@@ -129,22 +131,83 @@ export async function reindexBook({
   return { indexed: docs.length, taskUid };
 }
 
-// Reindex every book scoped to one work — the work-edit / (re)assign hook. Each
-// book is cleared+rebuilt independently so a reassigned copy that left this work
-// isn't the caller's concern (its own reindex handles it).
-export async function reindexWork({
+// --- Field sync: update the copied book/work fields in place ---
+//
+// A rename or a work change only touches the fields copied onto each chunk, so
+// these patch those fields on the existing chunks instead of rebuilding them.
+// Full rebuilds (reindexBook) stay for new or changed page text.
+
+// Push a book's current title and work fields onto all of its chunks.
+export async function syncBookFields({
+  env,
+  bookId,
+}: {
+  env: Env;
+  bookId: string;
+}): Promise<number | null> {
+  const book = await env.DB.prepare(
+    `SELECT b.title, b.work_id, w.name AS work_name, w.author
+       FROM books b LEFT JOIN works w ON b.work_id = w.id
+      WHERE b.id = ?`,
+  )
+    .bind(bookId)
+    .first<{
+      title: string;
+      work_id: string | null;
+      work_name: string | null;
+      author: string | null;
+    }>();
+  if (!book) return null;
+  const tags = book.work_id
+    ? ((await tagsByWork({ env, workIds: [book.work_id] })).get(book.work_id) ??
+      [])
+    : [];
+  return patchDocsByFilter({
+    env,
+    filter: filterEquals({ attribute: "book_id", value: bookId }),
+    fields: {
+      book_title: book.title,
+      work_id: book.work_id,
+      work_name: book.work_name,
+      author: book.author,
+      tags,
+    },
+  });
+}
+
+// Push a work's current name, author and tags onto every chunk of its copies.
+export async function syncWorkFields({
   env,
   workId,
 }: {
   env: Env;
   workId: string;
-}): Promise<void> {
-  const { results } = await env.DB.prepare(
-    "SELECT id FROM books WHERE work_id = ?",
+}): Promise<number | null> {
+  const work = await env.DB.prepare(
+    "SELECT name, author FROM works WHERE id = ?",
   )
     .bind(workId)
-    .all<{ id: string }>();
-  for (const b of results) {
-    await reindexBook({ env, bookId: b.id });
-  }
+    .first<{ name: string; author: string | null }>();
+  if (!work) return null;
+  const tags = (await tagsByWork({ env, workIds: [workId] })).get(workId) ?? [];
+  return patchDocsByFilter({
+    env,
+    filter: filterEquals({ attribute: "work_id", value: workId }),
+    fields: { work_name: work.name, author: work.author, tags },
+  });
+}
+
+// Clear the work fields from every chunk still tagged with a deleted work.
+export async function clearWorkFields({
+  env,
+  workId,
+}: {
+  env: Env;
+  workId: string;
+}): Promise<number | null> {
+  return patchDocsByFilter({
+    env,
+    filter: filterEquals({ attribute: "work_id", value: workId }),
+    fields: { work_id: null, work_name: null, author: null, tags: [] },
+  });
 }
