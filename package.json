@@ -1,6 +1,6 @@
 {
   "name": "qiraa",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "private": true,
   "packageManager": "pnpm@11.5.0",
   "scripts": {
